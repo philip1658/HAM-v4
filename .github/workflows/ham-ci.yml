@@ -1,0 +1,109 @@
+name: HAM CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up build environment
+      run: |
+        brew install cmake
+        
+    - name: Download JUCE
+      run: |
+        git clone --depth 1 --branch 8.0.4 https://github.com/juce-framework/JUCE.git
+        
+    - name: Configure CMake
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+        
+    - name: Build
+      run: |
+        cd build
+        make -j$(sysctl -n hw.ncpu)
+        
+    - name: Run Unit Tests
+      run: |
+        cd build
+        ctest --output-on-failure
+        
+    - name: Run Performance Tests
+      run: |
+        cd Tests/Scripts
+        ./test_performance.sh --quick
+        
+    - name: Generate Test Report
+      if: always()
+      run: |
+        echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "Build: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+        
+    - name: Upload Test Evidence
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-evidence
+        path: |
+          Tests/Evidence/
+          *.log
+          
+  visual-regression:
+    runs-on: macos-latest
+    needs: build-and-test
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Capture Screenshots
+      run: |
+        # Will be implemented when UI is ready
+        echo "Screenshot tests placeholder"
+        
+    - name: Compare Screenshots
+      run: |
+        # Compare against baseline images
+        echo "Visual regression placeholder"
+        
+  performance-regression:
+    runs-on: macos-latest
+    needs: build-and-test
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run Performance Benchmarks
+      run: |
+        cd Tests/Scripts
+        ./test_performance.sh --cpu > cpu_report.txt
+        ./test_performance.sh --memory > memory_report.txt
+        ./test_performance.sh --timing > timing_report.txt
+        
+    - name: Check Performance Regression
+      run: |
+        # Parse reports and check against thresholds
+        if grep -q "FAIL" cpu_report.txt; then
+          echo "❌ CPU performance regression detected" >> $GITHUB_STEP_SUMMARY
+          exit 1
+        fi
+        
+        if grep -q "FAIL" memory_report.txt; then
+          echo "❌ Memory performance regression detected" >> $GITHUB_STEP_SUMMARY
+          exit 1
+        fi
+        
+        if grep -q "FAIL" timing_report.txt; then
+          echo "❌ Timing performance regression detected" >> $GITHUB_STEP_SUMMARY
+          exit 1
+        fi
+        
+        echo "✅ No performance regressions detected" >> $GITHUB_STEP_SUMMARY
