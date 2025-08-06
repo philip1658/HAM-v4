@@ -1,0 +1,61 @@
+# Build directories
+build/
+cmake-build-*/
+.build/
+*.build/
+
+# macOS
+.DS_Store
+*.dSYM
+
+# IDE
+.vscode/
+.idea/
+*.xcodeproj/
+*.xcworkspace/
+DerivedData/
+
+# JUCE
+JuceLibraryCode/
+Builds/
+
+# Binaries
+*.app
+*.vst3
+*.component
+*.au
+*.dylib
+
+# Test artifacts
+Tests/Evidence/
+*.trace
+*.log
+*.prof
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
+.last_successful_daily_test
+
+# Dependencies
+Dependencies/
+libs/
+
+# User-specific
+*.user
+*.suo
+
+# Audio files (large)
+*.wav
+*.aiff
+*.mp3
+*.flac
+
+# Plugin states (can be large)
+plugin_states/*.bin
+
+# Performance traces
+Instruments/
+*.memgraph
