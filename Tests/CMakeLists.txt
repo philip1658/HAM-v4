@@ -262,3 +262,38 @@ target_link_libraries(MidiRouterTests PRIVATE
 )
 
 add_test(NAME MidiRouterTests COMMAND MidiRouterTests)
+
+# ChannelManager Tests
+juce_add_console_app(ChannelManagerTests
+    PRODUCT_NAME "ChannelManagerTests"
+)
+
+juce_generate_juce_header(ChannelManagerTests)
+
+target_sources(ChannelManagerTests PRIVATE
+    ChannelManagerTests.cpp
+    ../Source/Domain/Services/ChannelManager.cpp
+    ../Source/Domain/Services/ChannelManager.h
+)
+
+target_compile_definitions(ChannelManagerTests PRIVATE
+    JUCE_UNIT_TESTS=1
+    JUCE_USE_CURL=0
+    JUCE_MODAL_LOOPS_PERMITTED=0
+    JUCE_STRICT_REFCOUNTEDPOINTER=1
+)
+
+target_include_directories(ChannelManagerTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/Source
+)
+
+target_link_libraries(ChannelManagerTests PRIVATE
+    juce::juce_core
+    juce::juce_data_structures
+    juce::juce_events
+    juce::juce_audio_basics
+    juce::juce_recommended_config_flags
+    juce::juce_recommended_warning_flags
+)
+
+add_test(NAME ChannelManagerTests COMMAND ChannelManagerTests)
