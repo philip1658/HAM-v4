@@ -18,7 +18,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # Options
-option(HAM_BUILD_TESTS "Build unit tests" OFF)
+option(HAM_BUILD_TESTS "Build unit tests" ON)
 option(DEBUG_MIDI_MONITOR "Enable MIDI debug monitor on channel 16" OFF)
 
 # Download JUCE if not found
@@ -54,11 +54,45 @@ juce_add_gui_app(HAM
 # Generate JUCE header
 juce_generate_juce_header(HAM)
 
-# Source files - Phase 1.1 Minimal
+# Source files - Phase 1.2 Domain Models
 target_sources(HAM PRIVATE
     Source/Main.cpp
     Source/MainComponent.cpp
     Source/MainComponent.h
+    
+    # Domain Models
+    Source/Domain/Models/Stage.h
+    Source/Domain/Models/Stage.cpp
+    Source/Domain/Models/Track.h
+    Source/Domain/Models/Track.cpp
+    Source/Domain/Models/Pattern.h
+    Source/Domain/Models/Pattern.cpp
+    Source/Domain/Models/Scale.h
+    Source/Domain/Models/Scale.cpp
+    
+    # Clock System
+    Source/Domain/Clock/MasterClock.h
+    Source/Domain/Clock/MasterClock.cpp
+    Source/Domain/Clock/AsyncPatternEngine.h
+    Source/Domain/Clock/AsyncPatternEngine.cpp
+    
+    # Transport & Sync
+    Source/Domain/Transport/Transport.h
+    Source/Domain/Transport/Transport.cpp
+    Source/Domain/Transport/SyncManager.h
+    Source/Domain/Transport/SyncManager.cpp
+    
+    # Engine - Voice Management
+    Source/Engine/Voice/VoiceManager.h
+    Source/Engine/Voice/VoiceManager.cpp
+    
+    # Engines - Sequencer
+    Source/Domain/Engines/SequencerEngine.h
+    Source/Domain/Engines/SequencerEngine.cpp
+    
+    # Services - MIDI Router
+    Source/Domain/Services/MidiRouter.h
+    Source/Domain/Services/MidiRouter.cpp
 )
 
 # Compile definitions
