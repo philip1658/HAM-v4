@@ -101,6 +101,20 @@ target_sources(HAM PRIVATE
     # Engines - Gate Engine
     Source/Domain/Engines/GateEngine.h
     Source/Domain/Engines/GateEngine.cpp
+    
+    # Engines - Pitch Engine
+    Source/Domain/Engines/PitchEngine.h
+    Source/Domain/Engines/PitchEngine.cpp
+    
+    # Engines - Accumulator Engine
+    Source/Domain/Engines/AccumulatorEngine.h
+    Source/Domain/Engines/AccumulatorEngine.cpp
+    
+    # UI Components
+    Source/UI/ComponentShowcase.h
+    Source/UI/ComponentShowcase.cpp
+    Source/UI/PulseComponentLibrary.h
+    Source/UI/PulseComponentLibrary.cpp
 )
 
 # Compile definitions
