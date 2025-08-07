@@ -125,6 +125,12 @@ public:
     void setGateType(GateType type) { m_gateType = type; }
     GateType getGateType() const { return m_gateType; }
     
+    // Overload for int (for GateEngine compatibility)
+    void setGateType(int type) { 
+        m_gateType = static_cast<GateType>(juce::jlimit(0, 3, type)); 
+    }
+    int getGateTypeAsInt() const { return static_cast<int>(m_gateType); }
+    
     /** Enable/disable gate stretching (distributes ratchets evenly) */
     void setGateStretching(bool enabled) { m_gateStretching = enabled; }
     bool isGateStretching() const { return m_gateStretching; }
@@ -139,6 +145,10 @@ public:
     /** Skip this stage on certain conditions */
     void setSkipOnFirstLoop(bool skip) { m_skipOnFirstLoop = skip; }
     bool shouldSkipOnFirstLoop() const { return m_skipOnFirstLoop; }
+    
+    /** Swing amount for this stage (-0.5 to +0.5) */
+    void setSwing(float swing) { m_swing = juce::jlimit(-0.5f, 0.5f, swing); }
+    float getSwing() const { return m_swing; }
     
     /** Set skip probability (0-1, 0=never skip, 1=always skip) */
     void setSkipProbability(float probability) { m_skipProbability = juce::jlimit(0.0f, 1.0f, probability); }
@@ -204,9 +214,10 @@ private:
     float m_ratchetProbability = 1.0f;  // Always trigger ratchets by default
     
     // Probability and conditions
-    float m_probability = 100.0f;          // Always play by default
+    float m_probability = 1.0f;            // Always play by default (0-1 range)
     bool m_skipOnFirstLoop = false;
     float m_skipProbability = 0.0f;        // Never skip by default
+    float m_swing = 0.0f;                  // No swing by default
     SkipCondition m_skipCondition = SkipCondition::NEVER;
     
     // Slide/glide

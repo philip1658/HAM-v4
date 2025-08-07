@@ -93,6 +93,14 @@ target_sources(HAM PRIVATE
     # Services - MIDI Router
     Source/Domain/Services/MidiRouter.h
     Source/Domain/Services/MidiRouter.cpp
+    
+    # Services - Channel Manager
+    Source/Domain/Services/ChannelManager.h
+    Source/Domain/Services/ChannelManager.cpp
+    
+    # Engines - Gate Engine
+    Source/Domain/Engines/GateEngine.h
+    Source/Domain/Engines/GateEngine.cpp
 )
 
 # Compile definitions

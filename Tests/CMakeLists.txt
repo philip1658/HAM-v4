@@ -297,3 +297,47 @@ target_link_libraries(ChannelManagerTests PRIVATE
 )
 
 add_test(NAME ChannelManagerTests COMMAND ChannelManagerTests)
+
+# GateEngine Tests
+juce_add_console_app(GateEngineTests
+    PRODUCT_NAME "GateEngineTests"
+)
+
+juce_generate_juce_header(GateEngineTests)
+
+target_sources(GateEngineTests PRIVATE
+    GateEngineTests.cpp
+    ../Source/Domain/Engines/GateEngine.cpp
+    ../Source/Domain/Engines/GateEngine.h
+    ../Source/Domain/Models/Stage.cpp
+    ../Source/Domain/Models/Stage.h
+    ../Source/Domain/Models/Track.cpp
+    ../Source/Domain/Models/Track.h
+    ../Source/Domain/Models/Pattern.cpp
+    ../Source/Domain/Models/Pattern.h
+    ../Source/Domain/Models/Scale.cpp
+    ../Source/Domain/Models/Scale.h
+)
+
+target_compile_definitions(GateEngineTests PRIVATE
+    JUCE_UNIT_TESTS=1
+    JUCE_USE_CURL=0
+    JUCE_MODAL_LOOPS_PERMITTED=0
+    JUCE_STRICT_REFCOUNTEDPOINTER=1
+)
+
+target_include_directories(GateEngineTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/Source
+)
+
+target_link_libraries(GateEngineTests PRIVATE
+    juce::juce_core
+    juce::juce_data_structures
+    juce::juce_events
+    juce::juce_audio_basics
+    juce::juce_graphics
+    juce::juce_recommended_config_flags
+    juce::juce_recommended_warning_flags
+)
+
+add_test(NAME GateEngineTests COMMAND GateEngineTests)
