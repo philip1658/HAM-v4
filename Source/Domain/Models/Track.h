@@ -47,7 +47,8 @@ enum class AccumulatorMode
     OFF,        // No accumulation
     STAGE,      // Accumulate on stage advance
     PULSE,      // Accumulate on pulse advance
-    RATCHET     // Accumulate on ratchet trigger
+    RATCHET,    // Accumulate on ratchet trigger
+    PENDULUM    // Ping-pong accumulation
 };
 
 //==============================================================================

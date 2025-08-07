@@ -136,6 +136,17 @@ public:
     bool isGateStretching() const { return m_gateStretching; }
     
     //==========================================================================
+    // Pitch Modulation
+    
+    /** Set octave offset (-4 to +4) */
+    void setOctave(int octave) { m_octave = juce::jlimit(-4, 4, octave); }
+    int getOctave() const { return m_octave; }
+    
+    /** Set pitch bend amount (-1.0 to 1.0) */
+    void setPitchBend(float bend) { m_pitchBend = juce::jlimit(-1.0f, 1.0f, bend); }
+    float getPitchBend() const { return m_pitchBend; }
+    
+    //==========================================================================
     // Probability & Conditions
     
     /** Sets probability for this stage to play (0-100%) */
@@ -223,6 +234,10 @@ private:
     // Slide/glide
     bool m_slide = false;
     float m_slideTime = 0.1f;
+    
+    // Pitch modulation
+    int m_octave = 0;           // Octave offset (-4 to +4)
+    float m_pitchBend = 0.0f;   // Pitch bend amount (-1.0 to 1.0)
     
     // HAM Editor features
     ModulationSettings m_modulation;

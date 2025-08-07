@@ -341,3 +341,91 @@ target_link_libraries(GateEngineTests PRIVATE
 )
 
 add_test(NAME GateEngineTests COMMAND GateEngineTests)
+
+# PitchEngine Tests
+juce_add_console_app(PitchEngineTests
+    PRODUCT_NAME "PitchEngineTests"
+)
+
+juce_generate_juce_header(PitchEngineTests)
+
+target_sources(PitchEngineTests PRIVATE
+    PitchEngineTests.cpp
+    ../Source/Domain/Engines/PitchEngine.cpp
+    ../Source/Domain/Engines/PitchEngine.h
+    ../Source/Domain/Models/Stage.cpp
+    ../Source/Domain/Models/Stage.h
+    ../Source/Domain/Models/Track.cpp
+    ../Source/Domain/Models/Track.h
+    ../Source/Domain/Models/Pattern.cpp
+    ../Source/Domain/Models/Pattern.h
+    ../Source/Domain/Models/Scale.cpp
+    ../Source/Domain/Models/Scale.h
+)
+
+target_compile_definitions(PitchEngineTests PRIVATE
+    JUCE_UNIT_TESTS=1
+    JUCE_USE_CURL=0
+    JUCE_MODAL_LOOPS_PERMITTED=0
+    JUCE_STRICT_REFCOUNTEDPOINTER=1
+)
+
+target_include_directories(PitchEngineTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/Source
+)
+
+target_link_libraries(PitchEngineTests PRIVATE
+    juce::juce_core
+    juce::juce_data_structures
+    juce::juce_events
+    juce::juce_audio_basics
+    juce::juce_graphics
+    juce::juce_recommended_config_flags
+    juce::juce_recommended_warning_flags
+)
+
+add_test(NAME PitchEngineTests COMMAND PitchEngineTests)
+
+# AccumulatorEngine Tests
+juce_add_console_app(AccumulatorEngineTests
+    PRODUCT_NAME "AccumulatorEngineTests"
+)
+
+juce_generate_juce_header(AccumulatorEngineTests)
+
+target_sources(AccumulatorEngineTests PRIVATE
+    AccumulatorEngineTests.cpp
+    ../Source/Domain/Engines/AccumulatorEngine.cpp
+    ../Source/Domain/Engines/AccumulatorEngine.h
+    ../Source/Domain/Models/Stage.cpp
+    ../Source/Domain/Models/Stage.h
+    ../Source/Domain/Models/Track.cpp
+    ../Source/Domain/Models/Track.h
+    ../Source/Domain/Models/Pattern.cpp
+    ../Source/Domain/Models/Pattern.h
+    ../Source/Domain/Models/Scale.cpp
+    ../Source/Domain/Models/Scale.h
+)
+
+target_compile_definitions(AccumulatorEngineTests PRIVATE
+    JUCE_UNIT_TESTS=1
+    JUCE_USE_CURL=0
+    JUCE_MODAL_LOOPS_PERMITTED=0
+    JUCE_STRICT_REFCOUNTEDPOINTER=1
+)
+
+target_include_directories(AccumulatorEngineTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/Source
+)
+
+target_link_libraries(AccumulatorEngineTests PRIVATE
+    juce::juce_core
+    juce::juce_data_structures
+    juce::juce_events
+    juce::juce_audio_basics
+    juce::juce_graphics
+    juce::juce_recommended_config_flags
+    juce::juce_recommended_warning_flags
+)
+
+add_test(NAME AccumulatorEngineTests COMMAND AccumulatorEngineTests)
