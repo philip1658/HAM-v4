@@ -175,57 +175,28 @@ void TrackControlStrip::paint(juce::Graphics& g)
 {
     auto bounds = getLocalBounds();
     
-    // Beautiful gradient background using track color
-    juce::ColourGradient bgGradient;
+    // Optimized: Solid color background with track color tint
     if (m_isSelected)
     {
-        // Selected state - more vibrant gradient with track color
-        bgGradient = juce::ColourGradient(
-            m_trackColor.withAlpha(0.125f),  // Track color at top (reduced 50%)
-            bounds.getTopLeft().toFloat(),
-            m_trackColor.withAlpha(0.05f),   // Fade to darker at bottom (reduced 50%)
-            bounds.getBottomRight().toFloat(),
-            false
-        );
+        // Selected state - subtle track color overlay
+        g.setColour(m_trackColor.withAlpha(0.08f));  // Average of gradient values
+        g.fillRoundedRectangle(bounds.toFloat(), 6.0f);
     }
     else
     {
-        // Unselected state - subtle gradient with track color
-        bgGradient = juce::ColourGradient(
-            m_trackColor.withAlpha(0.075f),  // Very subtle track color (reduced 50%)
-            bounds.getTopLeft().toFloat(),
-            m_trackColor.withAlpha(0.025f),  // Almost transparent at bottom (reduced 50%)
-            bounds.getBottomRight().toFloat(),
-            false
-        );
+        // Unselected state - very subtle track color
+        g.setColour(m_trackColor.withAlpha(0.05f));  // Average of gradient values
+        g.fillRoundedRectangle(bounds.toFloat(), 6.0f);
     }
     
-    // Fill with gradient background
-    g.setGradientFill(bgGradient);
+    // Single overlay for depth (instead of gradient)
+    g.setColour(juce::Colour(DesignTokens::Colors::BG_RAISED).withAlpha(0.2f));
     g.fillRoundedRectangle(bounds.toFloat(), 6.0f);
     
-    // Add a subtle overlay gradient for depth
-    juce::ColourGradient overlayGradient(
-        juce::Colour(DesignTokens::Colors::BG_RAISED).withAlpha(0.15f),  // Reduced 50%
-        bounds.getTopLeft().toFloat(),
-        juce::Colour(DesignTokens::Colors::BG_DARK).withAlpha(0.25f),    // Reduced 50%
-        bounds.getBottomRight().toFloat(),
-        false
-    );
-    g.setGradientFill(overlayGradient);
-    g.fillRoundedRectangle(bounds.toFloat(), 6.0f);
-    
-    // Highlight glow at top for selected state
+    // Simple highlight for selected state (no gradient)
     if (m_isSelected) {
         auto glowBounds = bounds.toFloat().withHeight(30);
-        juce::ColourGradient topGlow(
-            m_trackColor.withAlpha(0.15f),  // Reduced 50%
-            glowBounds.getTopLeft(),
-            m_trackColor.withAlpha(0.0f),
-            glowBounds.getBottomLeft(),
-            false
-        );
-        g.setGradientFill(topGlow);
+        g.setColour(m_trackColor.withAlpha(0.1f));
         g.fillRoundedRectangle(glowBounds, 6.0f);
     }
     
