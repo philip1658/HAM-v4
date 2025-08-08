@@ -315,39 +315,13 @@ public:
         // Button state colors
         auto bgColor = m_isDown ? m_color.darker(0.2f) : (m_isHovered ? m_color.brighter(0.1f) : m_color);
         
-        if (m_style == Style::Gradient) {
-            // More vibrant gradient fill
-            juce::ColourGradient gradient(
-                bgColor.brighter(0.3f), bounds.getTopLeft(),
-                bgColor.darker(0.1f), bounds.getBottomRight(),
-                false
-            );
-            g.setGradientFill(gradient);
-            g.fillRoundedRectangle(bounds, scaled(DesignTokens::Dimensions::CORNER_RADIUS));
-            
-            // Add subtle glow effect for better visibility
-            g.setColour(bgColor.withAlpha(0.2f));
-            g.drawRoundedRectangle(bounds.expanded(scaled(2)), 
-                                  scaled(DesignTokens::Dimensions::CORNER_RADIUS), scaled(2));
-        } else if (m_style == Style::Solid) {
-            // Solid fill with better visibility
-            g.setColour(bgColor);
-            g.fillRoundedRectangle(bounds, scaled(DesignTokens::Dimensions::CORNER_RADIUS));
-        }
+        // Only draw outline - no fill for any style
+        // Border for all styles
+        g.setColour(bgColor);
+        g.drawRoundedRectangle(bounds, scaled(DesignTokens::Dimensions::CORNER_RADIUS), scaled(1.5f));
         
-        // Border for all styles except Ghost
-        if (m_style != Style::Ghost) {
-            g.setColour(m_style == Style::Outline ? bgColor : juce::Colour(DesignTokens::Colors::BORDER));
-            g.drawRoundedRectangle(bounds, scaled(DesignTokens::Dimensions::CORNER_RADIUS), scaled(1));
-        }
-        
-        // Text with better contrast
-        if (m_style == Style::Outline || m_style == Style::Ghost) {
-            g.setColour(bgColor);
-        } else {
-            // Use white text for better contrast on colored buttons
-            g.setColour(juce::Colours::white);
-        }
+        // Text uses the button color
+        g.setColour(bgColor);
         g.setFont(juce::Font(scaled(11)).withStyle(juce::Font::bold));
         g.drawText(m_text, bounds, juce::Justification::centred);
     }
