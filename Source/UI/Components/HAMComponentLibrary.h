@@ -476,7 +476,11 @@ public:
         m_velocitySlider->setLabel("VEL");
         m_gateSlider->setLabel("GATE");
         
-        // Don't set colors here - wait for setTrackColor() to be called
+        // Set different colors for each slider (as originally intended)
+        m_pitchSlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[0]));
+        m_pulseSlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[1]));
+        m_velocitySlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[2]));
+        m_gateSlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[3]));
         
         // Create Stage Editor button - don't set color yet
         m_stageEditorButton = std::make_unique<ModernButton>("EDIT", ModernButton::Style::Solid);
@@ -586,12 +590,6 @@ public:
     
     void setTrackColor(const juce::Colour& color) {
         m_trackColor = color;
-        
-        // Update all sliders to use track color
-        if (m_pitchSlider) m_pitchSlider->setTrackColor(m_trackColor);
-        if (m_pulseSlider) m_pulseSlider->setTrackColor(m_trackColor);
-        if (m_velocitySlider) m_velocitySlider->setTrackColor(m_trackColor);
-        if (m_gateSlider) m_gateSlider->setTrackColor(m_trackColor);
         
         // Update EDIT button to use track color
         if (m_stageEditorButton) {
