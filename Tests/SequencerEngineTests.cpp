@@ -304,17 +304,20 @@ private:
                juce::String("Should have generated events. Events generated: ") + 
                juce::String(stats.eventsGenerated));
         
-        // Get MIDI events
-        juce::MidiBuffer midiBuffer;
-        engine.processBlock(midiBuffer, 512);
+        // Process block to generate MIDI events
+        engine.processBlock(44100.0, 512);
         
-        // Should have generated a note-on
-        expect(!midiBuffer.isEmpty(), "MIDI buffer should not be empty after processing pulse");
+        // Get MIDI events
+        std::vector<HAM::SequencerEngine::MidiEvent> events;
+        engine.getAndClearMidiEvents(events);
+        
+        // Should have generated events
+        expect(!events.empty(), "Should have generated MIDI events after processing pulse");
         
         // Check the message
-        for (const auto metadata : midiBuffer)
+        for (const auto& event : events)
         {
-            auto msg = metadata.getMessage();
+            auto msg = event.message;
             if (msg.isNoteOn())
             {
                 expect(msg.getNoteNumber() == 64);
