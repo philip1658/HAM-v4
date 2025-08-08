@@ -49,24 +49,26 @@ void TrackControlStrip::setupControls()
     };
     addAndMakeVisible(m_trackNameEditor.get());
     
-    // Mute button
+    // Mute button - use track color
     m_muteButton = std::make_unique<ModernButton>("M", ModernButton::Style::Outline);
+    m_muteButton->setColor(m_trackColor);  // Use track color by default
     m_muteButton->onClick = [this]() {
         m_isMuted = !m_isMuted;
         m_muteButton->setColor(m_isMuted ? 
             juce::Colour(DesignTokens::Colors::ACCENT_RED) : 
-            m_trackColor.withAlpha(0.3f));
+            m_trackColor);
         if (onMuteChanged) onMuteChanged(m_trackIndex, m_isMuted);
     };
     addAndMakeVisible(m_muteButton.get());
     
-    // Solo button
+    // Solo button - use track color
     m_soloButton = std::make_unique<ModernButton>("S", ModernButton::Style::Outline);
+    m_soloButton->setColor(m_trackColor);  // Use track color by default
     m_soloButton->onClick = [this]() {
         m_isSoloed = !m_isSoloed;
         m_soloButton->setColor(m_isSoloed ? 
             juce::Colour(DesignTokens::Colors::ACCENT_AMBER) : 
-            m_trackColor.withAlpha(0.3f));
+            m_trackColor);
         if (onSoloChanged) onSoloChanged(m_trackIndex, m_isSoloed);
     };
     addAndMakeVisible(m_soloButton.get());
@@ -175,37 +177,26 @@ void TrackControlStrip::paint(juce::Graphics& g)
 {
     auto bounds = getLocalBounds();
     
-    // Optimized: Solid color background with track color tint
+    // Simple solid color background with track color tint
     if (m_isSelected)
     {
         // Selected state - subtle track color overlay
-        g.setColour(m_trackColor.withAlpha(0.08f));  // Average of gradient values
+        g.setColour(m_trackColor.withAlpha(0.08f));
         g.fillRoundedRectangle(bounds.toFloat(), 6.0f);
     }
     else
     {
         // Unselected state - very subtle track color
-        g.setColour(m_trackColor.withAlpha(0.05f));  // Average of gradient values
+        g.setColour(m_trackColor.withAlpha(0.05f));
         g.fillRoundedRectangle(bounds.toFloat(), 6.0f);
-    }
-    
-    // Single overlay for depth (instead of gradient)
-    g.setColour(juce::Colour(DesignTokens::Colors::BG_RAISED).withAlpha(0.2f));
-    g.fillRoundedRectangle(bounds.toFloat(), 6.0f);
-    
-    // Simple highlight for selected state (no gradient)
-    if (m_isSelected) {
-        auto glowBounds = bounds.toFloat().withHeight(30);
-        g.setColour(m_trackColor.withAlpha(0.1f));
-        g.fillRoundedRectangle(glowBounds, 6.0f);
     }
     
     // Border with track color accent
     if (m_isSelected) {
-        g.setColour(m_trackColor.withAlpha(0.3f));  // Reduced 50%
+        g.setColour(m_trackColor.withAlpha(0.3f));
         g.drawRoundedRectangle(bounds.toFloat(), 6.0f, 1.5f);
     } else {
-        g.setColour(m_trackColor.withAlpha(0.15f));  // Reduced 50%
+        g.setColour(m_trackColor.withAlpha(0.15f));
         g.drawRoundedRectangle(bounds.toFloat(), 6.0f, 1.0f);
     }
 }
@@ -306,13 +297,13 @@ void TrackControlStrip::updateFromTrack(const TrackViewModel& track)
     m_isMuted = track.isMuted();
     m_isSoloed = track.isSoloed();
     
-    // Update control states
+    // Update control states - use track color when not active
     m_muteButton->setColor(m_isMuted ? 
         juce::Colour(DesignTokens::Colors::ACCENT_RED) : 
-        m_trackColor.withAlpha(0.3f));
+        m_trackColor);
     m_soloButton->setColor(m_isSoloed ? 
         juce::Colour(DesignTokens::Colors::ACCENT_AMBER) : 
-        m_trackColor.withAlpha(0.3f));
+        m_trackColor);
     
     // Update all slider colors to match track
     m_maxPulseLengthSlider->setTrackColor(m_trackColor);
