@@ -5,7 +5,7 @@
     Track control sidebar for HAM sequencer
     
     Features:
-    - Fixed 480px height per track (matches StageCard height)
+    - Fixed 440px height per track (matches reduced StageCard height)
     - All controls always visible (no expand/collapse)
     - Track color indicator and name
     - Mute/Solo buttons
@@ -32,7 +32,7 @@ namespace HAM::UI {
 //==============================================================================
 /**
  * Individual track control strip in the sidebar
- * Fixed height of 480px to match updated StageCard
+ * Fixed height of 440px to match reduced StageCard
  */
 class TrackControlStrip : public ResizableComponent
 {
@@ -140,12 +140,7 @@ private:
     std::vector<std::unique_ptr<TrackControlStrip>> m_trackStrips;
     int m_selectedTrackIndex = 0;
     
-    // Container components
-    std::unique_ptr<Panel> m_headerPanel;
-    std::unique_ptr<juce::Label> m_headerLabel;
-    std::unique_ptr<ModernButton> m_addTrackButton;
-    
-    // Track container (no scrolling needed at 420px)
+    // Track container (no scrolling needed at 440px)
     std::unique_ptr<juce::Component> m_trackContainer;
     
     // Layout helpers
@@ -155,8 +150,7 @@ private:
     
     static constexpr int MIN_WIDTH = 240;
     static constexpr int IDEAL_WIDTH = 250;  // Wider for better button layout
-    static constexpr int TRACK_HEIGHT = 480;  // Taller to accommodate new buttons
-    static constexpr int HEADER_HEIGHT = 40;
+    static constexpr int TRACK_HEIGHT = 480;  // Full height now without header
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TrackSidebar)
 };

@@ -128,6 +128,11 @@ public:
     void paint(juce::Graphics& g) override {
         auto bounds = getLocalBounds().toFloat();
         
+        // Reserve space for label if vertical
+        if (m_vertical && m_label.isNotEmpty()) {
+            bounds.removeFromTop(scaled(14)); // Space for label above slider
+        }
+        
         // Track background
         auto trackBounds = m_vertical 
             ? bounds.withWidth(scaled(DesignTokens::Dimensions::SLIDER_TRACK_WIDTH))
@@ -185,12 +190,18 @@ public:
                       scaled(2), trackBounds.getHeight() + scaled(8));
         }
         
-        // Label
+        // Draw label at the top for vertical sliders
         if (m_label.isNotEmpty()) {
             g.setColour(juce::Colour(DesignTokens::Colors::TEXT_MUTED));
-            g.setFont(juce::Font(scaled(10)));
-            g.drawText(m_label, bounds.reduced(scaled(2)), 
-                      m_vertical ? juce::Justification::centredBottom : juce::Justification::centredLeft);
+            g.setFont(juce::Font(scaled(9)));
+            if (m_vertical) {
+                // Draw label at the very top of the component
+                auto labelBounds = getLocalBounds().toFloat().withHeight(scaled(14));
+                g.drawText(m_label, labelBounds, juce::Justification::centred);
+            } else {
+                // Keep horizontal slider labels to the left
+                g.drawText(m_label, bounds.reduced(scaled(2)), juce::Justification::centredLeft);
+            }
         }
     }
     
@@ -354,7 +365,7 @@ public:
             // Use white text for better contrast on colored buttons
             g.setColour(juce::Colours::white);
         }
-        g.setFont(juce::Font(scaled(12)).withStyle(juce::Font::bold));
+        g.setFont(juce::Font(scaled(11)).withStyle(juce::Font::bold));
         g.drawText(m_text, bounds, juce::Justification::centred);
     }
     
@@ -488,7 +499,7 @@ public:
         m_gateSlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[3]));
         
         // Create Stage Editor button with better visibility
-        m_stageEditorButton = std::make_unique<ModernButton>("EDITOR", ModernButton::Style::Solid);
+        m_stageEditorButton = std::make_unique<ModernButton>("EDIT", ModernButton::Style::Solid);
         m_stageEditorButton->setColor(juce::Colour(DesignTokens::Colors::ACCENT_CYAN));
         m_stageEditorButton->onClick = [this]() {
             DBG("Stage Editor button clicked for stage " << m_stageNumber);
@@ -501,59 +512,84 @@ public:
         addAndMakeVisible(m_gateSlider.get());
         addAndMakeVisible(m_stageEditorButton.get());
         
-        setSize(140, 480);  // Fixed height to match TrackSidebar
-        DBG("StageCard created with size: " << getWidth() << "x" << getHeight());
+        // Don't set a fixed size - let parent control our bounds
+        DBG("StageCard created");
     }
     
     void resized() override {
-        const int spacing = 8;
-        auto bounds = getLocalBounds().reduced(spacing);
+        const int padding = 8;
+        auto bounds = getLocalBounds().reduced(padding);
         
-        DBG("StageCard resized to: " << getWidth() << "x" << getHeight());
+        // Reserve small space for active indicator (15px)
+        bounds.removeFromTop(15);
         
-        // Reserve space for stage number at top
-        auto headerArea = bounds.removeFromTop(32);
+        // Reserve space for Stage Editor button at bottom (30px)
+        auto buttonArea = bounds.removeFromBottom(30);
         
-        // Reserve space for Stage Editor button at bottom  
-        auto buttonArea = bounds.removeFromBottom(40);
+        // Calculate 2x2 grid for sliders with equal sizes
+        // The remaining area after header and button
+        auto sliderGridArea = bounds.reduced(4); // Small inner padding
         
-        // 2x2 grid for sliders with extra height
-        auto sliderArea = bounds.reduced(spacing);
-        int halfWidth = sliderArea.getWidth() / 2;
-        int halfHeight = sliderArea.getHeight() / 2;
+        const int gridSpacing = 6; // Space between sliders in grid
+        int sliderWidth = (sliderGridArea.getWidth() - gridSpacing) / 2;
+        int sliderHeight = (sliderGridArea.getHeight() - gridSpacing) / 2;
         
+        // Ensure sliders are truly equal sized
         // Top row: PITCH | PULSE
-        m_pitchSlider->setBounds(sliderArea.getX(), sliderArea.getY(), 
-                                 halfWidth - spacing, halfHeight - spacing);
-        m_pulseSlider->setBounds(sliderArea.getX() + halfWidth + spacing, sliderArea.getY(),
-                                 halfWidth - spacing, halfHeight - spacing);
+        m_pitchSlider->setBounds(
+            sliderGridArea.getX(), 
+            sliderGridArea.getY(), 
+            sliderWidth, 
+            sliderHeight
+        );
+        
+        m_pulseSlider->setBounds(
+            sliderGridArea.getX() + sliderWidth + gridSpacing,
+            sliderGridArea.getY(),
+            sliderWidth,
+            sliderHeight
+        );
         
         // Bottom row: VEL | GATE  
-        m_velocitySlider->setBounds(sliderArea.getX(), sliderArea.getY() + halfHeight + spacing,
-                                    halfWidth - spacing, halfHeight - spacing);
-        m_gateSlider->setBounds(sliderArea.getX() + halfWidth + spacing, 
-                               sliderArea.getY() + halfHeight + spacing,
-                               halfWidth - spacing, halfHeight - spacing);
+        m_velocitySlider->setBounds(
+            sliderGridArea.getX(),
+            sliderGridArea.getY() + sliderHeight + gridSpacing,
+            sliderWidth,
+            sliderHeight
+        );
         
-        // Stage Editor button at bottom
-        m_stageEditorButton->setBounds(buttonArea.reduced(spacing, 2));
+        m_gateSlider->setBounds(
+            sliderGridArea.getX() + sliderWidth + gridSpacing,
+            sliderGridArea.getY() + sliderHeight + gridSpacing,
+            sliderWidth,
+            sliderHeight
+        );
+        
+        // Stage Editor button centered at bottom
+        int buttonWidth = juce::jmin(100, buttonArea.getWidth() - 20);
+        m_stageEditorButton->setBounds(
+            buttonArea.getCentreX() - buttonWidth/2,
+            buttonArea.getY() + 2,
+            buttonWidth,
+            buttonArea.getHeight() - 4
+        );
     }
     
     void paint(juce::Graphics& g) override {
         Panel::paint(g);
         
-        // Stage number
-        const int spacing = 8;
-        auto bounds = getLocalBounds().reduced(spacing);
-        auto headerArea = bounds.removeFromTop(24);
-        
-        g.setColour(juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
-        g.setFont(juce::Font(14.0f * getScaleFactor()).withStyle(juce::Font::bold));
-        g.drawText(juce::String(m_stageNumber), headerArea, juce::Justification::centred);
-        
-        // Active indicator LED
+        // Active indicator LED at top center (no stage number)
         if (m_isActive) {
-            auto ledBounds = headerArea.removeFromRight(16).reduced(4).toFloat();
+            const int padding = 10;
+            auto bounds = getLocalBounds().reduced(padding);
+            auto headerArea = bounds.removeFromTop(20);
+            
+            auto ledBounds = headerArea.withWidth(12).withHeight(12)
+                                       .withCentre(headerArea.getCentre()).toFloat();
+            // Glow effect
+            g.setColour(juce::Colour(DesignTokens::Colors::ACCENT_GREEN).withAlpha(0.3f));
+            g.fillEllipse(ledBounds.expanded(3));
+            // LED itself
             g.setColour(juce::Colour(DesignTokens::Colors::ACCENT_GREEN));
             g.fillEllipse(ledBounds);
         }

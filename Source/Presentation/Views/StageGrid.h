@@ -32,8 +32,7 @@ public:
             m_stageCards[i] = std::move(card);
         }
         
-        // Set default size - increased height to match new card height
-        setSize(1200, 500);  // 480px cards + minimal padding
+        // Don't set a fixed size - parent will control our bounds
     }
     
     ~StageGrid() override = default;
@@ -55,29 +54,39 @@ public:
     
     // Layout override
     void resized() override {
-        // Calculate card dimensions with padding
-        const int padding = scaledInt(10);
-        const int cardWidth = 140;  // Fixed width for StageCard
-        const int cardHeight = 480; // Fixed height to match TrackSidebar
+        // Get the actual available space
+        auto bounds = getLocalBounds();
         
-        // Calculate total width needed
-        const int totalWidth = (cardWidth * 8) + (padding * 9);
+        // Calculate optimized card dimensions
+        const int numCards = 8;
+        const int horizontalPadding = 6;  // Padding between cards
         
-        // Center the cards if window is wider
-        int startX = (getWidth() - totalWidth) / 2;
-        if (startX < 0) startX = padding;
+        // Add horizontal padding only
+        bounds = bounds.reduced(horizontalPadding/2, 0);
         
-        // Position each card with fixed dimensions
-        for (int i = 0; i < 8; ++i) {
+        // Line 5 absolute position = 120px from window top (5 * 24px)
+        // Content area starts at 120px (80px transport + 40px pattern bar)
+        // So relative to content area: 120 - 120 = 0px from content top
+        // No offset needed - cards start at top of content area
+        
+        // Calculate card width to fill available space
+        int totalHorizontalPadding = horizontalPadding * (numCards - 1);
+        int availableWidth = bounds.getWidth() - totalHorizontalPadding;
+        int cardWidth = availableWidth / numCards;
+        
+        // Height from line 6 to line 26 = (26-6) * 24px = 480px
+        int cardHeight = 480; // From line 6 to line 26
+        
+        // Position cards at the calculated offset
+        int yOffset = bounds.getY();
+        
+        // Position each card
+        for (int i = 0; i < numCards; ++i) {
             if (m_stageCards[i]) {
-                int x = startX + padding + (i * (cardWidth + padding));
-                int y = padding;
-                m_stageCards[i]->setBounds(x, y, cardWidth, cardHeight);
-                DBG("Stage card " << i << " bounds: " << 
-                    m_stageCards[i]->getBounds().toString());
+                int x = bounds.getX() + i * (cardWidth + horizontalPadding);
+                m_stageCards[i]->setBounds(x, yOffset, cardWidth, cardHeight);
             }
         }
-        
     }
     
     // Public interface

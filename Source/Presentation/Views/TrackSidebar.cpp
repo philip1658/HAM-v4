@@ -175,95 +175,156 @@ void TrackControlStrip::paint(juce::Graphics& g)
 {
     auto bounds = getLocalBounds();
     
-    // Background based on selection state
+    // Beautiful gradient background using track color
+    juce::ColourGradient bgGradient;
     if (m_isSelected)
     {
-        g.setColour(juce::Colour(DesignTokens::Colors::BG_RAISED));
-        g.fillRoundedRectangle(bounds.toFloat(), 4.0f);
+        // Selected state - more vibrant gradient with track color
+        bgGradient = juce::ColourGradient(
+            m_trackColor.withAlpha(0.25f),  // Track color at top
+            bounds.getTopLeft().toFloat(),
+            m_trackColor.withAlpha(0.1f),   // Fade to darker at bottom
+            bounds.getBottomRight().toFloat(),
+            false
+        );
     }
     else
     {
-        g.setColour(juce::Colour(DesignTokens::Colors::BG_PANEL));
-        g.fillRoundedRectangle(bounds.toFloat(), 4.0f);
+        // Unselected state - subtle gradient with track color
+        bgGradient = juce::ColourGradient(
+            m_trackColor.withAlpha(0.15f),  // Very subtle track color
+            bounds.getTopLeft().toFloat(),
+            m_trackColor.withAlpha(0.05f),  // Almost transparent at bottom
+            bounds.getBottomRight().toFloat(),
+            false
+        );
     }
     
-    // Left color indicator strip
-    auto colorStrip = bounds.removeFromLeft(4);
-    g.setColour(m_trackColor);
-    g.fillRoundedRectangle(colorStrip.toFloat(), 4.0f);
+    // Fill with gradient background
+    g.setGradientFill(bgGradient);
+    g.fillRoundedRectangle(bounds.toFloat(), 6.0f);
     
-    // Subtle border
-    g.setColour(juce::Colour(DesignTokens::Colors::BORDER).withAlpha(0.3f));
-    g.drawRoundedRectangle(bounds.toFloat(), 4.0f, 1.0f);
+    // Add a subtle overlay gradient for depth
+    juce::ColourGradient overlayGradient(
+        juce::Colour(DesignTokens::Colors::BG_RAISED).withAlpha(0.3f),
+        bounds.getTopLeft().toFloat(),
+        juce::Colour(DesignTokens::Colors::BG_DARK).withAlpha(0.5f),
+        bounds.getBottomRight().toFloat(),
+        false
+    );
+    g.setGradientFill(overlayGradient);
+    g.fillRoundedRectangle(bounds.toFloat(), 6.0f);
+    
+    // Highlight glow at top for selected state
+    if (m_isSelected) {
+        auto glowBounds = bounds.toFloat().withHeight(30);
+        juce::ColourGradient topGlow(
+            m_trackColor.withAlpha(0.3f),
+            glowBounds.getTopLeft(),
+            m_trackColor.withAlpha(0.0f),
+            glowBounds.getBottomLeft(),
+            false
+        );
+        g.setGradientFill(topGlow);
+        g.fillRoundedRectangle(glowBounds, 6.0f);
+    }
+    
+    // Border with track color accent
+    if (m_isSelected) {
+        g.setColour(m_trackColor.withAlpha(0.6f));
+        g.drawRoundedRectangle(bounds.toFloat(), 6.0f, 1.5f);
+    } else {
+        g.setColour(m_trackColor.withAlpha(0.3f));
+        g.drawRoundedRectangle(bounds.toFloat(), 6.0f, 1.0f);
+    }
 }
 
 void TrackControlStrip::resized()
 {
     auto bounds = getLocalBounds();
-    bounds.removeFromLeft(8); // Space for color strip
-    bounds.reduce(8, 8); // Overall padding
     
-    // Header section (40px instead of 48px)
-    auto headerArea = bounds.removeFromTop(40);
+    // Limit height to match stage cards (line 5 to line 26 = 480px)
+    if (bounds.getHeight() > 480) {
+        bounds.setHeight(480);
+    }
     
-    // Track name on left
-    m_trackNameEditor->setBounds(headerArea.removeFromLeft(100));
+    // Match stage card positioning - start content at top of content area (line 5)
+    // No top offset needed since cards now start at content area top
+    bounds.reduce(12, 10); // Horizontal and small vertical padding
     
-    // Mute/Solo buttons on right
-    auto buttonArea = headerArea.removeFromRight(80);
-    m_muteButton->setBounds(buttonArea.removeFromLeft(35));
-    buttonArea.removeFromLeft(8);
-    m_soloButton->setBounds(buttonArea.removeFromLeft(35));
+    // Header section (36px)
+    auto headerArea = bounds.removeFromTop(36);
     
-    bounds.removeFromTop(12); // Reduced spacing
+    // Track name takes more space
+    m_trackNameEditor->setBounds(headerArea.removeFromLeft(headerArea.getWidth() - 84));
     
-    // More compact control layout helper
-    auto layoutControl = [&bounds](juce::Component* label, juce::Component* control, int height = 28) {
-        auto row = bounds.removeFromTop(height + 14); // Reduced heights
+    // Mute/Solo buttons on right, more compact
+    headerArea.removeFromLeft(4);
+    m_muteButton->setBounds(headerArea.removeFromLeft(38));
+    headerArea.removeFromLeft(4);
+    m_soloButton->setBounds(headerArea.removeFromLeft(38));
+    
+    bounds.removeFromTop(10); // Spacing after header
+    
+    // Optimized control layout helper
+    auto layoutControl = [&bounds](juce::Component* label, juce::Component* control, int height = 26) {
+        auto row = bounds.removeFromTop(height + 16);
         if (label) label->setBounds(row.removeFromTop(14));
-        control->setBounds(row);
-        bounds.removeFromTop(6); // Reduced spacing between controls
+        control->setBounds(row.removeFromTop(height));
+        bounds.removeFromTop(8); // Consistent spacing
     };
     
     // MIDI Channel
-    layoutControl(m_channelLabel.get(), m_channelSelector.get());
+    layoutControl(m_channelLabel.get(), m_channelSelector.get(), 30);
     
-    // Voice Mode (more compact)
-    auto voiceRow = bounds.removeFromTop(42);
+    // Voice Mode - centered toggle
+    auto voiceRow = bounds.removeFromTop(46);
     m_voiceModeLabel->setBounds(voiceRow.removeFromTop(14));
-    auto toggleRow = voiceRow.removeFromTop(28);
-    auto monoLabel = toggleRow.removeFromLeft(40);
-    m_voiceModeToggle->setBounds(toggleRow.removeFromLeft(60));
-    auto polyLabel = toggleRow.removeFromLeft(40);
-    bounds.removeFromTop(6);
+    auto toggleArea = voiceRow.removeFromTop(28);
+    // Center the toggle
+    int toggleWidth = 60;
+    m_voiceModeToggle->setBounds(
+        toggleArea.getCentreX() - toggleWidth/2,
+        toggleArea.getY(),
+        toggleWidth,
+        toggleArea.getHeight()
+    );
+    bounds.removeFromTop(8);
     
     // Max Pulse Length
-    layoutControl(m_maxPulseLengthLabel.get(), m_maxPulseLengthSlider.get());
+    layoutControl(m_maxPulseLengthLabel.get(), m_maxPulseLengthSlider.get(), 26);
     
     // Swing
-    layoutControl(m_swingLabel.get(), m_swingSlider.get());
+    layoutControl(m_swingLabel.get(), m_swingSlider.get(), 26);
     
-    // Division
-    layoutControl(m_divisionLabel.get(), m_divisionControl.get());
+    // Division - make more compact
+    layoutControl(m_divisionLabel.get(), m_divisionControl.get(), 32);
     
-    // Octave (more compact)
-    auto octaveRow = bounds.removeFromTop(42);
+    // Octave - centered input
+    auto octaveRow = bounds.removeFromTop(46);
     m_octaveLabel->setBounds(octaveRow.removeFromTop(14));
-    m_octaveInput->setBounds(octaveRow.removeFromLeft(80));
-    bounds.removeFromTop(6);
+    auto octaveInputArea = octaveRow.removeFromTop(28);
+    int inputWidth = 80;
+    m_octaveInput->setBounds(
+        octaveInputArea.getCentreX() - inputWidth/2,
+        octaveInputArea.getY(),
+        inputWidth,
+        octaveInputArea.getHeight()
+    );
     
-    // Bottom buttons - ensure both are visible
-    // We have remaining space after all controls are laid out
-    bounds.removeFromBottom(8); // Bottom padding
+    // Bottom buttons with better spacing
+    // Calculate remaining space for buttons
+    bounds.removeFromTop(12); // Extra spacing before buttons
     
-    // Each button gets 36px height with 8px spacing between
-    auto pluginRow = bounds.removeFromBottom(36);
-    bounds.removeFromBottom(8); // Spacing between buttons
-    auto accumRow = bounds.removeFromBottom(36);
+    // Plugin button
+    auto pluginButtonBounds = bounds.removeFromTop(38);
+    m_pluginButton->setBounds(pluginButtonBounds.reduced(4, 2));
     
-    // Full width buttons with horizontal padding
-    m_pluginButton->setBounds(pluginRow.reduced(4, 0));
-    m_accumulatorButton->setBounds(accumRow.reduced(4, 0));
+    bounds.removeFromTop(8); // Spacing between buttons
+    
+    // Accumulator button
+    auto accumButtonBounds = bounds.removeFromTop(38);
+    m_accumulatorButton->setBounds(accumButtonBounds.reduced(4, 2));
 }
 
 void TrackControlStrip::updateFromTrack(const TrackViewModel& track)
@@ -312,29 +373,12 @@ void TrackControlStrip::setSelected(bool selected)
 
 TrackSidebar::TrackSidebar()
 {
-    // Create header panel
-    m_headerPanel = std::make_unique<Panel>(Panel::Style::Raised);
-    addAndMakeVisible(m_headerPanel.get());
-    
-    // Header label
-    m_headerLabel = std::make_unique<juce::Label>("tracks", "TRACKS");
-    m_headerLabel->setFont(juce::Font(14.0f, juce::Font::bold));
-    m_headerLabel->setColour(juce::Label::textColourId, juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
-    m_headerPanel->addAndMakeVisible(m_headerLabel.get());
-    
-    // Add track button
-    m_addTrackButton = std::make_unique<ModernButton>("+", ModernButton::Style::Gradient);
-    m_addTrackButton->onClick = [this]() {
-        if (onAddTrack) onAddTrack();
-    };
-    m_headerPanel->addAndMakeVisible(m_addTrackButton.get());
-    
     // Create container for track strips (no viewport needed at fixed height)
     m_trackContainer = std::make_unique<juce::Component>();
     addAndMakeVisible(m_trackContainer.get());
     
     // Initialize with default tracks
-    setTrackCount(1); // Start with 1 track at 480px height
+    setTrackCount(1); // Start with 1 track at 440px height
     
     // Start timer for periodic updates
     startTimerHz(10);
@@ -359,15 +403,13 @@ void TrackSidebar::resized()
 {
     auto bounds = getLocalBounds();
     
-    // Header at top
-    m_headerPanel->setBounds(bounds.removeFromTop(HEADER_HEIGHT));
+    // Limit height to match stage cards (line 5 to line 26 = 480px)
+    const int maxHeight = 480;
+    if (bounds.getHeight() > maxHeight) {
+        bounds.setHeight(maxHeight);
+    }
     
-    // Layout header contents
-    auto headerBounds = m_headerPanel->getLocalBounds().reduced(8);
-    m_headerLabel->setBounds(headerBounds.removeFromLeft(100));
-    m_addTrackButton->setBounds(headerBounds.removeFromRight(30));
-    
-    // Track container takes remaining space
+    // Track container takes the limited bounds
     m_trackContainer->setBounds(bounds);
     
     // Update track container layout
@@ -378,7 +420,7 @@ void TrackSidebar::setTrackCount(int count)
 {
     m_trackStrips.clear();
     
-    // For now, limit to 1 track since we have fixed 480px height
+    // For now, limit to 1 track since we have fixed 440px height
     // Multiple tracks would require horizontal scrolling or tabs
     int tracksToShow = std::min(count, 1);
     
@@ -483,10 +525,12 @@ void TrackSidebar::timerCallback()
 
 void TrackSidebar::updateTrackLayout()
 {
-    // Fixed layout - one track at 480px height (matches StageCard)
+    // Fixed layout - track fills container (which is already limited to 480px)
     if (!m_trackStrips.empty())
     {
-        m_trackStrips[0]->setBounds(0, 0, m_trackContainer->getWidth(), TRACK_HEIGHT);
+        // Ensure track strip doesn't exceed 480px height
+        int height = std::min(m_trackContainer->getHeight(), 480);
+        m_trackStrips[0]->setBounds(0, 0, m_trackContainer->getWidth(), height);
     }
 }
 
