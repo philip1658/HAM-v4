@@ -100,19 +100,13 @@ public:
 protected:
     float m_scaleFactor = 1.0f;
     
-    // Multi-layer shadow helper
+    // Optimized single-layer shadow (67% fewer draw calls)
     void drawMultiLayerShadow(juce::Graphics& g, juce::Rectangle<float> bounds) {
-        // Layer 1 - Outer glow
-        g.setColour(juce::Colour(0x10FFFFFF));
-        g.drawRoundedRectangle(bounds.expanded(scaled(2)), scaled(DesignTokens::Dimensions::CORNER_RADIUS), scaled(0.5f));
-        
-        // Layer 2 - Mid shadow
-        g.setColour(juce::Colour(0x40000000));
-        g.drawRoundedRectangle(bounds.expanded(scaled(1)), scaled(DesignTokens::Dimensions::CORNER_RADIUS), scaled(1.0f));
-        
-        // Layer 3 - Inner shadow
-        g.setColour(juce::Colour(0x80000000));
-        g.drawRoundedRectangle(bounds, scaled(DesignTokens::Dimensions::CORNER_RADIUS), scaled(0.5f));
+        // Single semi-transparent stroke instead of multiple layers
+        g.setColour(juce::Colour(0x60000000));
+        g.drawRoundedRectangle(bounds.expanded(scaled(1)), 
+                              scaled(DesignTokens::Dimensions::CORNER_RADIUS), 
+                              scaled(2.0f)); // Thicker single stroke
     }
 };
 
@@ -123,6 +117,8 @@ class ModernSlider : public ResizableComponent {
 public:
     ModernSlider(bool vertical = true) : m_vertical(vertical) {
         setInterceptsMouseClicks(true, false);
+        // Enable buffering for static background
+        setBufferedToImage(true);
     }
     
     void paint(juce::Graphics& g) override {
@@ -143,36 +139,23 @@ public:
         // Multi-layer shadow
         drawMultiLayerShadow(g, trackBounds);
         
-        // Track background gradient
-        juce::ColourGradient trackGradient(
-            juce::Colour(DesignTokens::Colors::BG_RECESSED).withAlpha(0.9f),
-            trackBounds.getTopLeft(),
-            juce::Colour(DesignTokens::Colors::BG_RECESSED).withAlpha(0.7f),
-            trackBounds.getBottomRight(),
-            false
-        );
-        g.setGradientFill(trackGradient);
+        // Optimized: Solid color instead of gradient for track background
+        g.setColour(juce::Colour(DesignTokens::Colors::BG_RECESSED).withAlpha(0.8f));
         g.fillRoundedRectangle(trackBounds, scaled(DesignTokens::Dimensions::CORNER_RADIUS));
         
         // Track border
         g.setColour(juce::Colour(DesignTokens::Colors::BORDER));
         g.drawRoundedRectangle(trackBounds, scaled(DesignTokens::Dimensions::CORNER_RADIUS), scaled(1.0f));
         
-        // Fill gradient (value indicator)
+        // Optimized: Solid color with alpha for fill (value indicator)
         float fillProportion = m_value;
         if (fillProportion > 0.01f) {
             auto fillBounds = m_vertical
                 ? trackBounds.withTrimmedTop(trackBounds.getHeight() * (1.0f - fillProportion))
                 : trackBounds.withTrimmedRight(trackBounds.getWidth() * (1.0f - fillProportion));
             
-            juce::ColourGradient fillGradient(
-                m_trackColor.withAlpha(0.8f),
-                fillBounds.getTopLeft(),
-                m_trackColor.withAlpha(0.4f),
-                fillBounds.getBottomRight(),
-                false
-            );
-            g.setGradientFill(fillGradient);
+            // Solid color with transparency instead of gradient
+            g.setColour(m_trackColor.withAlpha(0.6f));
             g.fillRoundedRectangle(fillBounds, scaled(DesignTokens::Dimensions::CORNER_RADIUS));
         }
         
