@@ -42,9 +42,7 @@ public:
         };
         m_owner.addAndMakeVisible(m_stageGrid.get());
         
-        // Create main panel container
-        m_mainPanel = std::make_unique<HAM::UI::Panel>(HAM::UI::Panel::Style::Flat);
-        m_owner.addAndMakeVisible(m_mainPanel.get());
+        // Note: Removed main panel as it was covering other components
         
         // Start timer for UI updates from engine
         startTimer(30); // ~33Hz UI update rate
@@ -67,15 +65,23 @@ public:
         
         // Stage grid in center (will expand to multiple tracks later)
         m_stageGrid->setBounds(contentArea);
-        
-        // Background panel
-        m_mainPanel->setBounds(m_owner.getLocalBounds());
     }
     
     void paint(juce::Graphics& g)
     {
-        // Pure black background (Pulse dark void aesthetic)
-        g.fillAll(juce::Colour(HAM::UI::DesignTokens::Colors::BG_VOID));
+        // Dark background with subtle gradient to verify rendering
+        g.fillAll(juce::Colour(0xFF1A1A1A)); // Very dark gray instead of pure black
+        
+        // Add subtle grid lines to see if rendering works
+        g.setColour(juce::Colours::white.withAlpha(0.05f));
+        for (int i = 0; i < m_owner.getWidth(); i += 50)
+        {
+            g.drawVerticalLine(i, 0, m_owner.getHeight());
+        }
+        for (int i = 0; i < m_owner.getHeight(); i += 50)
+        {
+            g.drawHorizontalLine(i, 0, m_owner.getWidth());
+        }
     }
     
 private:
@@ -197,7 +203,6 @@ private:
     std::unique_ptr<HAM::MessageDispatcher> m_messageDispatcher;
     
     // UI Components
-    std::unique_ptr<HAM::UI::Panel> m_mainPanel;
     std::unique_ptr<HAM::UI::TransportBar> m_transportBar;
     std::unique_ptr<HAM::UI::StageGrid> m_stageGrid;
     
