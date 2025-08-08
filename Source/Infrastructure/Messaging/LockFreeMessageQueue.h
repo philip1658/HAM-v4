@@ -94,11 +94,7 @@ public:
         m_poolHead = 0;
         m_poolTail = QueueSize - 1;
         
-        // Initialize priority queues
-        for (auto& queue : m_priorityQueues)
-        {
-            queue.reset(QueueSize / 5); // Divide queue space among priorities
-        }
+        // Priority queues are already initialized with their size
     }
     
     ~LockFreeMessageQueue() = default;
@@ -129,12 +125,20 @@ public:
         wrapper->sequenceNumber = m_sequenceCounter.fetch_add(1);
         
         // Add to appropriate priority queue
-        auto& queue = m_priorityQueues[static_cast<int>(priority)];
-        const int writePos = queue.write(1);
+        auto& queue = m_priorityQueues[static_cast<int>(priority)].fifo;
         
-        if (writePos >= 0)
+        // Use ScopedWrite for JUCE 8
+        if (queue.getFreeSpace() > 0)
         {
-            m_messages[static_cast<int>(priority)][writePos] = wrapper;
+            auto scope = queue.write(1);
+            if (scope.blockSize1 > 0)
+            {
+                m_messages[static_cast<int>(priority)][scope.startIndex1] = wrapper;
+            }
+            else if (scope.blockSize2 > 0)
+            {
+                m_messages[static_cast<int>(priority)][scope.startIndex2] = wrapper;
+            }
             
             // Update statistics
             m_stats.messagesSent++;
@@ -166,34 +170,41 @@ public:
         // Check queues in priority order
         for (int p = 0; p < static_cast<int>(Priority::DEFERRED) + 1; ++p)
         {
-            auto& queue = m_priorityQueues[p];
+            auto& queue = m_priorityQueues[p].fifo;
             
             if (queue.getNumReady() > 0)
             {
-                const int readPos = queue.read(1);
-                if (readPos >= 0)
+                auto scope = queue.read(1);
+                MessageWrapper* wrapper = nullptr;
+                
+                if (scope.blockSize1 > 0)
                 {
-                    MessageWrapper* wrapper = m_messages[p][readPos];
-                    if (wrapper)
-                    {
-                        // Copy message
-                        message = wrapper->message;
-                        
-                        // Calculate latency
-                        auto now = std::chrono::high_resolution_clock::now();
-                        auto latency = std::chrono::duration<double, std::milli>(
-                            now - wrapper->timestamp).count();
-                        updateLatencyStats(latency);
-                        
-                        // Return wrapper to pool
-                        returnToPool(wrapper);
-                        
-                        // Update statistics
-                        m_stats.messagesReceived++;
-                        updateQueueDepth(-1);
-                        
-                        return true;
-                    }
+                    wrapper = m_messages[p][scope.startIndex1];
+                }
+                else if (scope.blockSize2 > 0)
+                {
+                    wrapper = m_messages[p][scope.startIndex2];
+                }
+                
+                if (wrapper)
+                {
+                    // Copy message
+                    message = wrapper->message;
+                    
+                    // Calculate latency
+                    auto now = std::chrono::high_resolution_clock::now();
+                    auto latency = std::chrono::duration<double, std::milli>(
+                        now - wrapper->timestamp).count();
+                    updateLatencyStats(latency);
+                    
+                    // Return wrapper to pool
+                    returnToPool(wrapper);
+                    
+                    // Update statistics
+                    m_stats.messagesReceived++;
+                    updateQueueDepth(-1);
+                    
+                    return true;
                 }
             }
         }
@@ -213,7 +224,7 @@ public:
         
         for (int p = 0; p <= static_cast<int>(maxPriority) && processed < maxMessages; ++p)
         {
-            auto& queue = m_priorityQueues[p];
+            auto& queue = m_priorityQueues[p].fifo;
             int numReady = queue.getNumReady();
             
             while (numReady > 0 && processed < maxMessages)
@@ -235,7 +246,7 @@ public:
     {
         for (int p = 0; p < static_cast<int>(Priority::DEFERRED) + 1; ++p)
         {
-            const auto& queue = m_priorityQueues[p];
+            const auto& queue = m_priorityQueues[p].fifo;
             
             if (queue.getNumReady() > 0)
             {
@@ -257,9 +268,9 @@ public:
     int getNumReady() const
     {
         int total = 0;
-        for (const auto& queue : m_priorityQueues)
+        for (const auto& pq : m_priorityQueues)
         {
-            total += queue.getNumReady();
+            total += pq.fifo.getNumReady();
         }
         return total;
     }
@@ -269,7 +280,7 @@ public:
      */
     int getNumReady(Priority priority) const
     {
-        return m_priorityQueues[static_cast<int>(priority)].getNumReady();
+        return m_priorityQueues[static_cast<int>(priority)].fifo.getNumReady();
     }
     
     /**
@@ -413,7 +424,11 @@ private:
     // Data Members
     
     // Priority queues (one per priority level)
-    std::array<juce::AbstractFifo, 5> m_priorityQueues;
+    // Each queue needs to be initialized with a size
+    struct PriorityQueue {
+        juce::AbstractFifo fifo{QueueSize / 5};
+    };
+    std::array<PriorityQueue, 5> m_priorityQueues;
     
     // Message storage per priority
     std::array<std::array<MessageWrapper*, QueueSize/5>, 5> m_messages;

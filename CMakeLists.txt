@@ -115,6 +115,21 @@ target_sources(HAM PRIVATE
     Source/UI/ComponentShowcase.cpp
     Source/UI/PulseComponentLibrary.h
     Source/UI/PulseComponentLibrary.cpp
+    
+    # Presentation Layer - Core
+    Source/Presentation/Core/DesignSystem.h
+    Source/Presentation/Core/BaseComponent.h
+    
+    # Presentation Layer - ViewModels
+    Source/Presentation/ViewModels/StageViewModel.h
+    Source/Presentation/ViewModels/TrackViewModel.h
+    Source/Presentation/ViewModels/TransportViewModel.h
+    
+    # Presentation Layer - Components
+    Source/Presentation/Components/ModernSlider.h
+    
+    # Presentation Layer - Views
+    Source/Presentation/Views/StageCard.h
 )
 
 # Compile definitions

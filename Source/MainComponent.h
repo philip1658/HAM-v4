@@ -2,7 +2,7 @@
   ==============================================================================
 
     MainComponent.h
-    Main component for HAM sequencer
+    Main component for HAM sequencer with Pulse UI integration
 
   ==============================================================================
 */
@@ -10,11 +10,12 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <memory>
 
 //==============================================================================
 /**
  * Main component for HAM sequencer
- * Will contain the full UI once implemented
+ * Uses Pulse UI component library with message-based architecture
  */
 class MainComponent : public juce::Component
 {
@@ -28,12 +29,12 @@ public:
     void resized() override;
 
 private:
-    //==============================================================================
-    // TODO: Add HAM sequencer components here
-    // - Transport controls
-    // - Stage grid
-    // - Track sidebar
-    // - Pattern manager
+    // Forward declaration for implementation
+    class Impl;
+    std::unique_ptr<Impl> m_impl;
+    
+    // Look and feel
+    juce::LookAndFeel_V4 m_pulseLookAndFeel;
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };
