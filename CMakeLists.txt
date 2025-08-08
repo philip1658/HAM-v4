@@ -126,10 +126,8 @@ target_sources(HAM PRIVATE
     Source/Presentation/ViewModels/TransportViewModel.h
     
     # Presentation Layer - Components
-    Source/Presentation/Components/ModernSlider.h
     
     # Presentation Layer - Views
-    Source/Presentation/Views/StageCard.h
 )
 
 # Compile definitions

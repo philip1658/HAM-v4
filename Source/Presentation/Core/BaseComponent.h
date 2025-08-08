@@ -35,7 +35,7 @@ public:
     bool isFocused() const { return m_isFocused; }
     
     // Enable/disable state
-    void setEnabled(bool enabled) override {
+    void setEnabled(bool enabled) {
         juce::Component::setEnabled(enabled);
         repaint();
     }

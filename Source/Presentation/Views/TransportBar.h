@@ -53,7 +53,6 @@ public:
         
         // Create tempo display
         m_tempoDisplay = std::make_unique<TempoDisplay>();
-        m_tempoDisplay->setRange(20.0f, 999.0f);
         m_tempoDisplay->setBPM(120.0f);
         m_tempoDisplay->onBPMChanged = [this](float bpm) {
             m_currentBPM = bpm;

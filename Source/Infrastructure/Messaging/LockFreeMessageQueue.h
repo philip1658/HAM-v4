@@ -126,19 +126,25 @@ public:
         
         // Add to appropriate priority queue
         auto& queue = m_priorityQueues[static_cast<int>(priority)].fifo;
+        auto& messageArray = m_messages[static_cast<int>(priority)];
         
         // Use ScopedWrite for JUCE 8
         if (queue.getFreeSpace() > 0)
         {
-            auto scope = queue.write(1);
-            if (scope.blockSize1 > 0)
+            // JUCE 8: write() returns a ScopedWrite object
+            int startIndex1, blockSize1, startIndex2, blockSize2;
+            queue.prepareToWrite(1, startIndex1, blockSize1, startIndex2, blockSize2);
+            
+            if (blockSize1 > 0)
             {
-                m_messages[static_cast<int>(priority)][scope.startIndex1] = wrapper;
+                messageArray[startIndex1] = wrapper;
             }
-            else if (scope.blockSize2 > 0)
+            else if (blockSize2 > 0)
             {
-                m_messages[static_cast<int>(priority)][scope.startIndex2] = wrapper;
+                messageArray[startIndex2] = wrapper;
             }
+            
+            queue.finishedWrite(blockSize1 + blockSize2);
             
             // Update statistics
             m_stats.messagesSent++;
@@ -174,16 +180,19 @@ public:
             
             if (queue.getNumReady() > 0)
             {
-                auto scope = queue.read(1);
+                // JUCE 8: read() returns a ScopedRead object
+                int startIndex1, blockSize1, startIndex2, blockSize2;
+                queue.prepareToRead(1, startIndex1, blockSize1, startIndex2, blockSize2);
+                
                 MessageWrapper* wrapper = nullptr;
                 
-                if (scope.blockSize1 > 0)
+                if (blockSize1 > 0)
                 {
-                    wrapper = m_messages[p][scope.startIndex1];
+                    wrapper = m_messages[p][startIndex1];
                 }
-                else if (scope.blockSize2 > 0)
+                else if (blockSize2 > 0)
                 {
-                    wrapper = m_messages[p][scope.startIndex2];
+                    wrapper = m_messages[p][startIndex2];
                 }
                 
                 if (wrapper)
@@ -199,6 +208,8 @@ public:
                     
                     // Return wrapper to pool
                     returnToPool(wrapper);
+                    
+                    queue.finishedRead(blockSize1 + blockSize2);
                     
                     // Update statistics
                     m_stats.messagesReceived++;

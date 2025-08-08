@@ -185,8 +185,9 @@ private:
     void updateCurrentStage(int track, int stage)
     {
         // Update stage grid to show active stage
+        // For now, we only support single track, so ignore track parameter
         if (m_stageGrid) {
-            m_stageGrid->setActiveStage(track, stage);
+            m_stageGrid->setActiveStage(stage);
         }
     }
     
