@@ -498,9 +498,9 @@ public:
         m_velocitySlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[2]));
         m_gateSlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[3]));
         
-        // Create Stage Editor button with better visibility
+        // Create Stage Editor button - will use track color
         m_stageEditorButton = std::make_unique<ModernButton>("EDIT", ModernButton::Style::Solid);
-        m_stageEditorButton->setColor(juce::Colour(DesignTokens::Colors::ACCENT_CYAN));
+        m_stageEditorButton->setColor(m_trackColor);  // Use track color
         m_stageEditorButton->onClick = [this]() {
             DBG("Stage Editor button clicked for stage " << m_stageNumber);
             if (onStageEditorClicked) onStageEditorClicked(m_stageNumber);
@@ -605,6 +605,15 @@ public:
         repaint();
     }
     
+    void setTrackColor(const juce::Colour& color) {
+        m_trackColor = color;
+        // Update EDIT button to use track color
+        if (m_stageEditorButton) {
+            m_stageEditorButton->setColor(m_trackColor);
+        }
+        repaint();
+    }
+    
     // Get slider references for external control
     ModernSlider* getPitchSlider() { return m_pitchSlider.get(); }
     ModernSlider* getPulseSlider() { return m_pulseSlider.get(); }
@@ -622,6 +631,7 @@ private:
     std::unique_ptr<ModernButton> m_stageEditorButton;
     int m_stageNumber = 1;
     bool m_isActive = false;
+    juce::Colour m_trackColor = juce::Colour(DesignTokens::Colors::ACCENT_CYAN);
 };
 
 // ==========================================

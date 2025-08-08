@@ -142,18 +142,18 @@ void TrackControlStrip::setupControls()
     };
     addAndMakeVisible(m_octaveInput.get());
     
-    // Plugin button with icon - use distinct bright blue color
+    // Plugin button - use track color
     m_pluginButton = std::make_unique<ModernButton>("PLUGIN", ModernButton::Style::Gradient);
-    m_pluginButton->setColor(juce::Colour(0xFF00AAFF));  // Bright cyan-blue
+    m_pluginButton->setColor(m_trackColor);  // Use track color
     m_pluginButton->onClick = [this]() {
         DBG("Plugin button clicked for track " << m_trackIndex);
         if (onPluginButtonClicked) onPluginButtonClicked(m_trackIndex);
     };
     addAndMakeVisible(m_pluginButton.get());
     
-    // Accumulator button with icon - use distinct bright amber/orange color
+    // Accumulator button - use track color
     m_accumulatorButton = std::make_unique<ModernButton>("ACCUM", ModernButton::Style::Gradient);
-    m_accumulatorButton->setColor(juce::Colour(0xFFFF8800));  // Bright orange
+    m_accumulatorButton->setColor(m_trackColor);  // Use track color
     m_accumulatorButton->onClick = [this]() {
         DBG("Accumulator button clicked for track " << m_trackIndex);
         if (onAccumulatorButtonClicked) onAccumulatorButtonClicked(m_trackIndex);
@@ -181,9 +181,9 @@ void TrackControlStrip::paint(juce::Graphics& g)
     {
         // Selected state - more vibrant gradient with track color
         bgGradient = juce::ColourGradient(
-            m_trackColor.withAlpha(0.25f),  // Track color at top
+            m_trackColor.withAlpha(0.125f),  // Track color at top (reduced 50%)
             bounds.getTopLeft().toFloat(),
-            m_trackColor.withAlpha(0.1f),   // Fade to darker at bottom
+            m_trackColor.withAlpha(0.05f),   // Fade to darker at bottom (reduced 50%)
             bounds.getBottomRight().toFloat(),
             false
         );
@@ -192,9 +192,9 @@ void TrackControlStrip::paint(juce::Graphics& g)
     {
         // Unselected state - subtle gradient with track color
         bgGradient = juce::ColourGradient(
-            m_trackColor.withAlpha(0.15f),  // Very subtle track color
+            m_trackColor.withAlpha(0.075f),  // Very subtle track color (reduced 50%)
             bounds.getTopLeft().toFloat(),
-            m_trackColor.withAlpha(0.05f),  // Almost transparent at bottom
+            m_trackColor.withAlpha(0.025f),  // Almost transparent at bottom (reduced 50%)
             bounds.getBottomRight().toFloat(),
             false
         );
@@ -206,9 +206,9 @@ void TrackControlStrip::paint(juce::Graphics& g)
     
     // Add a subtle overlay gradient for depth
     juce::ColourGradient overlayGradient(
-        juce::Colour(DesignTokens::Colors::BG_RAISED).withAlpha(0.3f),
+        juce::Colour(DesignTokens::Colors::BG_RAISED).withAlpha(0.15f),  // Reduced 50%
         bounds.getTopLeft().toFloat(),
-        juce::Colour(DesignTokens::Colors::BG_DARK).withAlpha(0.5f),
+        juce::Colour(DesignTokens::Colors::BG_DARK).withAlpha(0.25f),    // Reduced 50%
         bounds.getBottomRight().toFloat(),
         false
     );
@@ -219,7 +219,7 @@ void TrackControlStrip::paint(juce::Graphics& g)
     if (m_isSelected) {
         auto glowBounds = bounds.toFloat().withHeight(30);
         juce::ColourGradient topGlow(
-            m_trackColor.withAlpha(0.3f),
+            m_trackColor.withAlpha(0.15f),  // Reduced 50%
             glowBounds.getTopLeft(),
             m_trackColor.withAlpha(0.0f),
             glowBounds.getBottomLeft(),
@@ -231,10 +231,10 @@ void TrackControlStrip::paint(juce::Graphics& g)
     
     // Border with track color accent
     if (m_isSelected) {
-        g.setColour(m_trackColor.withAlpha(0.6f));
+        g.setColour(m_trackColor.withAlpha(0.3f));  // Reduced 50%
         g.drawRoundedRectangle(bounds.toFloat(), 6.0f, 1.5f);
     } else {
-        g.setColour(m_trackColor.withAlpha(0.3f));
+        g.setColour(m_trackColor.withAlpha(0.15f));  // Reduced 50%
         g.drawRoundedRectangle(bounds.toFloat(), 6.0f, 1.0f);
     }
 }
@@ -355,8 +355,9 @@ void TrackControlStrip::updateFromTrack(const TrackViewModel& track)
     if (m_swingSlider) m_swingSlider->setValue(track.getSwing()); // Already 0-1 range
     if (m_octaveInput) m_octaveInput->setValue(static_cast<float>(track.getOctaveOffset()));
     
-    // Keep button colors distinct (don't update to track color)
-    // Plugin button stays blue, Accumulator button stays amber
+    // Update button colors to match track
+    if (m_pluginButton) m_pluginButton->setColor(m_trackColor);
+    if (m_accumulatorButton) m_accumulatorButton->setColor(m_trackColor);
     
     repaint();
 }

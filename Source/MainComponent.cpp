@@ -102,7 +102,10 @@ public:
         auto sidebarBounds = contentArea.removeFromLeft(SIDEBAR_WIDTH);
         m_trackSidebar->setBounds(sidebarBounds);
         
-        // Stage grid takes ALL remaining space - no gaps
+        // Add 1px gap between sidebar and stage grid (same as spacing between stage cards)
+        contentArea.removeFromLeft(1);
+        
+        // Stage grid takes remaining space after 1px gap
         // This ensures both components have the exact same height
         m_stageGrid->setBounds(contentArea);
     }
@@ -129,8 +132,8 @@ public:
     
     void paintOverChildren(juce::Graphics& g)
     {
-        // Draw coordinate grid overlay on top of all children
-        drawCoordinateGrid(g);
+        // Grid overlay disabled - uncomment to show coordinate grid for UI positioning
+        // drawCoordinateGrid(g);
     }
     
 private:

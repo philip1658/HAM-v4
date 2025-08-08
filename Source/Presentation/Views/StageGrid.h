@@ -22,6 +22,9 @@ public:
             auto card = std::make_unique<StageCard>();
             card->setStageNumber(i + 1);
             
+            // Set track color (using track 0 color for now - will be updated when multi-track is implemented)
+            card->setTrackColor(DesignTokens::Colors::getTrackColor(0));
+            
             // Connect Stage Editor button callback
             card->onStageEditorClicked = [this, i](int stageNum) {
                 DBG("Stage Editor requested for stage " << stageNum);
@@ -59,10 +62,10 @@ public:
         
         // Calculate optimized card dimensions
         const int numCards = 8;
-        const int horizontalPadding = 6;  // Padding between cards
+        const int horizontalPadding = 1;  // 1px spacing between cards for clean separation
         
-        // Add horizontal padding only
-        bounds = bounds.reduced(horizontalPadding/2, 0);
+        // Don't reduce bounds - we want cards to use full width with only 1px gaps
+        // bounds = bounds.reduced(horizontalPadding/2, 0);  // Removed to maximize card width
         
         // Line 5 absolute position = 120px from window top (5 * 24px)
         // Content area starts at 120px (80px transport + 40px pattern bar)
