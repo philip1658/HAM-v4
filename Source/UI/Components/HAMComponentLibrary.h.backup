@@ -298,6 +298,129 @@ private:
     Style m_style;
 };
 
+// Forward declaration
+class ModernButton;
+
+// ==========================================
+// Stage Card (2x2 Grid)
+// ==========================================
+class StageCard : public Panel {
+public:
+    StageCard() : Panel(Style::Raised) {
+        // Create 2x2 grid of sliders
+        m_pitchSlider = std::make_unique<ModernSlider>(true);
+        m_pulseSlider = std::make_unique<ModernSlider>(true);
+        m_velocitySlider = std::make_unique<ModernSlider>(true);
+        m_gateSlider = std::make_unique<ModernSlider>(true);
+        
+        m_pitchSlider->setLabel("PITCH");
+        m_pulseSlider->setLabel("PULSE");
+        m_velocitySlider->setLabel("VEL");
+        m_gateSlider->setLabel("GATE");
+        
+        m_pitchSlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[0]));
+        m_pulseSlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[1]));
+        m_velocitySlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[2]));
+        m_gateSlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[3]));
+        
+        // Create Stage Editor button
+        m_stageEditorButton = std::make_unique<ModernButton>("Stage Editor", ModernButton::Style::Gradient);
+        m_stageEditorButton->setColor(juce::Colour(DesignTokens::Colors::ACCENT_CYAN));
+        m_stageEditorButton->onClick = [this]() {
+            DBG("Stage Editor button clicked for stage " << m_stageNumber);
+            if (onStageEditorClicked) onStageEditorClicked(m_stageNumber);
+        };
+        
+        addAndMakeVisible(m_pitchSlider.get());
+        addAndMakeVisible(m_pulseSlider.get());
+        addAndMakeVisible(m_velocitySlider.get());
+        addAndMakeVisible(m_gateSlider.get());
+        addAndMakeVisible(m_stageEditorButton.get());
+        
+        setSize(140, 480);  // Updated height to match TrackSidebar
+    }
+    
+    void resized() override {
+        const int spacing = 8;
+        auto bounds = getLocalBounds().reduced(spacing);
+        
+        // Reserve space for stage number at top
+        auto headerArea = bounds.removeFromTop(32);
+        
+        // Reserve space for Stage Editor button at bottom  
+        auto buttonArea = bounds.removeFromBottom(40);
+        
+        // 2x2 grid for sliders with extra height
+        auto sliderArea = bounds.reduced(spacing);
+        int halfWidth = sliderArea.getWidth() / 2;
+        int halfHeight = sliderArea.getHeight() / 2;
+        
+        // Top row: PITCH | PULSE
+        m_pitchSlider->setBounds(sliderArea.getX(), sliderArea.getY(), 
+                                 halfWidth - spacing, halfHeight - spacing);
+        m_pulseSlider->setBounds(sliderArea.getX() + halfWidth + spacing, sliderArea.getY(),
+                                 halfWidth - spacing, halfHeight - spacing);
+        
+        // Bottom row: VEL | GATE  
+        m_velocitySlider->setBounds(sliderArea.getX(), sliderArea.getY() + halfHeight + spacing,
+                                    halfWidth - spacing, halfHeight - spacing);
+        m_gateSlider->setBounds(sliderArea.getX() + halfWidth + spacing, 
+                               sliderArea.getY() + halfHeight + spacing,
+                               halfWidth - spacing, halfHeight - spacing);
+        
+        // Stage Editor button at bottom
+        m_stageEditorButton->setBounds(buttonArea.reduced(spacing, 2));
+    }
+    
+    void paint(juce::Graphics& g) override {
+        Panel::paint(g);
+        
+        // Stage number
+        const int spacing = 8;
+        auto bounds = getLocalBounds().reduced(spacing);
+        auto headerArea = bounds.removeFromTop(24);
+        
+        g.setColour(juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
+        g.setFont(juce::Font(14.0f * getScaleFactor()).withStyle(juce::Font::bold));
+        g.drawText(juce::String(m_stageNumber), headerArea, juce::Justification::centred);
+        
+        // Active indicator LED
+        if (m_isActive) {
+            auto ledBounds = headerArea.removeFromRight(16).reduced(4).toFloat();
+            g.setColour(juce::Colour(DesignTokens::Colors::ACCENT_GREEN));
+            g.fillEllipse(ledBounds);
+        }
+    }
+    
+    void setStageNumber(int number) {
+        m_stageNumber = number;
+        repaint();
+    }
+    
+    void setActive(bool active) {
+        m_isActive = active;
+        repaint();
+    }
+    
+    // Get slider references for external control
+    ModernSlider* getPitchSlider() { return m_pitchSlider.get(); }
+    ModernSlider* getPulseSlider() { return m_pulseSlider.get(); }
+    ModernSlider* getVelocitySlider() { return m_velocitySlider.get(); }
+    ModernSlider* getGateSlider() { return m_gateSlider.get(); }
+    
+    // Callback for Stage Editor button
+    std::function<void(int)> onStageEditorClicked;
+    
+private:
+    std::unique_ptr<ModernSlider> m_pitchSlider;
+    std::unique_ptr<ModernSlider> m_pulseSlider;
+    std::unique_ptr<ModernSlider> m_velocitySlider;
+    std::unique_ptr<ModernSlider> m_gateSlider;
+    std::unique_ptr<ModernButton> m_stageEditorButton;
+    int m_stageNumber = 1;
+    bool m_isActive = false;
+};
+
 // ==========================================
 // Modern Button
 // ==========================================
@@ -322,21 +445,16 @@ public:
         auto bgColor = m_isDown ? m_color.darker(0.2f) : (m_isHovered ? m_color.brighter(0.1f) : m_color);
         
         if (m_style == Style::Gradient) {
-            // More vibrant gradient fill
+            // Gradient fill
             juce::ColourGradient gradient(
-                bgColor.brighter(0.3f), bounds.getTopLeft(),
-                bgColor.darker(0.1f), bounds.getBottomRight(),
+                bgColor.withAlpha(0.9f), bounds.getTopLeft(),
+                bgColor.withAlpha(0.7f), bounds.getBottomRight(),
                 false
             );
             g.setGradientFill(gradient);
             g.fillRoundedRectangle(bounds, scaled(DesignTokens::Dimensions::CORNER_RADIUS));
-            
-            // Add subtle glow effect for better visibility
-            g.setColour(bgColor.withAlpha(0.2f));
-            g.drawRoundedRectangle(bounds.expanded(scaled(2)), 
-                                  scaled(DesignTokens::Dimensions::CORNER_RADIUS), scaled(2));
         } else if (m_style == Style::Solid) {
-            // Solid fill with better visibility
+            // Solid fill
             g.setColour(bgColor);
             g.fillRoundedRectangle(bounds, scaled(DesignTokens::Dimensions::CORNER_RADIUS));
         }
@@ -347,14 +465,11 @@ public:
             g.drawRoundedRectangle(bounds, scaled(DesignTokens::Dimensions::CORNER_RADIUS), scaled(1));
         }
         
-        // Text with better contrast
-        if (m_style == Style::Outline || m_style == Style::Ghost) {
-            g.setColour(bgColor);
-        } else {
-            // Use white text for better contrast on colored buttons
-            g.setColour(juce::Colours::white);
-        }
-        g.setFont(juce::Font(scaled(12)).withStyle(juce::Font::bold));
+        // Text
+        g.setColour(m_style == Style::Outline || m_style == Style::Ghost 
+                   ? bgColor 
+                   : juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
+        g.setFont(juce::Font(scaled(12)));
         g.drawText(m_text, bounds, juce::Justification::centred);
     }
     
@@ -463,129 +578,6 @@ public:
     
 private:
     bool m_checked = false;
-};
-
-// ==========================================
-// Stage Card (2x2 Grid)
-// ==========================================
-class StageCard : public Panel {
-public:
-    StageCard() : Panel(Style::Raised) {
-        // Create 2x2 grid of sliders
-        m_pitchSlider = std::make_unique<ModernSlider>(true);
-        m_pulseSlider = std::make_unique<ModernSlider>(true);
-        m_velocitySlider = std::make_unique<ModernSlider>(true);
-        m_gateSlider = std::make_unique<ModernSlider>(true);
-        
-        m_pitchSlider->setLabel("PITCH");
-        m_pulseSlider->setLabel("PULSE");
-        m_velocitySlider->setLabel("VEL");
-        m_gateSlider->setLabel("GATE");
-        
-        m_pitchSlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[0]));
-        m_pulseSlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[1]));
-        m_velocitySlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[2]));
-        m_gateSlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[3]));
-        
-        // Create Stage Editor button with better visibility
-        m_stageEditorButton = std::make_unique<ModernButton>("EDITOR", ModernButton::Style::Solid);
-        m_stageEditorButton->setColor(juce::Colour(DesignTokens::Colors::ACCENT_CYAN));
-        m_stageEditorButton->onClick = [this]() {
-            DBG("Stage Editor button clicked for stage " << m_stageNumber);
-            if (onStageEditorClicked) onStageEditorClicked(m_stageNumber);
-        };
-        
-        addAndMakeVisible(m_pitchSlider.get());
-        addAndMakeVisible(m_pulseSlider.get());
-        addAndMakeVisible(m_velocitySlider.get());
-        addAndMakeVisible(m_gateSlider.get());
-        addAndMakeVisible(m_stageEditorButton.get());
-        
-        setSize(140, 480);  // Fixed height to match TrackSidebar
-        DBG("StageCard created with size: " << getWidth() << "x" << getHeight());
-    }
-    
-    void resized() override {
-        const int spacing = 8;
-        auto bounds = getLocalBounds().reduced(spacing);
-        
-        DBG("StageCard resized to: " << getWidth() << "x" << getHeight());
-        
-        // Reserve space for stage number at top
-        auto headerArea = bounds.removeFromTop(32);
-        
-        // Reserve space for Stage Editor button at bottom  
-        auto buttonArea = bounds.removeFromBottom(40);
-        
-        // 2x2 grid for sliders with extra height
-        auto sliderArea = bounds.reduced(spacing);
-        int halfWidth = sliderArea.getWidth() / 2;
-        int halfHeight = sliderArea.getHeight() / 2;
-        
-        // Top row: PITCH | PULSE
-        m_pitchSlider->setBounds(sliderArea.getX(), sliderArea.getY(), 
-                                 halfWidth - spacing, halfHeight - spacing);
-        m_pulseSlider->setBounds(sliderArea.getX() + halfWidth + spacing, sliderArea.getY(),
-                                 halfWidth - spacing, halfHeight - spacing);
-        
-        // Bottom row: VEL | GATE  
-        m_velocitySlider->setBounds(sliderArea.getX(), sliderArea.getY() + halfHeight + spacing,
-                                    halfWidth - spacing, halfHeight - spacing);
-        m_gateSlider->setBounds(sliderArea.getX() + halfWidth + spacing, 
-                               sliderArea.getY() + halfHeight + spacing,
-                               halfWidth - spacing, halfHeight - spacing);
-        
-        // Stage Editor button at bottom
-        m_stageEditorButton->setBounds(buttonArea.reduced(spacing, 2));
-    }
-    
-    void paint(juce::Graphics& g) override {
-        Panel::paint(g);
-        
-        // Stage number
-        const int spacing = 8;
-        auto bounds = getLocalBounds().reduced(spacing);
-        auto headerArea = bounds.removeFromTop(24);
-        
-        g.setColour(juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
-        g.setFont(juce::Font(14.0f * getScaleFactor()).withStyle(juce::Font::bold));
-        g.drawText(juce::String(m_stageNumber), headerArea, juce::Justification::centred);
-        
-        // Active indicator LED
-        if (m_isActive) {
-            auto ledBounds = headerArea.removeFromRight(16).reduced(4).toFloat();
-            g.setColour(juce::Colour(DesignTokens::Colors::ACCENT_GREEN));
-            g.fillEllipse(ledBounds);
-        }
-    }
-    
-    void setStageNumber(int number) {
-        m_stageNumber = number;
-        repaint();
-    }
-    
-    void setActive(bool active) {
-        m_isActive = active;
-        repaint();
-    }
-    
-    // Get slider references for external control
-    ModernSlider* getPitchSlider() { return m_pitchSlider.get(); }
-    ModernSlider* getPulseSlider() { return m_pulseSlider.get(); }
-    ModernSlider* getVelocitySlider() { return m_velocitySlider.get(); }
-    ModernSlider* getGateSlider() { return m_gateSlider.get(); }
-    
-    // Callback for Stage Editor button
-    std::function<void(int)> onStageEditorClicked;
-    
-private:
-    std::unique_ptr<ModernSlider> m_pitchSlider;
-    std::unique_ptr<ModernSlider> m_pulseSlider;
-    std::unique_ptr<ModernSlider> m_velocitySlider;
-    std::unique_ptr<ModernSlider> m_gateSlider;
-    std::unique_ptr<ModernButton> m_stageEditorButton;
-    int m_stageNumber = 1;
-    bool m_isActive = false;
 };
 
 // ==========================================

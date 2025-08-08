@@ -881,12 +881,17 @@ PulseComponentLibrary::StageCard::StageCard(const juce::String& name, int stageN
     velocitySlider = std::make_unique<PulseVerticalSlider>("VEL", 2);
     gateSlider = std::make_unique<PulseVerticalSlider>("GATE", 3);
     hamButton = std::make_unique<PulseButton>("HAM", PulseButton::Gradient);
+    stageEditorButton = std::make_unique<PulseButton>("Stage Editor", PulseButton::Solid);
+    
+    // Stage Editor button callback - PulseButton doesn't have onClick callback yet
+    // TODO: Add onClick support to PulseButton class
     
     addAndMakeVisible(pitchSlider.get());
     addAndMakeVisible(pulseSlider.get());
     addAndMakeVisible(velocitySlider.get());
     addAndMakeVisible(gateSlider.get());
     addAndMakeVisible(hamButton.get());
+    addAndMakeVisible(stageEditorButton.get());
 }
 
 void PulseComponentLibrary::StageCard::paint(juce::Graphics& g)
@@ -916,17 +921,35 @@ void PulseComponentLibrary::StageCard::resized()
     bounds.removeFromTop(30); // Stage label
     bounds.reduce(10, 10);
     
-    // 2x2 grid layout
-    int sliderWidth = bounds.getWidth() / 2;
-    int sliderHeight = (bounds.getHeight() - 40) / 2; // Leave space for button
+    // With 480px height, we have more room for controls
+    // Reserve space for two buttons at bottom (80px total)
+    auto sliderArea = bounds.withTrimmedBottom(80);
     
-    pitchSlider->setBounds(0, 0, sliderWidth, sliderHeight);
-    pulseSlider->setBounds(sliderWidth, 0, sliderWidth, sliderHeight);
-    velocitySlider->setBounds(0, sliderHeight, sliderWidth, sliderHeight);
-    gateSlider->setBounds(sliderWidth, sliderHeight, sliderWidth, sliderHeight);
+    // 2x2 grid layout for sliders
+    int sliderWidth = sliderArea.getWidth() / 2;
+    int sliderHeight = sliderArea.getHeight() / 2;
     
-    // HAM button at bottom
-    hamButton->setBounds(bounds.withTop(bounds.getBottom() - 35).withHeight(35));
+    pitchSlider->setBounds(sliderArea.getX(), sliderArea.getY(), 
+                           sliderWidth, sliderHeight);
+    pulseSlider->setBounds(sliderArea.getX() + sliderWidth, sliderArea.getY(), 
+                          sliderWidth, sliderHeight);
+    velocitySlider->setBounds(sliderArea.getX(), sliderArea.getY() + sliderHeight, 
+                             sliderWidth, sliderHeight);
+    gateSlider->setBounds(sliderArea.getX() + sliderWidth, sliderArea.getY() + sliderHeight, 
+                         sliderWidth, sliderHeight);
+    
+    // Buttons at bottom
+    auto buttonArea = bounds.withTop(sliderArea.getBottom() + 10);
+    
+    // HAM button
+    auto hamButtonBounds = buttonArea.removeFromTop(35);
+    hamButton->setBounds(hamButtonBounds);
+    
+    buttonArea.removeFromTop(5); // Spacing
+    
+    // Stage Editor button
+    auto editorButtonBounds = buttonArea.removeFromTop(35);
+    stageEditorButton->setBounds(editorButtonBounds);
 }
 
 //==============================================================================

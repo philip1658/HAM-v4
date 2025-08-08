@@ -128,6 +128,8 @@ target_sources(HAM PRIVATE
     # Presentation Layer - Components
     
     # Presentation Layer - Views
+    Source/Presentation/Views/TrackSidebar.h
+    Source/Presentation/Views/TrackSidebar.cpp
 )
 
 # Compile definitions

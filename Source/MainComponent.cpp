@@ -14,6 +14,7 @@
 #include "UI/Components/HAMComponentLibraryExtended.h"
 #include "Presentation/Views/StageGrid.h"
 #include "Presentation/Views/TransportBar.h"
+#include "Presentation/Views/TrackSidebar.h"
 
 //==============================================================================
 class MainComponent::Impl : public juce::Timer
@@ -42,6 +43,19 @@ public:
         };
         m_owner.addAndMakeVisible(m_stageGrid.get());
         
+        // Create track sidebar
+        m_trackSidebar = std::make_unique<HAM::UI::TrackSidebar>();
+        m_trackSidebar->onTrackSelected = [this](int trackIndex) {
+            handleTrackSelection(trackIndex);
+        };
+        m_trackSidebar->onTrackParameterChanged = [this](int trackIndex, const juce::String& param, float value) {
+            handleTrackParameterChange(trackIndex, param, value);
+        };
+        m_trackSidebar->onAddTrack = [this]() {
+            handleAddTrack();
+        };
+        m_owner.addAndMakeVisible(m_trackSidebar.get());
+        
         // Note: Removed main panel as it was covering other components
         
         // Start timer for UI updates from engine
@@ -63,7 +77,14 @@ public:
         // Main content area
         auto contentArea = bounds.reduced(8);
         
-        // Stage grid in center (will expand to multiple tracks later)
+        // Track sidebar on left (250px for fixed 480px height design)
+        static constexpr int SIDEBAR_WIDTH = 250;
+        m_trackSidebar->setBounds(contentArea.removeFromLeft(SIDEBAR_WIDTH));
+        
+        // Add some spacing between sidebar and main content
+        contentArea.removeFromLeft(8);
+        
+        // Stage grid takes remaining space (will expand to multiple tracks later)
         m_stageGrid->setBounds(contentArea);
     }
     
@@ -197,6 +218,60 @@ private:
         }
     }
     
+    void handleTrackSelection(int trackIndex)
+    {
+        // Send track selection to engine
+        auto msg = HAM::UIToEngineMessage();
+        msg.type = HAM::UIToEngineMessage::UPDATE_TRACK;
+        msg.data.trackParam = {trackIndex, 0}; // 0 as placeholder value
+        m_messageDispatcher->sendToEngine(msg);
+        
+        DBG("Track " << trackIndex << " selected");
+    }
+    
+    void handleTrackParameterChange(int trackIndex, const juce::String& param, float value)
+    {
+        using namespace HAM;
+        UIToEngineMessage msg;
+        
+        if (param == "mute") {
+            msg.type = UIToEngineMessage::SET_TRACK_MUTE;
+            msg.data.trackParam = {trackIndex, static_cast<int>(value)};
+        } else if (param == "solo") {
+            msg.type = UIToEngineMessage::SET_TRACK_SOLO;
+            msg.data.trackParam = {trackIndex, static_cast<int>(value)};
+        } else if (param == "channel") {
+            msg.type = UIToEngineMessage::SET_TRACK_CHANNEL;
+            msg.data.trackParam = {trackIndex, static_cast<int>(value)};
+        } else if (param == "voiceMode") {
+            msg.type = UIToEngineMessage::SET_TRACK_VOICE_MODE;
+            msg.data.trackParam = {trackIndex, static_cast<int>(value)};
+        } else if (param == "division") {
+            msg.type = UIToEngineMessage::SET_TRACK_DIVISION;
+            msg.data.trackParam = {trackIndex, static_cast<int>(value)};
+        } else if (param == "swing") {
+            msg.type = UIToEngineMessage::SET_SWING;
+            msg.data.floatParam = {value / 100.0f}; // Convert from 0-100 to 0-1
+        } else if (param == "octave") {
+            // Note: No specific message type for octave, would need to be added
+            // For now, we can log it
+            DBG("Track " << trackIndex << " octave: " << value);
+            return;
+        } else {
+            return; // Unknown parameter
+        }
+        
+        m_messageDispatcher->sendToEngine(msg);
+        DBG("Track " << trackIndex << " " << param << " changed to: " << value);
+    }
+    
+    void handleAddTrack()
+    {
+        // For now, just log - actual implementation would add a new track to the model
+        DBG("Add track requested");
+        // In future: send message to engine to add track
+    }
+    
     MainComponent& m_owner;
     
     // Message system
@@ -205,6 +280,7 @@ private:
     // UI Components
     std::unique_ptr<HAM::UI::TransportBar> m_transportBar;
     std::unique_ptr<HAM::UI::StageGrid> m_stageGrid;
+    std::unique_ptr<HAM::UI::TrackSidebar> m_trackSidebar;
     
     // Current state
     int m_currentBar = 0;

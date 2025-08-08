@@ -251,9 +251,10 @@ public:
         std::unique_ptr<PulseVerticalSlider> velocitySlider;
         std::unique_ptr<PulseVerticalSlider> gateSlider;
         std::unique_ptr<PulseButton> hamButton;
+        std::unique_ptr<PulseButton> stageEditorButton;  // New Stage Editor button
         
         static constexpr int CARD_WIDTH = 140;
-        static constexpr int CARD_HEIGHT = 420;
+        static constexpr int CARD_HEIGHT = 480;  // Updated to match TrackSidebar
     };
     
     //==============================================================================
