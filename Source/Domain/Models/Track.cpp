@@ -243,4 +243,16 @@ void Track::fromValueTree(const juce::ValueTree& tree)
     }
 }
 
+//==============================================================================
+// Scale Management
+
+Scale* Track::getScale() const
+{
+    // Note: This returns a pointer to a static Scale object from ScaleManager
+    // This is for compatibility with MidiEventGenerator that expects a pointer
+    static Scale s_scaleBuffer;
+    s_scaleBuffer = ScaleManager::getInstance().getScale(m_scaleId);
+    return &s_scaleBuffer;
+}
+
 } // namespace HAM

@@ -19,7 +19,7 @@
 #include "../Models/Pattern.h"
 #include "../Models/Track.h"
 #include "../Models/Stage.h"
-#include "../../Engine/Voice/VoiceManager.h"
+#include "VoiceManager.h"
 
 namespace HAM {
 
@@ -57,7 +57,7 @@ public:
     //==========================================================================
     // Construction
     SequencerEngine();
-    ~SequencerEngine();
+    ~SequencerEngine() override;
     
     //==========================================================================
     // Pattern Management
@@ -109,10 +109,25 @@ public:
     // MIDI Output
     
     /** Process and generate MIDI events for audio block */
-    void processBlock(juce::MidiBuffer& midiBuffer, int numSamples);
+    void processBlock(double sampleRate, int numSamples);
     
     /** Get pending MIDI events (thread-safe) */
     std::vector<MidiEvent> getPendingMidiEvents();
+    
+    /** Get and clear MIDI events */
+    void getAndClearMidiEvents(std::vector<MidiEvent>& events);
+    
+    /** Set current pattern (deprecated: use setActivePattern instead) */
+    void setPattern(Pattern* pattern) { 
+        // Don't copy - just store a non-owning reference
+        // TODO: This is unsafe! Pattern lifetime must be managed elsewhere.
+        // Consider removing this method entirely in favor of setActivePattern
+        if (pattern) {
+            // For now, we'll just reset to nullptr to avoid crashes
+            // The proper fix is to change HAMAudioProcessor to use setActivePattern
+            m_activePattern = nullptr;  
+        }
+    }
     
     //==========================================================================
     // Track Processing

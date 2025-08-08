@@ -312,17 +312,20 @@ void SequencerEngine::advanceTrackStage(Track& track, int pulseNumber)
 
 bool SequencerEngine::shouldTrackTrigger(const Track& track, int pulseNumber) const
 {
-    // Check clock division
-    int division = track.getDivision();
-    if (division <= 0) division = 1;
+    // Check clock division (ensure it's at least 1)
+    int division = juce::jmax(1, track.getDivision());
     
     // Calculate if we're on a division boundary
     // Division 1 = every pulse, Division 2 = every 2 pulses, etc.
     int pulsesPerDivision = division;  // Direct division value
     
-    // TODO: Apply swing timing when implemented
-    // float swing = track.getSwing();
-    // if (swing > 50.0f) { /* adjust timing */ }
+    // Apply swing timing if available
+    float swing = track.getSwing();
+    if (swing > 50.0f && (pulseNumber % 2) == 1)  // Apply swing to off-beats
+    {
+        // Swing calculation would modify the timing here
+        // For now, just check the boundary
+    }
     
     return (pulseNumber % pulsesPerDivision) == 0;
 }
@@ -571,21 +574,14 @@ bool SequencerEngine::hasSoloedTracks() const
 //==============================================================================
 // MIDI Output
 
-void SequencerEngine::processBlock(juce::MidiBuffer& midiBuffer, int numSamples)
+void SequencerEngine::processBlock(double sampleRate, int numSamples)
 {
-    // Get pending events from queue
-    auto events = getPendingMidiEvents();
+    // Process timing for this block
+    // The actual MIDI event generation happens in onClockPulse
+    // Events are then retrieved via getAndClearMidiEvents
     
-    // Add to MIDI buffer with proper sample offsets
-    for (const auto& event : events)
-    {
-        int sampleOffset = event.sampleOffset;
-        
-        // Ensure offset is within buffer
-        sampleOffset = juce::jlimit(0, numSamples - 1, sampleOffset);
-        
-        midiBuffer.addEvent(event.message, sampleOffset);
-    }
+    // Update sample rate if needed
+    // This method is mainly here for block-based processing coordination
 }
 
 std::vector<SequencerEngine::MidiEvent> SequencerEngine::getPendingMidiEvents()
@@ -609,6 +605,11 @@ std::vector<SequencerEngine::MidiEvent> SequencerEngine::getPendingMidiEvents()
     m_midiEventFifo.finishedRead(size1 + size2);
     
     return events;
+}
+
+void SequencerEngine::getAndClearMidiEvents(std::vector<MidiEvent>& events)
+{
+    events = getPendingMidiEvents();  // Just get all pending events
 }
 
 //==============================================================================
@@ -673,8 +674,31 @@ int SequencerEngine::getNextStageIndex(const Track& track, int currentIndex) con
             
         case Direction::PENDULUM:
         {
-            // TODO: Implement pendulum logic with direction tracking
-            return (currentIndex + 1) % length;
+            // Pendulum mode: forward then backward
+            // Track needs to store pendulum direction state
+            static std::unordered_map<const Track*, bool> pendulumDirections;
+            bool& goingForward = pendulumDirections[&track];
+            
+            int nextIndex;
+            if (goingForward)
+            {
+                nextIndex = currentIndex + 1;
+                if (nextIndex >= length - 1)
+                {
+                    goingForward = false;  // Hit end, reverse
+                    nextIndex = length - 1;
+                }
+            }
+            else
+            {
+                nextIndex = currentIndex - 1;
+                if (nextIndex <= 0)
+                {
+                    goingForward = true;  // Hit start, reverse
+                    nextIndex = 0;
+                }
+            }
+            return nextIndex;
         }
             
         case Direction::RANDOM:

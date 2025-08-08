@@ -171,11 +171,14 @@ public:
     /** Find voice playing a specific note */
     Voice* findVoiceForNote(int noteNumber, int channel = 0);
     
-    /** Get number of active voices */
-    int getActiveVoiceCount() const;
+    /** Get number of active voices (cached for performance) */
+    int getActiveVoiceCount() const { return m_activeVoiceCount.load(); }
     
-    /** Get all active voices */
-    std::vector<Voice*> getActiveVoices();
+    /** Get active voices into pre-allocated array */
+    int getActiveVoices(Voice** outVoices, int maxVoices);
+    
+    /** Get active voices into pre-allocated array (const version) */
+    int getActiveVoices(const Voice** outVoices, int maxVoices) const;
     
     /** Check if note is playing */
     bool isNotePlaying(int noteNumber, int channel = 0) const;
@@ -184,13 +187,13 @@ public:
     // MPE Support
     
     /** Set pitch bend for a voice */
-    void setPitchBend(int voiceId, float bend);
+    void setPitchBend(int voiceId, float bend) { setVoiceParameter(voiceId, bend, &Voice::pitchBend); }
     
     /** Set pressure (aftertouch) for a voice */
-    void setPressure(int voiceId, float pressure);
+    void setPressure(int voiceId, float pressure) { setVoiceParameter(voiceId, pressure, &Voice::pressure); }
     
     /** Set slide (MPE Y-axis) for a voice */
-    void setSlide(int voiceId, float slide);
+    void setSlide(int voiceId, float slide) { setVoiceParameter(voiceId, slide, &Voice::slide); }
     
     /** Enable/disable MPE mode */
     void setMPEEnabled(bool enabled) { m_mpeEnabled = enabled; }
@@ -249,9 +252,15 @@ private:
     // Statistics
     mutable Statistics m_statistics;
     
+    // Cached active voice count for performance
+    std::atomic<int> m_activeVoiceCount{0};
+    
     // Last played note (for mono modes)
     std::atomic<int> m_lastNoteNumber{-1};
     std::atomic<int> m_lastVoiceIndex{-1};
+    
+    // Pre-allocated array for voice queries (avoid allocations)
+    mutable std::array<Voice*, MAX_VOICES> m_activeVoiceCache;
     
     //==========================================================================
     // Internal Methods
@@ -286,6 +295,16 @@ private:
     /** Safe voice access helper */
     Voice& voiceAt(int index) { return m_voices[static_cast<size_t>(index)]; }
     const Voice& voiceAt(int index) const { return m_voices[static_cast<size_t>(index)]; }
+    
+    /** Generic voice parameter setter (template for MPE params) */
+    template<typename T>
+    void setVoiceParameter(int voiceId, T value, std::atomic<T> Voice::* member)
+    {
+        if (voiceId >= 0 && voiceId < MAX_VOICES)
+        {
+            (voiceAt(voiceId).*member).store(value);
+        }
+    }
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(VoiceManager)
 };

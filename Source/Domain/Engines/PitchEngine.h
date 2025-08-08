@@ -176,6 +176,12 @@ public:
     void setTransposition(int semitones) { m_transposition.store(std::clamp(semitones, -24, 24)); }
     int getTransposition() const { return m_transposition.load(); }
     
+    //==============================================================================
+    // State Management
+    
+    /** Reset pitch engine to default state */
+    void reset();
+    
 private:
     //==============================================================================
     // Internal state (all atomic for thread safety)

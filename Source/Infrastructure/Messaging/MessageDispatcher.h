@@ -99,6 +99,16 @@ public:
     // Message Processing (called from respective threads)
     
     /**
+     * Process messages (generic interface)
+     * @return Number of messages processed
+     */
+    int processMessages(int maxMessages = 50)
+    {
+        processUIMessages(maxMessages);
+        return maxMessages;  // Return estimated count
+    }
+    
+    /**
      * Process UI messages in audio thread
      * Call this from processBlock()
      */

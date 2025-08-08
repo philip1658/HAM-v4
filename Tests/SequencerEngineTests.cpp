@@ -10,7 +10,7 @@
 #include <JuceHeader.h>
 #include "../Source/Domain/Engines/SequencerEngine.h"
 #include "../Source/Domain/Clock/MasterClock.h"
-#include "../Source/Engine/Voice/VoiceManager.h"
+#include "../Source/Domain/Engines/VoiceManager.h"
 #include "../Source/Domain/Models/Pattern.h"
 #include "../Source/Domain/Models/Track.h"
 #include "../Source/Domain/Models/Stage.h"

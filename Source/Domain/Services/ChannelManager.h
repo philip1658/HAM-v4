@@ -127,6 +127,9 @@ public:
                          juce::MidiBuffer& outputBuffer,
                          int maxEvents = MAX_EVENTS_PER_BLOCK);
     
+    /** Process MIDI buffer through channel manager */
+    void processMidiBuffer(juce::MidiBuffer& midiBuffer, int numSamples);
+    
     /** Smart merge with voice stealing across tracks */
     void mergeWithVoiceStealing(const std::vector<PrioritizedEvent>& events,
                                 juce::MidiBuffer& outputBuffer,

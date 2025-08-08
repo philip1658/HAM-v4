@@ -280,6 +280,25 @@ int PitchEngine::limitToMidiRange(int midiNote)
 }
 
 //==============================================================================
+void PitchEngine::reset()
+{
+    // Reset to default state
+    m_transposition.store(0);
+    m_rootNote.store(60); // Middle C
+    
+    // Clear chord tones
+    for (auto& tone : m_chordTones)
+        tone.store(-1);
+    
+    // Clear custom intervals
+    for (auto& interval : m_customIntervals)
+        interval.store(-1);
+    
+    // Reset to C Major scale
+    m_currentScale = std::make_unique<Scale>(Scale::Major);
+}
+
+//==============================================================================
 void PitchEngine::setScale(const Scale& scale)
 {
     m_currentScale = std::make_unique<Scale>(scale);

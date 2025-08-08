@@ -83,8 +83,8 @@ target_sources(HAM PRIVATE
     Source/Domain/Transport/SyncManager.cpp
     
     # Engine - Voice Management
-    Source/Engine/Voice/VoiceManager.h
-    Source/Engine/Voice/VoiceManager.cpp
+    Source/Domain/Engines/VoiceManager.h
+    Source/Domain/Engines/VoiceManager.cpp
     
     # Engines - Sequencer
     Source/Domain/Engines/SequencerEngine.h
@@ -130,6 +130,27 @@ target_sources(HAM PRIVATE
     # Presentation Layer - Views
     Source/Presentation/Views/TrackSidebar.h
     Source/Presentation/Views/TrackSidebar.cpp
+    Source/Presentation/Views/StageGrid.h
+    Source/Presentation/Views/MainEditor.h
+    
+    # UI Components - Extended Library
+    Source/UI/Components/HAMComponentLibraryExtended.h
+    
+    # Infrastructure Layer - Audio
+    Source/Infrastructure/Audio/HAMAudioProcessor.h
+    Source/Infrastructure/Audio/HAMAudioProcessor.cpp
+    
+    # Infrastructure Layer - Messaging
+    Source/Infrastructure/Messaging/LockFreeMessageQueue.h
+    Source/Infrastructure/Messaging/MessageDispatcher.h
+    Source/Infrastructure/Messaging/MessageTypes.h
+    
+    # Domain Layer - Processors
+    Source/Domain/Processors/TrackProcessor.h
+    Source/Domain/Processors/TrackProcessor.cpp
+    Source/Domain/Processors/MidiEventGenerator.h
+    Source/Domain/Processors/MidiEventGenerator.cpp
+    Source/Domain/Processors/PatternScheduler.h
 )
 
 # Compile definitions

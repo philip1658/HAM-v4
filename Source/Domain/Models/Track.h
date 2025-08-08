@@ -13,6 +13,7 @@
 #include <memory>
 #include <JuceHeader.h>
 #include "Stage.h"
+#include "Scale.h"
 
 namespace HAM {
 
@@ -193,6 +194,19 @@ public:
     void setRootNote(int root);
     int getRootNote() const { return m_rootNote; }
     
+    /** Get scale object from ScaleManager (for compatibility with MidiEventGenerator) */
+    Scale* getScale() const;
+    
+    //==========================================================================
+    // Helper Methods for MidiEventGenerator
+    
+    /** Check if accumulator is enabled (not OFF) */
+    bool hasAccumulator() const { return m_accumulatorMode != AccumulatorMode::OFF; }
+    
+    /** Get track index - note: this needs to be set externally by the container */
+    int getIndex() const { return m_trackIndex; }
+    void setIndex(int index) { m_trackIndex = index; }
+    
 private:
     //==========================================================================
     // Stages
@@ -229,6 +243,7 @@ private:
     
     // Playback state
     int m_currentStageIndex = 0;
+    int m_trackIndex = 0;               // Track index in sequence
     
     JUCE_LEAK_DETECTOR(Track)
 };

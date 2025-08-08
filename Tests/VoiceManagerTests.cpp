@@ -8,7 +8,7 @@
 */
 
 #include <JuceHeader.h>
-#include "../Source/Engine/Voice/VoiceManager.h"
+#include "../Source/Domain/Engines/VoiceManager.h"
 
 using namespace HAM;
 

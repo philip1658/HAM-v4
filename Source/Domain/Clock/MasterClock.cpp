@@ -10,6 +10,7 @@
 #include "MasterClock.h"
 #include <algorithm>
 #include <cmath>
+#include <thread>
 
 namespace HAM {
 
@@ -25,8 +26,11 @@ MasterClock::~MasterClock()
     // Ensure clock is stopped
     stop();
     
-    // Clear listeners
-    const juce::ScopedLock sl(m_listenerLock);
+    // Wait for any ongoing notifications to complete, then clear listeners
+    while (m_isNotifying.load()) {
+        // Brief spin wait for notifications to complete
+        std::this_thread::yield();
+    }
     m_listeners.clear();
 }
 
@@ -229,7 +233,10 @@ double MasterClock::getSamplesPerDivision(Division div, float bpm, double sample
 
 void MasterClock::addListener(Listener* listener)
 {
-    const juce::ScopedLock sl(m_listenerLock);
+    // Wait for any ongoing notifications to complete
+    while (m_isNotifying.load()) {
+        std::this_thread::yield();
+    }
     
     if (std::find(m_listeners.begin(), m_listeners.end(), listener) == m_listeners.end())
     {
@@ -239,7 +246,10 @@ void MasterClock::addListener(Listener* listener)
 
 void MasterClock::removeListener(Listener* listener)
 {
-    const juce::ScopedLock sl(m_listenerLock);
+    // Wait for any ongoing notifications to complete
+    while (m_isNotifying.load()) {
+        std::this_thread::yield();
+    }
     
     auto it = std::find(m_listeners.begin(), m_listeners.end(), listener);
     if (it != m_listeners.end())
@@ -374,11 +384,17 @@ void MasterClock::notifyClockPulse(int pulse)
     // Post to message thread to avoid blocking audio thread
     juce::MessageManager::callAsync([this, pulse]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        // Set notification flag (prevents listener list modification during notification)
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onClockPulse(pulse);
+            if (listener != nullptr)
+                listener->onClockPulse(pulse);
         }
+        
+        // Clear notification flag
+        m_isNotifying.store(false);
     });
 }
 
@@ -386,11 +402,15 @@ void MasterClock::notifyClockStart()
 {
     juce::MessageManager::callAsync([this]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onClockStart();
+            if (listener != nullptr)
+                listener->onClockStart();
         }
+        
+        m_isNotifying.store(false);
     });
 }
 
@@ -398,11 +418,15 @@ void MasterClock::notifyClockStop()
 {
     juce::MessageManager::callAsync([this]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onClockStop();
+            if (listener != nullptr)
+                listener->onClockStop();
         }
+        
+        m_isNotifying.store(false);
     });
 }
 
@@ -410,11 +434,15 @@ void MasterClock::notifyClockReset()
 {
     juce::MessageManager::callAsync([this]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onClockReset();
+            if (listener != nullptr)
+                listener->onClockReset();
         }
+        
+        m_isNotifying.store(false);
     });
 }
 
@@ -422,11 +450,15 @@ void MasterClock::notifyTempoChanged(float bpm)
 {
     juce::MessageManager::callAsync([this, bpm]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onTempoChanged(bpm);
+            if (listener != nullptr)
+                listener->onTempoChanged(bpm);
         }
+        
+        m_isNotifying.store(false);
     });
 }
 

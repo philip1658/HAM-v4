@@ -148,8 +148,8 @@ juce_generate_juce_header(VoiceManagerTests)
 
 target_sources(VoiceManagerTests PRIVATE
     VoiceManagerTests.cpp
-    ../Source/Engine/Voice/VoiceManager.cpp
-    ../Source/Engine/Voice/VoiceManager.h
+    ../Source/Domain/Engines/VoiceManager.cpp
+    ../Source/Domain/Engines/VoiceManager.h
 )
 
 target_compile_definitions(VoiceManagerTests PRIVATE
@@ -188,8 +188,8 @@ target_sources(SequencerEngineTests PRIVATE
     ../Source/Domain/Clock/MasterClock.h
     ../Source/Domain/Clock/AsyncPatternEngine.cpp
     ../Source/Domain/Clock/AsyncPatternEngine.h
-    ../Source/Engine/Voice/VoiceManager.cpp
-    ../Source/Engine/Voice/VoiceManager.h
+    ../Source/Domain/Engines/VoiceManager.cpp
+    ../Source/Domain/Engines/VoiceManager.h
     ../Source/Domain/Models/Pattern.cpp
     ../Source/Domain/Models/Pattern.h
     ../Source/Domain/Models/Track.cpp

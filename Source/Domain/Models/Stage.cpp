@@ -255,4 +255,23 @@ void Stage::reset()
     m_ccMappings.clear();
 }
 
+//==============================================================================
+// Helper Methods for MidiEventGenerator
+
+std::map<int, int> Stage::getCCMappingsAsMap() const
+{
+    std::map<int, int> result;
+    for (const auto& mapping : m_ccMappings)
+    {
+        if (mapping.enabled)
+        {
+            // Convert float value (0-1) to MIDI CC value (0-127) based on min/max
+            float normalizedValue = (mapping.maxValue - mapping.minValue) * 0.5f + mapping.minValue;
+            int midiValue = static_cast<int>(normalizedValue * 127.0f);
+            result[mapping.ccNumber] = juce::jlimit(0, 127, midiValue);
+        }
+    }
+    return result;
+}
+
 } // namespace HAM

@@ -9,6 +9,7 @@
 
 #include "Transport.h"
 #include <algorithm>
+#include <thread>
 
 namespace HAM {
 
@@ -23,8 +24,10 @@ Transport::~Transport()
     // Ensure stopped
     stop(true);
     
-    // Clear listeners
-    const juce::ScopedLock sl(m_listenerLock);
+    // Wait for any ongoing notifications to complete, then clear listeners
+    while (m_isNotifying.load()) {
+        std::this_thread::yield();
+    }
     m_listeners.clear();
 }
 
@@ -359,7 +362,10 @@ void Transport::setTimeSignature(int numerator, int denominator)
 
 void Transport::addListener(Listener* listener)
 {
-    const juce::ScopedLock sl(m_listenerLock);
+    // Wait for any ongoing notifications to complete
+    while (m_isNotifying.load()) {
+        std::this_thread::yield();
+    }
     
     if (std::find(m_listeners.begin(), m_listeners.end(), listener) == m_listeners.end())
     {
@@ -369,7 +375,10 @@ void Transport::addListener(Listener* listener)
 
 void Transport::removeListener(Listener* listener)
 {
-    const juce::ScopedLock sl(m_listenerLock);
+    // Wait for any ongoing notifications to complete
+    while (m_isNotifying.load()) {
+        std::this_thread::yield();
+    }
     
     auto it = std::find(m_listeners.begin(), m_listeners.end(), listener);
     if (it != m_listeners.end())
@@ -508,11 +517,15 @@ void Transport::notifyTransportStart()
 {
     juce::MessageManager::callAsync([this]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onTransportStart();
+            if (listener != nullptr)
+                listener->onTransportStart();
         }
+        
+        m_isNotifying.store(false);
     });
 }
 
@@ -520,11 +533,15 @@ void Transport::notifyTransportStop()
 {
     juce::MessageManager::callAsync([this]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onTransportStop();
+            if (listener != nullptr)
+                listener->onTransportStop();
         }
+        
+        m_isNotifying.store(false);
     });
 }
 
@@ -532,11 +549,15 @@ void Transport::notifyTransportPause()
 {
     juce::MessageManager::callAsync([this]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onTransportPause();
+            if (listener != nullptr)
+                listener->onTransportPause();
         }
+        
+        m_isNotifying.store(false);
     });
 }
 
@@ -544,11 +565,15 @@ void Transport::notifyRecordingStart()
 {
     juce::MessageManager::callAsync([this]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onRecordingStart();
+            if (listener != nullptr)
+                listener->onRecordingStart();
         }
+        
+        m_isNotifying.store(false);
     });
 }
 
@@ -556,11 +581,15 @@ void Transport::notifyRecordingStop()
 {
     juce::MessageManager::callAsync([this]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onRecordingStop();
+            if (listener != nullptr)
+                listener->onRecordingStop();
         }
+        
+        m_isNotifying.store(false);
     });
 }
 
@@ -570,11 +599,15 @@ void Transport::notifyPositionChanged()
     
     juce::MessageManager::callAsync([this, pos]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onPositionChanged(pos);
+            if (listener != nullptr)
+                listener->onPositionChanged(pos);
         }
+        
+        m_isNotifying.store(false);
     });
 }
 
@@ -584,11 +617,15 @@ void Transport::notifySyncModeChanged()
     
     juce::MessageManager::callAsync([this, mode]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onSyncModeChanged(mode);
+            if (listener != nullptr)
+                listener->onSyncModeChanged(mode);
         }
+        
+        m_isNotifying.store(false);
     });
 }
 
@@ -598,11 +635,15 @@ void Transport::notifyLoopStateChanged()
     
     juce::MessageManager::callAsync([this, looping]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onLoopStateChanged(looping);
+            if (listener != nullptr)
+                listener->onLoopStateChanged(looping);
         }
+        
+        m_isNotifying.store(false);
     });
 }
 

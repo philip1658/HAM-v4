@@ -615,4 +615,14 @@ void ChannelManager::updateTiming()
     m_currentTime = juce::Time::currentTimeMillis();
 }
 
+void ChannelManager::processMidiBuffer(juce::MidiBuffer& midiBuffer, int numSamples)
+{
+    // For now, just pass through the buffer
+    // Full implementation would handle channel routing and merging
+    
+    // Update statistics
+    // TODO: Add totalEventsProcessed to PerformanceStats if needed
+    // m_stats.totalEventsProcessed.fetch_add(midiBuffer.getNumEvents());
+}
+
 } // namespace HAM

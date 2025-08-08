@@ -11,6 +11,8 @@
 
 #include <array>
 #include <vector>
+#include <map>
+#include <cmath>
 #include <JuceHeader.h>
 
 namespace HAM {
@@ -180,6 +182,18 @@ public:
     void addCCMapping(const CCMapping& mapping);
     void removeCCMapping(int index);
     const std::vector<CCMapping>& getCCMappings() const { return m_ccMappings; }
+    
+    //==========================================================================
+    // Helper Methods for MidiEventGenerator
+    
+    /** Check if modulation is enabled */
+    bool hasModulation() const { return m_modulation.enabled; }
+    
+    /** Check if pitch bend is enabled (non-zero value) */
+    bool hasPitchBend() const { return std::abs(m_pitchBend) > 0.001f; }
+    
+    /** Get CC mappings as a map (ccNumber -> value) for MIDI event generation */
+    std::map<int, int> getCCMappingsAsMap() const;
     
     //==========================================================================
     // Slide & Glide

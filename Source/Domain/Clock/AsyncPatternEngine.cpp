@@ -9,6 +9,7 @@
 
 #include "AsyncPatternEngine.h"
 #include <algorithm>
+#include <thread>
 
 namespace HAM {
 
@@ -25,8 +26,10 @@ AsyncPatternEngine::~AsyncPatternEngine()
     // Unregister from clock
     m_clock.removeListener(this);
     
-    // Clear listeners
-    const juce::ScopedLock sl(m_listenerLock);
+    // Wait for any ongoing notifications to complete, then clear listeners
+    while (m_isNotifying.load()) {
+        std::this_thread::yield();
+    }
     m_listeners.clear();
 }
 
@@ -113,7 +116,10 @@ int AsyncPatternEngine::getBeatsUntilSwitch() const
 
 void AsyncPatternEngine::addListener(Listener* listener)
 {
-    const juce::ScopedLock sl(m_listenerLock);
+    // Wait for any ongoing notifications to complete
+    while (m_isNotifying.load()) {
+        std::this_thread::yield();
+    }
     
     if (std::find(m_listeners.begin(), m_listeners.end(), listener) == m_listeners.end())
     {
@@ -123,7 +129,10 @@ void AsyncPatternEngine::addListener(Listener* listener)
 
 void AsyncPatternEngine::removeListener(Listener* listener)
 {
-    const juce::ScopedLock sl(m_listenerLock);
+    // Wait for any ongoing notifications to complete
+    while (m_isNotifying.load()) {
+        std::this_thread::yield();
+    }
     
     auto it = std::find(m_listeners.begin(), m_listeners.end(), listener);
     if (it != m_listeners.end())
@@ -270,11 +279,15 @@ void AsyncPatternEngine::notifyPatternQueued(int index)
 {
     juce::MessageManager::callAsync([this, index]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onPatternQueued(index);
+            if (listener != nullptr)
+                listener->onPatternQueued(index);
         }
+        
+        m_isNotifying.store(false);
     });
 }
 
@@ -282,11 +295,15 @@ void AsyncPatternEngine::notifyPatternSwitched(int index)
 {
     juce::MessageManager::callAsync([this, index]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onPatternSwitched(index);
+            if (listener != nullptr)
+                listener->onPatternSwitched(index);
         }
+        
+        m_isNotifying.store(false);
     });
 }
 
@@ -294,11 +311,15 @@ void AsyncPatternEngine::notifySceneQueued(int index)
 {
     juce::MessageManager::callAsync([this, index]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onSceneQueued(index);
+            if (listener != nullptr)
+                listener->onSceneQueued(index);
         }
+        
+        m_isNotifying.store(false);
     });
 }
 
@@ -306,11 +327,15 @@ void AsyncPatternEngine::notifySceneSwitched(int index)
 {
     juce::MessageManager::callAsync([this, index]()
     {
-        const juce::ScopedLock sl(m_listenerLock);
+        m_isNotifying.store(true);
+        
         for (auto* listener : m_listeners)
         {
-            listener->onSceneSwitched(index);
+            if (listener != nullptr)
+                listener->onSceneSwitched(index);
         }
+        
+        m_isNotifying.store(false);
     });
 }
 

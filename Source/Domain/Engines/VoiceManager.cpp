@@ -129,6 +129,7 @@ void VoiceManager::noteOff(int noteNumber, int channel)
             (channel == 0 || voiceAt(i).channel.load() == channel))
         {
             voiceAt(i).stopNote();
+            m_activeVoiceCount.fetch_sub(1);  // Update cached count
         }
     }
     
@@ -143,6 +144,7 @@ void VoiceManager::allNotesOff(int channel)
             (channel == 0 || voiceAt(i).channel.load() == channel))
         {
             voiceAt(i).stopNote();
+            m_activeVoiceCount.fetch_sub(1);  // Update cached count
         }
     }
     
@@ -163,6 +165,9 @@ void VoiceManager::panic()
     {
         voiceAt(i).reset();
     }
+    
+    // Reset cached count
+    m_activeVoiceCount.store(0);
     
     m_lastNoteNumber.store(-1);
     m_lastVoiceIndex.store(-1);
@@ -189,7 +194,9 @@ const VoiceManager::Voice* VoiceManager::getVoice(int index) const
 
 VoiceManager::Voice* VoiceManager::findVoiceForNote(int noteNumber, int channel)
 {
-    for (int i = 0; i < m_maxVoices.load(); ++i)
+    const int maxVoices = m_maxVoices.load();  // Cache atomic load
+    
+    for (int i = 0; i < maxVoices; ++i)
     {
         if (voiceAt(i).active.load() &&
             voiceAt(i).noteNumber.load() == noteNumber &&
@@ -201,29 +208,36 @@ VoiceManager::Voice* VoiceManager::findVoiceForNote(int noteNumber, int channel)
     return nullptr;
 }
 
-int VoiceManager::getActiveVoiceCount() const
+int VoiceManager::getActiveVoices(Voice** outVoices, int maxVoices)
 {
     int count = 0;
-    for (int i = 0; i < m_maxVoices.load(); ++i)
+    const int voiceLimit = juce::jmin(m_maxVoices.load(), maxVoices);
+    
+    for (int i = 0; i < voiceLimit && count < maxVoices; ++i)
     {
         if (voiceAt(i).active.load())
-            count++;
+        {
+            outVoices[count++] = &voiceAt(i);
+        }
     }
+    
     return count;
 }
 
-std::vector<VoiceManager::Voice*> VoiceManager::getActiveVoices()
+int VoiceManager::getActiveVoices(const Voice** outVoices, int maxVoices) const
 {
-    std::vector<Voice*> activeVoices;
-    activeVoices.reserve(static_cast<size_t>(m_maxVoices.load()));
+    int count = 0;
+    const int voiceLimit = juce::jmin(m_maxVoices.load(), maxVoices);
     
-    for (int i = 0; i < m_maxVoices.load(); ++i)
+    for (int i = 0; i < voiceLimit && count < maxVoices; ++i)
     {
         if (voiceAt(i).active.load())
-            activeVoices.push_back(&voiceAt(i));
+        {
+            outVoices[count++] = &voiceAt(i);
+        }
     }
     
-    return activeVoices;
+    return count;
 }
 
 bool VoiceManager::isNotePlaying(int noteNumber, int channel) const
@@ -242,30 +256,7 @@ bool VoiceManager::isNotePlaying(int noteNumber, int channel) const
 
 //==============================================================================
 // MPE Support
-
-void VoiceManager::setPitchBend(int voiceId, float bend)
-{
-    if (voiceId >= 0 && voiceId < MAX_VOICES)
-    {
-        voiceAt(voiceId).pitchBend.store(bend);
-    }
-}
-
-void VoiceManager::setPressure(int voiceId, float pressure)
-{
-    if (voiceId >= 0 && voiceId < MAX_VOICES)
-    {
-        voiceAt(voiceId).pressure.store(pressure);
-    }
-}
-
-void VoiceManager::setSlide(int voiceId, float slide)
-{
-    if (voiceId >= 0 && voiceId < MAX_VOICES)
-    {
-        voiceAt(voiceId).slide.store(slide);
-    }
-}
+// Note: MPE setters are now inline templates in the header file
 
 //==============================================================================
 // Real-time Safe Operations
@@ -284,7 +275,7 @@ void VoiceManager::processVoices()
 
 int VoiceManager::findFreeVoice()
 {
-    int maxVoices = m_maxVoices.load();
+    const int maxVoices = m_maxVoices.load();  // Cache atomic load
     
     for (int i = 0; i < maxVoices; ++i)
     {
@@ -323,7 +314,7 @@ int VoiceManager::findOldestVoice()
 {
     int oldestIndex = -1;
     int64_t oldestTime = std::numeric_limits<int64_t>::max();
-    int maxVoices = m_maxVoices.load();
+    const int maxVoices = m_maxVoices.load();  // Cache atomic load
     
     for (int i = 0; i < maxVoices; ++i)
     {
@@ -345,7 +336,7 @@ int VoiceManager::findLowestVoice()
 {
     int lowestIndex = -1;
     int lowestNote = 128;
-    int maxVoices = m_maxVoices.load();
+    const int maxVoices = m_maxVoices.load();  // Cache atomic load
     
     for (int i = 0; i < maxVoices; ++i)
     {
@@ -367,7 +358,7 @@ int VoiceManager::findHighestVoice()
 {
     int highestIndex = -1;
     int highestNote = -1;
-    int maxVoices = m_maxVoices.load();
+    const int maxVoices = m_maxVoices.load();  // Cache atomic load
     
     for (int i = 0; i < maxVoices; ++i)
     {
@@ -389,7 +380,7 @@ int VoiceManager::findQuietestVoice()
 {
     int quietestIndex = -1;
     int quietestVelocity = 128;
-    int maxVoices = m_maxVoices.load();
+    const int maxVoices = m_maxVoices.load();  // Cache atomic load
     
     for (int i = 0; i < maxVoices; ++i)
     {
@@ -409,7 +400,18 @@ int VoiceManager::findQuietestVoice()
 
 void VoiceManager::updateStatistics()
 {
-    int activeCount = getActiveVoiceCount();
+    // Count active voices and update cache
+    int activeCount = 0;
+    const int maxVoices = m_maxVoices.load();
+    
+    for (int i = 0; i < maxVoices; ++i)
+    {
+        if (voiceAt(i).active.load())
+            activeCount++;
+    }
+    
+    // Update cached count
+    m_activeVoiceCount.store(activeCount);
     m_statistics.activeVoices.store(activeCount);
     
     // Update peak count
@@ -448,6 +450,7 @@ int VoiceManager::handleMonoNoteOn(int noteNumber, int velocity, int channel)
         
         // Start new note
         voiceAt(voiceIndex).startNote(noteNumber, velocity, channel);
+        m_activeVoiceCount.fetch_add(1);  // Update cached count
     }
     
     // Update mono state
@@ -481,6 +484,7 @@ int VoiceManager::handlePolyNoteOn(int noteNumber, int velocity, int channel)
     
     // Start the new note
     voiceAt(voiceIndex).startNote(noteNumber, velocity, channel);
+    m_activeVoiceCount.fetch_add(1);  // Update cached count
     
     updateStatistics();
     return voiceIndex;

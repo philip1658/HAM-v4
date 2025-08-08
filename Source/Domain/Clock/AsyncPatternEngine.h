@@ -144,7 +144,7 @@ private:
     
     // Listeners
     std::vector<Listener*> m_listeners;
-    juce::CriticalSection m_listenerLock;
+    std::atomic<bool> m_isNotifying{false};
     
     //==========================================================================
     // Internal Methods

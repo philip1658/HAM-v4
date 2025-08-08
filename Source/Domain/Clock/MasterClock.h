@@ -94,6 +94,9 @@ public:
     /** Get current tempo */
     float getBPM() const { return m_bpm.load(); }
     
+    /** Set sample rate */
+    void setSampleRate(double sampleRate) { m_sampleRate.store(sampleRate); }
+    
     /** Enable/disable glide between tempo changes */
     void setTempoGlideEnabled(bool enabled) { m_tempoGlideEnabled = enabled; }
     
@@ -197,15 +200,18 @@ private:
     float m_glideIncrement{0.0f};
     int m_glideSamplesRemaining{0};
     
+    // Sample rate
+    std::atomic<double> m_sampleRate{48000.0};
+    
     // External sync
     bool m_externalSyncEnabled{false};
     int m_midiClockCounter{0};
     int64_t m_lastMidiClockTime{0};
     double m_midiClockInterval{0.0};
     
-    // Listeners (only accessed from message thread)
+    // Listeners (only accessed from message thread for add/remove)
     std::vector<Listener*> m_listeners;
-    juce::CriticalSection m_listenerLock;
+    std::atomic<bool> m_isNotifying{false};
     
     // Message thread callback queue
     std::function<void()> m_pendingListenerCall;
