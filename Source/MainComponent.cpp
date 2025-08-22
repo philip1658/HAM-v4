@@ -98,7 +98,7 @@ public:
         m_stageViewport->setScrollOnDragMode(juce::Viewport::ScrollOnDragMode::all);
         m_stageViewport->setViewPosition(0, 0); // Ensure content starts at top
         m_stageViewport->setScrollBarThickness(0); // Remove scrollbar thickness
-        m_sequencerPage->addAndMakeVisible(m_stageViewport.get());
+        m_owner.addAndMakeVisible(m_stageViewport.get());
         
         // Create track sidebar
         m_trackSidebar = std::make_unique<HAM::UI::TrackSidebar>();
@@ -119,7 +119,7 @@ public:
         m_trackViewport->setScrollOnDragMode(juce::Viewport::ScrollOnDragMode::all);
         m_trackViewport->setViewPosition(0, 0); // Ensure content starts at top
         m_trackViewport->setScrollBarThickness(0); // Remove scrollbar thickness
-        m_sequencerPage->addAndMakeVisible(m_trackViewport.get());
+        m_owner.addAndMakeVisible(m_trackViewport.get());
         
         // Create Add Track button for pattern bar
         m_addTrackButton = std::make_unique<HAM::UI::ModernButton>("+ ADD TRACK", HAM::UI::ModernButton::Style::Gradient);
@@ -182,6 +182,9 @@ public:
         auto patternBar = bounds.removeFromTop(patternBarHeight);
         m_patternBarBounds = patternBar;
         
+        // Store the remaining area after transport and pattern bars
+        auto contentArea = bounds;
+        
         // Position track control buttons on the left side of pattern bar
         auto leftArea = patternBar.reduced(5);
         
@@ -236,94 +239,83 @@ public:
             }
         }
         
-        // Content area below pattern bar
-        auto contentArea = bounds;
-        
         DBG("Content Area Bounds: x=" << contentArea.getX() 
             << " y=" << contentArea.getY() 
             << " w=" << contentArea.getWidth() 
             << " h=" << contentArea.getHeight());
         
+        // For sequencer view, we need special layout
+        if (m_activeView == 0)
+        {
+            // Track sidebar on left - starts at same height as stage cards
+            static constexpr int SIDEBAR_WIDTH = 264;  // Line L
+            
+            // Both track sidebar and stage grid start at the same Y position (after pattern bar)
+            auto sidebarBounds = contentArea;
+            sidebarBounds.setWidth(SIDEBAR_WIDTH);
+            
+            // Debug output to check actual positioning
+            DBG("Track Viewport Bounds: x=" << sidebarBounds.getX() 
+                << " y=" << sidebarBounds.getY() 
+                << " w=" << sidebarBounds.getWidth() 
+                << " h=" << sidebarBounds.getHeight());
+            
+            if (m_trackViewport)
+            {
+                m_trackViewport->setBounds(sidebarBounds);
+                m_trackViewport->setViewPosition(0, 0); // Force content to start at top
+                if (auto* viewed = m_trackViewport->getViewedComponent())
+                    viewed->setSize(sidebarBounds.getWidth(), std::max(sidebarBounds.getHeight(), viewed->getHeight()));
+            }
+            
+            // Stage grid area - starts at same height as track sidebar, but offset horizontally
+            auto stageArea = contentArea;
+            stageArea.removeFromLeft(SIDEBAR_WIDTH + 1); // Remove sidebar width + 1px gap
+            
+            // Debug output to check actual positioning
+            DBG("Stage Viewport Bounds: x=" << stageArea.getX() 
+                << " y=" << stageArea.getY() 
+                << " w=" << stageArea.getWidth() 
+                << " h=" << stageArea.getHeight());
+            
+            if (m_stageViewport)
+            {
+                m_stageViewport->setBounds(stageArea);
+                m_stageViewport->setViewPosition(0, 0); // Force content to start at top
+                if (auto* viewed = m_stageViewport->getViewedComponent())
+                    viewed->setSize(std::max(stageArea.getWidth(), viewed->getWidth()), 
+                                   std::max(stageArea.getHeight(), viewed->getHeight()));
+            }
+            
+            // Make sure track and stage viewports are visible
+            if (m_trackViewport)
+                m_trackViewport->setVisible(true);
+            if (m_stageViewport)
+                m_stageViewport->setVisible(true);
+            
+            // Hide mixer view
+            if (m_mixerView)
+                m_mixerView->setVisible(false);
+        }
+        else if (m_activeView == 1)
+        {
+            // Mixer view uses the normal content area
+            if (m_mixerView)
+            {
+                m_mixerView->setBounds(contentArea);
+                m_mixerView->setVisible(true);
+            }
+            
+            // Hide sequencer components
+            if (m_trackViewport)
+                m_trackViewport->setVisible(false);
+            if (m_stageViewport)
+                m_stageViewport->setVisible(false);
+        }
+        
+        // Keep content container for mixer view
         if (m_contentContainer)
             m_contentContainer->setBounds(contentArea);
-
-        // Layout active view
-        auto pageBounds = contentArea;
-        if (m_activeView == 0 && m_sequencerPage)
-        {
-            m_sequencerPage->setBounds(pageBounds);
-            pageBounds = m_sequencerPage->getLocalBounds(); // Get bounds for sequencer layout
-        }
-        else if (m_activeView == 1 && m_mixerView)
-        {
-            m_mixerView->setBounds(pageBounds);
-        }
-
-        // HAM editor at bottom (collapsible)
-        // TODO: Implement HAMEditorPanel
-        // Use proportional height on small windows to avoid covering too much; clamp to [140..220]
-        // if (m_hamEditor)
-        // {
-        //     const int minEditor = 140;
-        //     const int maxEditor = 220;
-        //     int desired = juce::jlimit(minEditor, maxEditor, pageBounds.getHeight() / 4); // ~25% of page
-        //     if (m_hamEditor->isExpanded())
-        //     {
-        //         auto editorBounds = pageBounds.removeFromBottom(desired);
-        //         m_hamEditor->setBounds(editorBounds.reduced(0, 1));
-        //         m_hamEditor->setVisible(true);
-        //     }
-        //     else
-        //     {
-        //         m_hamEditor->setVisible(false);
-        //     }
-        // }
-        
-        // Calculate exact remaining height for perfect alignment
-        auto sequencerContentArea = pageBounds;  // sequencer page area
-        
-        DBG("Sequencer Content Area (pageBounds): x=" << sequencerContentArea.getX() 
-            << " y=" << sequencerContentArea.getY() 
-            << " w=" << sequencerContentArea.getWidth() 
-            << " h=" << sequencerContentArea.getHeight());
-        
-        // Track sidebar on left - extended to line L (264px = 11 * 24px grid)
-        static constexpr int SIDEBAR_WIDTH = 264;  // Line L
-        auto sidebarBounds = sequencerContentArea.removeFromLeft(SIDEBAR_WIDTH);
-        
-        // Debug output to check actual positioning
-        DBG("Track Viewport Bounds: x=" << sidebarBounds.getX() 
-            << " y=" << sidebarBounds.getY() 
-            << " w=" << sidebarBounds.getWidth() 
-            << " h=" << sidebarBounds.getHeight());
-        
-        if (m_trackViewport)
-        {
-            m_trackViewport->setBounds(sidebarBounds);
-            m_trackViewport->setViewPosition(0, 0); // Force content to start at top
-            if (auto* viewed = m_trackViewport->getViewedComponent())
-                viewed->setSize(sidebarBounds.getWidth(), std::max(sidebarBounds.getHeight(), viewed->getHeight()));
-        }
-        
-        // Add 1px gap between sidebar and stage grid (same as spacing between stage cards)
-        sequencerContentArea.removeFromLeft(1);
-        
-        // Stage grid takes remaining space after 1px gap
-        // This ensures both components have the exact same height
-        
-        // Debug output to check actual positioning
-        DBG("Stage Viewport Bounds: x=" << sequencerContentArea.getX() 
-            << " y=" << sequencerContentArea.getY() 
-            << " w=" << sequencerContentArea.getWidth() 
-            << " h=" << sequencerContentArea.getHeight());
-        
-        if (m_stageViewport)
-        {
-            m_stageViewport->setBounds(sequencerContentArea);
-            m_stageViewport->setViewPosition(0, 0); // Force content to start at top
-            if (auto* viewed = m_stageViewport->getViewedComponent())
-                viewed->setSize(std::max(sequencerContentArea.getWidth(), viewed->getWidth()), std::max(sequencerContentArea.getHeight(), viewed->getHeight()));
-        }
 
     }
     
@@ -572,8 +564,9 @@ public:
         // Append neuer Track direkt nach Track 1 (Index-basiert am Ende)
         m_numTracks = std::max(1, m_numTracks + 1);
         int newTrackIndex = m_numTracks - 1;
-        // UI aktualisieren
+        // UI aktualisieren - WICHTIG: StageGrid muss auch aktualisiert werden!
         if (m_trackSidebar) m_trackSidebar->setTrackCount(m_numTracks);
+        if (m_stageGrid) m_stageGrid->setTrackCount(m_numTracks);
         if (m_mixerView) m_mixerView->setTrackCount(m_numTracks);
         // Engine informieren
         auto msg = HAM::MessageFactory::addTrack(newTrackIndex);
@@ -601,8 +594,9 @@ public:
             handleTrackSelection(m_currentTrackIndex);
         }
         
-        // Update UI
+        // Update UI - WICHTIG: StageGrid muss auch aktualisiert werden!
         if (m_trackSidebar) m_trackSidebar->setTrackCount(m_numTracks);
+        if (m_stageGrid) m_stageGrid->setTrackCount(m_numTracks);
         if (m_mixerView) m_mixerView->setTrackCount(m_numTracks);
         
         // Inform engine about track removal
@@ -631,8 +625,7 @@ public:
                 m_mixerTabButton->setButtonStyle(HAM::UI::ModernButton::Style::Outline);
                 m_mixerTabButton->repaint();
             }
-            if (m_sequencerPage) m_sequencerPage->setVisible(true);
-            if (m_mixerView) m_mixerView->setVisible(false);
+            // Visibility is now handled in resized()
         }
         else if (viewIndex == 1) // Mixer
         {
@@ -646,8 +639,7 @@ public:
                 m_mixerTabButton->setButtonStyle(HAM::UI::ModernButton::Style::Solid);
                 m_mixerTabButton->repaint();
             }
-            if (m_sequencerPage) m_sequencerPage->setVisible(false);
-            if (m_mixerView) m_mixerView->setVisible(true);
+            // Visibility is now handled in resized()
         }
         
         m_owner.resized(); // Re-layout
