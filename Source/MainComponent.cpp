@@ -50,20 +50,31 @@ public:
         };
         m_owner.addAndMakeVisible(m_transportBar.get());
         
-        // Main tabs: Sequencer / Mixer
-        m_tabs = std::make_unique<juce::TabbedComponent>(juce::TabbedButtonBar::TabsAtTop);
-        m_tabs->setTabBarDepth(32);
-        m_owner.addAndMakeVisible(m_tabs.get());
+        // Create view toggle buttons for pattern bar
+        m_sequencerTabButton = std::make_unique<HAM::UI::ModernButton>("SEQUENCER", HAM::UI::ModernButton::Style::Solid);
+        m_sequencerTabButton->setColor(juce::Colour(0xFF00CCFF));
+        m_sequencerTabButton->onClick = [this]() { setActiveView(0); };
+        m_owner.addAndMakeVisible(m_sequencerTabButton.get());
+        
+        m_mixerTabButton = std::make_unique<HAM::UI::ModernButton>("MIXER", HAM::UI::ModernButton::Style::Outline);
+        m_mixerTabButton->setColor(juce::Colour(0xFF00CCFF));
+        m_mixerTabButton->onClick = [this]() { setActiveView(1); };
+        m_owner.addAndMakeVisible(m_mixerTabButton.get());
 
+        // Create main content container (replaces tabs)
+        m_contentContainer = std::make_unique<juce::Component>();
+        m_owner.addAndMakeVisible(m_contentContainer.get());
+        
         // Sequencer page root container
         m_sequencerPage = std::make_unique<juce::Component>();
-        m_tabs->addTab("Sequencer", juce::Colours::transparentBlack, m_sequencerPage.get(), false);
+        m_contentContainer->addAndMakeVisible(m_sequencerPage.get());
 
         // Mixer page
         m_mixerView = std::make_unique<HAM::UI::MixerView>();
         m_mixerView->onAliasInstrumentPlugin = [this](int trackIndex) { openPluginBrowser(trackIndex); };
         m_mixerView->onAddFxPlugin = [this](int trackIndex) { openFxPluginBrowser(trackIndex); };
-        m_tabs->addTab("Mixer", juce::Colours::transparentBlack, m_mixerView.get(), false);
+        m_contentContainer->addAndMakeVisible(m_mixerView.get());
+        m_mixerView->setVisible(false); // Start with sequencer view
         
         // Create stage grid
         m_stageGrid = std::make_unique<HAM::UI::StageGrid>();
@@ -83,8 +94,10 @@ public:
         // Wrap StageGrid in a viewport for scrolling
         m_stageViewport = std::make_unique<juce::Viewport>("stageViewport");
         m_stageViewport->setViewedComponent(m_stageGrid.get(), false);
-        m_stageViewport->setScrollBarsShown(true, true);
-        m_stageViewport->setScrollOnDragEnabled(true);
+        m_stageViewport->setScrollBarsShown(false, true); // Hide vertical scrollbar for testing
+        m_stageViewport->setScrollOnDragMode(juce::Viewport::ScrollOnDragMode::all);
+        m_stageViewport->setViewPosition(0, 0); // Ensure content starts at top
+        m_stageViewport->setScrollBarThickness(0); // Remove scrollbar thickness
         m_sequencerPage->addAndMakeVisible(m_stageViewport.get());
         
         // Create track sidebar
@@ -102,8 +115,10 @@ public:
         // Wrap TrackSidebar in a viewport for vertical scrolling
         m_trackViewport = std::make_unique<juce::Viewport>("trackViewport");
         m_trackViewport->setViewedComponent(m_trackSidebar.get(), false);
-        m_trackViewport->setScrollBarsShown(true, false);
-        m_trackViewport->setScrollOnDragEnabled(true);
+        m_trackViewport->setScrollBarsShown(false, false); // Hide both scrollbars for testing
+        m_trackViewport->setScrollOnDragMode(juce::Viewport::ScrollOnDragMode::all);
+        m_trackViewport->setViewPosition(0, 0); // Ensure content starts at top
+        m_trackViewport->setScrollBarThickness(0); // Remove scrollbar thickness
         m_sequencerPage->addAndMakeVisible(m_trackViewport.get());
         
         // Create Add Track button for pattern bar
@@ -113,6 +128,14 @@ public:
             handleAddTrack();
         };
         m_owner.addAndMakeVisible(m_addTrackButton.get());
+        
+        // Create Remove Track button for pattern bar
+        m_removeTrackButton = std::make_unique<HAM::UI::ModernButton>("- REMOVE", HAM::UI::ModernButton::Style::Outline);
+        m_removeTrackButton->setColor(juce::Colour(0xFFFF4444)); // Red color for remove
+        m_removeTrackButton->onClick = [this]() {
+            handleRemoveTrack();
+        };
+        m_owner.addAndMakeVisible(m_removeTrackButton.get());
 
         // Create pattern buttons A–H in pattern bar
         for (int i = 0; i < 8; ++i)
@@ -159,12 +182,43 @@ public:
         auto patternBar = bounds.removeFromTop(patternBarHeight);
         m_patternBarBounds = patternBar;
         
-        // Position Add Track button on the left side of pattern bar
+        // Position track control buttons on the left side of pattern bar
+        auto leftArea = patternBar.reduced(5);
+        
+        // Add Track button
         if (m_addTrackButton)
         {
-            auto buttonBounds = patternBar.reduced(5);
-            buttonBounds.setWidth(120);
-            m_addTrackButton->setBounds(buttonBounds);
+            auto addBounds = leftArea.removeFromLeft(100);
+            m_addTrackButton->setBounds(addBounds);
+        }
+        
+        // Remove Track button  
+        if (m_removeTrackButton)
+        {
+            leftArea.removeFromLeft(5); // Small gap
+            auto removeBounds = leftArea.removeFromLeft(80);
+            m_removeTrackButton->setBounds(removeBounds);
+        }
+        
+        // View toggle buttons in center of pattern bar
+        auto centerX = patternBar.getCentreX();
+        int tabButtonWidth = 90;
+        int tabGap = 5;
+        
+        if (m_sequencerTabButton)
+        {
+            m_sequencerTabButton->setBounds(centerX - tabButtonWidth - tabGap/2, 
+                                           patternBar.getY() + 5,
+                                           tabButtonWidth, 
+                                           patternBar.getHeight() - 10);
+        }
+        
+        if (m_mixerTabButton)
+        {
+            m_mixerTabButton->setBounds(centerX + tabGap/2,
+                                       patternBar.getY() + 5,
+                                       tabButtonWidth,
+                                       patternBar.getHeight() - 10);
         }
 
         // Pattern buttons on the right side of pattern bar
@@ -182,17 +236,27 @@ public:
             }
         }
         
-        // Tabs area below pattern bar
-        auto tabsArea = bounds;
-        if (m_tabs)
-            m_tabs->setBounds(tabsArea);
+        // Content area below pattern bar
+        auto contentArea = bounds;
+        
+        DBG("Content Area Bounds: x=" << contentArea.getX() 
+            << " y=" << contentArea.getY() 
+            << " w=" << contentArea.getWidth() 
+            << " h=" << contentArea.getHeight());
+        
+        if (m_contentContainer)
+            m_contentContainer->setBounds(contentArea);
 
-        // Layout Sequencer page children
-        auto pageBounds = tabsArea;
-        if (m_tabs)
+        // Layout active view
+        auto pageBounds = contentArea;
+        if (m_activeView == 0 && m_sequencerPage)
         {
-            // Tab content equals tabsArea
-            pageBounds = m_tabs->getTabContentComponent(0)->getLocalBounds();
+            m_sequencerPage->setBounds(pageBounds);
+            pageBounds = m_sequencerPage->getLocalBounds(); // Get bounds for sequencer layout
+        }
+        else if (m_activeView == 1 && m_mixerView)
+        {
+            m_mixerView->setBounds(pageBounds);
         }
 
         // HAM editor at bottom (collapsible)
@@ -216,37 +280,51 @@ public:
         // }
         
         // Calculate exact remaining height for perfect alignment
-        auto contentArea = pageBounds;  // sequencer page area
+        auto sequencerContentArea = pageBounds;  // sequencer page area
+        
+        DBG("Sequencer Content Area (pageBounds): x=" << sequencerContentArea.getX() 
+            << " y=" << sequencerContentArea.getY() 
+            << " w=" << sequencerContentArea.getWidth() 
+            << " h=" << sequencerContentArea.getHeight());
         
         // Track sidebar on left - extended to line L (264px = 11 * 24px grid)
         static constexpr int SIDEBAR_WIDTH = 264;  // Line L
-        auto sidebarBounds = contentArea.removeFromLeft(SIDEBAR_WIDTH);
+        auto sidebarBounds = sequencerContentArea.removeFromLeft(SIDEBAR_WIDTH);
+        
+        // Debug output to check actual positioning
+        DBG("Track Viewport Bounds: x=" << sidebarBounds.getX() 
+            << " y=" << sidebarBounds.getY() 
+            << " w=" << sidebarBounds.getWidth() 
+            << " h=" << sidebarBounds.getHeight());
+        
         if (m_trackViewport)
         {
-        m_trackViewport->setBounds(sidebarBounds);
+            m_trackViewport->setBounds(sidebarBounds);
+            m_trackViewport->setViewPosition(0, 0); // Force content to start at top
             if (auto* viewed = m_trackViewport->getViewedComponent())
                 viewed->setSize(sidebarBounds.getWidth(), std::max(sidebarBounds.getHeight(), viewed->getHeight()));
         }
         
         // Add 1px gap between sidebar and stage grid (same as spacing between stage cards)
-        contentArea.removeFromLeft(1);
+        sequencerContentArea.removeFromLeft(1);
         
         // Stage grid takes remaining space after 1px gap
         // This ensures both components have the exact same height
+        
+        // Debug output to check actual positioning
+        DBG("Stage Viewport Bounds: x=" << sequencerContentArea.getX() 
+            << " y=" << sequencerContentArea.getY() 
+            << " w=" << sequencerContentArea.getWidth() 
+            << " h=" << sequencerContentArea.getHeight());
+        
         if (m_stageViewport)
         {
-            m_stageViewport->setBounds(contentArea);
+            m_stageViewport->setBounds(sequencerContentArea);
+            m_stageViewport->setViewPosition(0, 0); // Force content to start at top
             if (auto* viewed = m_stageViewport->getViewedComponent())
-                viewed->setSize(std::max(contentArea.getWidth(), viewed->getWidth()), std::max(contentArea.getHeight(), viewed->getHeight()));
+                viewed->setSize(std::max(sequencerContentArea.getWidth(), viewed->getWidth()), std::max(sequencerContentArea.getHeight(), viewed->getHeight()));
         }
 
-        // Mixer tab fills its page
-        if (m_mixerView && m_tabs)
-        {
-            auto* mixerContent = m_tabs->getTabContentComponent(1);
-            if (mixerContent)
-                m_mixerView->setBounds(mixerContent->getLocalBounds());
-        }
     }
     
     void paint(juce::Graphics& g)
@@ -502,6 +580,79 @@ public:
         if (m_messageDispatcher) m_messageDispatcher->sendToEngine(msg);
         DBG("Add track requested -> index=" << newTrackIndex << ", total=" << m_numTracks);
     }
+    
+    void handleRemoveTrack()
+    {
+        // Don't remove the last track
+        if (m_numTracks <= 1) 
+        {
+            DBG("Cannot remove last track");
+            return;
+        }
+        
+        // Remove the last track
+        m_numTracks = std::max(1, m_numTracks - 1);
+        int removedTrackIndex = m_numTracks; // The track that was removed
+        
+        // If we were viewing the removed track, switch to the last remaining track
+        if (m_currentTrackIndex >= m_numTracks)
+        {
+            m_currentTrackIndex = m_numTracks - 1;
+            handleTrackSelection(m_currentTrackIndex);
+        }
+        
+        // Update UI
+        if (m_trackSidebar) m_trackSidebar->setTrackCount(m_numTracks);
+        if (m_mixerView) m_mixerView->setTrackCount(m_numTracks);
+        
+        // Inform engine about track removal
+        auto msg = HAM::UIToEngineMessage();
+        msg.type = HAM::UIToEngineMessage::REMOVE_TRACK;
+        msg.data.trackParam = {removedTrackIndex, 0};
+        if (m_messageDispatcher) m_messageDispatcher->sendToEngine(msg);
+        
+        DBG("Remove track -> removed index=" << removedTrackIndex << ", remaining=" << m_numTracks);
+    }
+    
+    void setActiveView(int viewIndex)
+    {
+        m_activeView = viewIndex;
+        
+        // Update button styles
+        if (viewIndex == 0) // Sequencer
+        {
+            if (m_sequencerTabButton) 
+            {
+                m_sequencerTabButton->setButtonStyle(HAM::UI::ModernButton::Style::Solid);
+                m_sequencerTabButton->repaint();
+            }
+            if (m_mixerTabButton)
+            {
+                m_mixerTabButton->setButtonStyle(HAM::UI::ModernButton::Style::Outline);
+                m_mixerTabButton->repaint();
+            }
+            if (m_sequencerPage) m_sequencerPage->setVisible(true);
+            if (m_mixerView) m_mixerView->setVisible(false);
+        }
+        else if (viewIndex == 1) // Mixer
+        {
+            if (m_sequencerTabButton)
+            {
+                m_sequencerTabButton->setButtonStyle(HAM::UI::ModernButton::Style::Outline);
+                m_sequencerTabButton->repaint();
+            }
+            if (m_mixerTabButton)
+            {
+                m_mixerTabButton->setButtonStyle(HAM::UI::ModernButton::Style::Solid);
+                m_mixerTabButton->repaint();
+            }
+            if (m_sequencerPage) m_sequencerPage->setVisible(false);
+            if (m_mixerView) m_mixerView->setVisible(true);
+        }
+        
+        m_owner.resized(); // Re-layout
+        DBG("Switched to view: " << (viewIndex == 0 ? "Sequencer" : "Mixer"));
+    }
 
     void openPluginBrowser(int trackIndex)
     {
@@ -517,13 +668,13 @@ public:
             m_overlay = std::make_unique<juce::Component>();
             m_overlay->setInterceptsMouseClicks(true, true);
             m_overlay->setAlwaysOnTop(true);
-            if (m_tabs)
-                m_tabs->addAndMakeVisible(m_overlay.get());
+            if (m_contentContainer)
+                m_contentContainer->addAndMakeVisible(m_overlay.get());
             else
                 m_owner.addAndMakeVisible(m_overlay.get());
         }
-        // Layout: zentriertes Panel innerhalb des Tabs
-        auto hostBounds = (m_tabs ? m_tabs->getBounds() : m_owner.getLocalBounds());
+        // Layout: zentriertes Panel innerhalb des Content Container
+        auto hostBounds = (m_contentContainer ? m_contentContainer->getBounds() : m_owner.getLocalBounds());
         auto b = hostBounds.reduced(120, 80);
         m_overlay->setBounds(hostBounds);
         m_pluginBrowser->setBounds(b);
@@ -546,12 +697,12 @@ public:
             m_overlay = std::make_unique<juce::Component>();
             m_overlay->setInterceptsMouseClicks(true, true);
             m_overlay->setAlwaysOnTop(true);
-            if (m_tabs)
-                m_tabs->addAndMakeVisible(m_overlay.get());
+            if (m_contentContainer)
+                m_contentContainer->addAndMakeVisible(m_overlay.get());
             else
                 m_owner.addAndMakeVisible(m_overlay.get());
         }
-        auto hostBounds2 = (m_tabs ? m_tabs->getBounds() : m_owner.getLocalBounds());
+        auto hostBounds2 = (m_contentContainer ? m_contentContainer->getBounds() : m_owner.getLocalBounds());
         auto b2 = hostBounds2.reduced(120, 80);
         m_overlay->setBounds(hostBounds2);
         m_pluginBrowser->setBounds(b2);
@@ -707,8 +858,12 @@ public:
     
     // UI Components
     std::unique_ptr<HAM::UI::TransportBar> m_transportBar;
-    // Tabs
-    std::unique_ptr<juce::TabbedComponent> m_tabs;
+    // View switching
+    std::unique_ptr<juce::Component> m_contentContainer;
+    std::unique_ptr<HAM::UI::ModernButton> m_sequencerTabButton;
+    std::unique_ptr<HAM::UI::ModernButton> m_mixerTabButton;
+    int m_activeView = 0; // 0 = Sequencer, 1 = Mixer
+    // Pages
     std::unique_ptr<juce::Component> m_sequencerPage;
     std::unique_ptr<HAM::UI::MixerView> m_mixerView;
     std::unique_ptr<HAM::UI::StageGrid> m_stageGrid;
@@ -717,6 +872,7 @@ public:
     std::unique_ptr<juce::Viewport> m_trackViewport;
     // std::unique_ptr<HAM::UI::HAMEditorPanel> m_hamEditor; // TODO: Implement HAMEditorPanel
     std::unique_ptr<HAM::UI::ModernButton> m_addTrackButton;
+    std::unique_ptr<HAM::UI::ModernButton> m_removeTrackButton;
     std::vector<std::unique_ptr<HAM::UI::ModernButton>> m_patternButtons;
     std::unique_ptr<juce::Component> m_overlay;
     std::unique_ptr<HAM::UI::PluginBrowser> m_pluginBrowser;

@@ -357,6 +357,11 @@ public:
         repaint();
     }
     
+    void setButtonStyle(Style style) {
+        m_style = style;
+        repaint();
+    }
+    
     // Callback
     std::function<void()> onClick;
     

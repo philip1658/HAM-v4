@@ -64,29 +64,22 @@ public:
         const int numCards = 8;
         const int horizontalPadding = 1;  // 1px spacing between cards for clean separation
         
-        // Don't reduce bounds - we want cards to use full width with only 1px gaps
-        // bounds = bounds.reduced(horizontalPadding/2, 0);  // Removed to maximize card width
-        
-        // Line 5 absolute position = 120px from window top (5 * 24px)
-        // Content area starts at 120px (80px transport + 40px pattern bar)
-        // So relative to content area: 120 - 120 = 0px from content top
-        // No offset needed - cards start at top of content area
-        
         // Calculate card width to fill available space
         int totalHorizontalPadding = horizontalPadding * (numCards - 1);
         int availableWidth = bounds.getWidth() - totalHorizontalPadding;
         int cardWidth = availableWidth / numCards;
         
+        // Cards should align directly at the top of the content area
         // Height from line 6 to line 26 = (26-6) * 24px = 480px
-        int cardHeight = 480; // From line 6 to line 26
+        int cardHeight = 480; // Fixed height for stage cards
         
-        // Position cards at the calculated offset
-        int yOffset = bounds.getY();
+        // Position cards directly at top (0 offset)
+        int yOffset = 0; // Start at top of content area
         
         // Position each card
         for (int i = 0; i < numCards; ++i) {
             if (m_stageCards[i]) {
-                int x = bounds.getX() + i * (cardWidth + horizontalPadding);
+                int x = i * (cardWidth + horizontalPadding);
                 m_stageCards[i]->setBounds(x, yOffset, cardWidth, cardHeight);
             }
         }

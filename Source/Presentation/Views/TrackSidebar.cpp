@@ -212,7 +212,7 @@ void TrackControlStrip::resized()
     
     // Match stage card positioning - start content at top of content area (line 5)
     // No top offset needed since cards now start at content area top
-    bounds.reduce(12, 10); // Horizontal and small vertical padding
+    bounds.reduce(12, 0); // Only horizontal padding, no vertical padding to align with control bar
     
     // Header section (36px)
     auto headerArea = bounds.removeFromTop(36);
@@ -481,16 +481,19 @@ void TrackSidebar::timerCallback()
 void TrackSidebar::updateTrackLayout()
 {
     // Vertical list layout, allow container to grow for viewport scrolling
+    // Start directly at top with no offset
     int y = 0;
     const int gap = 8;
     for (auto& strip : m_trackStrips)
     {
         if (strip)
         {
+            // Position track strip with consistent height matching stage cards
             strip->setBounds(0, y, m_trackContainer->getWidth(), 480);
             y += 480 + gap;
         }
     }
+    // Set container size to accommodate all tracks
     m_trackContainer->setSize(getWidth(), std::max(getHeight(), y));
 }
 
