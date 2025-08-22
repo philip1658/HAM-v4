@@ -82,6 +82,21 @@ public:
             }
         };
         addAndMakeVisible(m_swingSlider.get());
+
+        // MIDI Monitor toggle (Channel 16 debug)
+        m_midiMonitorToggle = std::make_unique<ModernToggle>();
+        m_midiMonitorToggle->setChecked(false);
+        m_midiMonitorToggle->onToggle = [this](bool enabled) {
+            if (onMidiMonitorToggled) {
+                onMidiMonitorToggled(enabled);
+            }
+        };
+        addAndMakeVisible(m_midiMonitorToggle.get());
+
+        m_midiMonitorLabel = std::make_unique<juce::Label>("", "MON");
+        m_midiMonitorLabel->setJustificationType(juce::Justification::centred);
+        m_midiMonitorLabel->setColour(juce::Label::textColourId, juce::Colour(DesignTokens::Colors::TEXT_MUTED));
+        addAndMakeVisible(m_midiMonitorLabel.get());
         
         // Set default size
         setSize(1200, 80);
@@ -151,6 +166,17 @@ public:
         // Swing control
         auto swingSection = bounds.removeFromLeft(scaled(150));
         m_swingSlider->setBounds(swingSection.withSizeKeepingCentre(scaled(140), scaled(40)));
+
+        // MIDI Monitor toggle section
+        bounds.removeFromLeft(scaled(10));
+        auto monitorSection = bounds.removeFromLeft(scaled(80));
+        if (m_midiMonitorToggle) {
+            auto toggleArea = monitorSection.removeFromLeft(monitorSection.getWidth() / 2);
+            m_midiMonitorToggle->setBounds(toggleArea.withSizeKeepingCentre(scaled(44), scaled(24)));
+        }
+        if (m_midiMonitorLabel) {
+            m_midiMonitorLabel->setBounds(monitorSection);
+        }
     }
     
     // Public methods
@@ -193,6 +219,9 @@ public:
     std::function<void(bool recording)> onRecordStateChanged;
     std::function<void(float bpm)> onBPMChanged;
     std::function<void(float swing)> onSwingChanged;
+    std::function<void(bool enabled)> onMidiMonitorToggled;
+    
+    bool isPlaying() const { return m_isPlaying; }
     
 private:
     // Transport controls from HAM component library
@@ -202,6 +231,8 @@ private:
     std::unique_ptr<TempoDisplay> m_tempoDisplay;
     std::unique_ptr<juce::Label> m_positionLabel;
     std::unique_ptr<ModernSlider> m_swingSlider;
+    std::unique_ptr<ModernToggle> m_midiMonitorToggle;
+    std::unique_ptr<juce::Label> m_midiMonitorLabel;
     
     // State
     bool m_isPlaying = false;

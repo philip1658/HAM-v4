@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# HAM Build Script
-# One-click build that copies app to Desktop
+# CloneHAM Build Script
+# One-click build that keeps app inside clone folder (no Desktop copy)
 
 set -e  # Exit on error
 
 echo "========================================="
-echo "HAM Sequencer Build Script"
+echo "CloneHAM Sequencer Build Script"
 echo "========================================="
 echo ""
 
@@ -46,7 +46,7 @@ echo "Configuring project..."
 $CMAKE_CMD .. -DCMAKE_BUILD_TYPE=Release
 
 echo ""
-echo "Building HAM..."
+echo "Building CloneHAM..."
 echo ""
 
 # Build with all available cores
@@ -64,15 +64,12 @@ if [ $? -eq 0 ]; then
     echo ""
     echo -e "${GREEN}✅ Build successful!${NC}"
     
-    # The CMakeLists.txt already copies to Desktop, but let's verify
-    if [ -d "$HOME/Desktop/HAM.app" ]; then
-        echo -e "${GREEN}✅ HAM.app copied to Desktop${NC}"
-        echo ""
-        echo "You can now run HAM from your Desktop!"
-        echo "Path: $HOME/Desktop/HAM.app"
+    APP_PATH="$(pwd)/HAM_artefacts/Release/CloneHAM.app"
+    if [ -d "$APP_PATH" ]; then
+        echo -e "${GREEN}✅ App available at:${NC} $APP_PATH"
     else
-        echo -e "${YELLOW}⚠️  App not found on Desktop, copying manually...${NC}"
-        cp -R HAM.app "$HOME/Desktop/" 2>/dev/null || true
+        echo -e "${YELLOW}⚠️  App bundle not found at expected path:${NC} $APP_PATH"
+        echo "Search with: find $(pwd) -name 'CloneHAM.app'"
     fi
 else
     echo ""

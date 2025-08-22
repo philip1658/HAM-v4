@@ -39,9 +39,9 @@ endif()
 
 # Define the app target
 juce_add_gui_app(HAM
-    PRODUCT_NAME "HAM"
+    PRODUCT_NAME "CloneHAM"
     COMPANY_NAME "Philip Krieger"
-    BUNDLE_ID "com.philipkrieger.ham"
+    BUNDLE_ID "com.philipkrieger.cloneham"
     VERSION "0.1.0"
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
@@ -110,12 +110,6 @@ target_sources(HAM PRIVATE
     Source/Domain/Engines/AccumulatorEngine.h
     Source/Domain/Engines/AccumulatorEngine.cpp
     
-    # UI Components
-    Source/UI/ComponentShowcase.h
-    Source/UI/ComponentShowcase.cpp
-    Source/UI/PulseComponentLibrary.h
-    Source/UI/PulseComponentLibrary.cpp
-    
     # Presentation Layer - Core
     Source/Presentation/Core/DesignSystem.h
     Source/Presentation/Core/BaseComponent.h
@@ -132,9 +126,10 @@ target_sources(HAM PRIVATE
     Source/Presentation/Views/TrackSidebar.cpp
     Source/Presentation/Views/StageGrid.h
     Source/Presentation/Views/MainEditor.h
+    Source/Presentation/Views/PluginBrowser.h
+    Source/Presentation/Views/MixerView.h
     
     # UI Components - Extended Library
-    Source/UI/Components/HAMComponentLibraryExtended.h
     
     # Infrastructure Layer - Audio
     Source/Infrastructure/Audio/HAMAudioProcessor.h
@@ -144,6 +139,10 @@ target_sources(HAM PRIVATE
     Source/Infrastructure/Messaging/LockFreeMessageQueue.h
     Source/Infrastructure/Messaging/MessageDispatcher.h
     Source/Infrastructure/Messaging/MessageTypes.h
+
+    # Infrastructure Layer - Plugins
+    Source/Infrastructure/Plugins/PluginManager.h
+    Source/Infrastructure/Plugins/PluginManager.cpp
     
     # Domain Layer - Processors
     Source/Domain/Processors/TrackProcessor.h
@@ -188,7 +187,7 @@ target_link_libraries(HAM PRIVATE
     PUBLIC
     juce::juce_recommended_config_flags
     juce::juce_recommended_lto_flags
-    juce::juce_recommended_warning_flags
+    # juce::juce_recommended_warning_flags # Temporarily disabled for build
 )
 
 # Platform-specific settings
@@ -201,17 +200,129 @@ if(APPLE)
     )
 endif()
 
-# Copy app to Desktop after build
+# Sandbox Scanner Worker (out-of-process plugin scanner)
+juce_add_console_app(PluginScanWorker
+    PRODUCT_NAME "PluginScanWorker"
+)
+
+juce_generate_juce_header(PluginScanWorker)
+
+target_sources(PluginScanWorker PRIVATE
+    Tools/PluginScanner/PluginScanWorkerMain.cpp
+)
+
+target_compile_definitions(PluginScanWorker PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_REPORT_APP_USAGE=0
+    JUCE_MODAL_LOOPS_PERMITTED=0
+    JUCE_STRICT_REFCOUNTEDPOINTER=1
+    JUCE_PLUGINHOST_VST3=1
+    JUCE_PLUGINHOST_AU=1
+)
+
+target_link_libraries(PluginScanWorker PRIVATE
+    juce::juce_core
+    juce::juce_events
+    juce::juce_audio_formats
+    juce::juce_audio_processors
+)
+
 if(APPLE)
-    add_custom_command(TARGET HAM POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E remove_directory 
-            "$ENV{HOME}/Desktop/HAM.app"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory 
-            "$<TARGET_BUNDLE_DIR:HAM>" 
-            "$ENV{HOME}/Desktop/HAM.app"
-        COMMENT "Copying HAM.app to Desktop..."
+    target_link_libraries(PluginScanWorker PRIVATE
+        "-framework CoreAudio"
+        "-framework CoreMIDI"
+        "-framework AudioToolbox"
+        "-framework AudioUnit"
+        "-framework CoreAudioKit"
+        "-framework Accelerate"
     )
 endif()
+
+# Plugin Probe Worker (out-of-process plugin instantiation probe)
+juce_add_console_app(PluginProbeWorker
+    PRODUCT_NAME "PluginProbeWorker"
+)
+
+juce_generate_juce_header(PluginProbeWorker)
+
+target_sources(PluginProbeWorker PRIVATE
+    Tools/PluginScanner/PluginProbeWorkerMain.cpp
+)
+
+target_compile_definitions(PluginProbeWorker PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_REPORT_APP_USAGE=0
+    JUCE_MODAL_LOOPS_PERMITTED=0
+    JUCE_STRICT_REFCOUNTEDPOINTER=1
+    JUCE_PLUGINHOST_VST3=1
+    JUCE_PLUGINHOST_AU=1
+)
+
+target_link_libraries(PluginProbeWorker PRIVATE
+    juce::juce_core
+    juce::juce_events
+    juce::juce_audio_formats
+    juce::juce_audio_processors
+)
+
+if(APPLE)
+    target_link_libraries(PluginProbeWorker PRIVATE
+        "-framework CoreAudio"
+        "-framework CoreMIDI"
+        "-framework AudioToolbox"
+        "-framework AudioUnit"
+        "-framework CoreAudioKit"
+        "-framework Accelerate"
+    )
+endif()
+
+# Plugin Host Bridge (out-of-process plugin UI/hosting)
+juce_add_gui_app(PluginHostBridge
+    PRODUCT_NAME "PluginHostBridge"
+)
+
+juce_generate_juce_header(PluginHostBridge)
+
+target_sources(PluginHostBridge PRIVATE
+    Tools/PluginScanner/PluginHostBridgeMain.cpp
+)
+
+target_compile_definitions(PluginHostBridge PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_REPORT_APP_USAGE=0
+    JUCE_MODAL_LOOPS_PERMITTED=0
+    JUCE_STRICT_REFCOUNTEDPOINTER=1
+    JUCE_PLUGINHOST_VST3=1
+    JUCE_PLUGINHOST_AU=1
+)
+
+target_link_libraries(PluginHostBridge PRIVATE
+    juce::juce_core
+    juce::juce_events
+    juce::juce_graphics
+    juce::juce_gui_basics
+    juce::juce_audio_devices
+    juce::juce_audio_formats
+    juce::juce_audio_processors
+    juce::juce_gui_extra
+    juce::juce_audio_utils
+)
+
+if(APPLE)
+    target_link_libraries(PluginHostBridge PRIVATE
+        "-framework CoreAudio"
+        "-framework CoreMIDI"
+        "-framework AudioToolbox"
+        "-framework AudioUnit"
+        "-framework CoreAudioKit"
+        "-framework Accelerate"
+    )
+endif()
+
+# Note: No external copy (Desktop) to keep all artifacts inside clone folder
 
 # Tests
 if(HAM_BUILD_TESTS)
@@ -221,7 +332,7 @@ endif()
 
 # Print build info
 message(STATUS "")
-message(STATUS "HAM Build Configuration:")
+message(STATUS "CloneHAM Build Configuration:")
 message(STATUS "  Version: ${PROJECT_VERSION}")
 message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "  C++ Standard: ${CMAKE_CXX_STANDARD}")

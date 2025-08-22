@@ -29,6 +29,14 @@ HAMAudioProcessor::HAMAudioProcessor()
     // Initialize message system
     m_messageQueue = std::make_unique<LockFreeMessageQueue<UIToEngineMessage, 2048>>();
     m_messageDispatcher = std::make_unique<MessageDispatcher>();
+
+    // Register UI handlers for debug monitor toggle
+    m_messageDispatcher->registerUIHandler(UIToEngineMessage::ENABLE_DEBUG_MODE, [this](const UIToEngineMessage&) {
+        if (m_midiRouter) m_midiRouter->setDebugChannelEnabled(true);
+    });
+    m_messageDispatcher->registerUIHandler(UIToEngineMessage::DISABLE_DEBUG_MODE, [this](const UIToEngineMessage&) {
+        if (m_midiRouter) m_midiRouter->setDebugChannelEnabled(false);
+    });
     
     // Create default pattern
     m_currentPattern = std::make_unique<Pattern>();
@@ -187,23 +195,15 @@ void HAMAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 //==============================================================================
 void HAMAudioProcessor::processUIMessages()
 {
-    // TODO: Implement when MessageTypes are fully defined
-    // Process up to 32 messages per audio callback to avoid blocking
-    const int maxMessages = 32;
+    // Route UI messages into dispatcher and handle key toggles
     int processed = 0;
-    
-    // For now, just track that we've processed some messages
-    // UIMessage msg;
-    // while (processed < maxMessages && m_messageQueue->pop(msg))
-    // {
-    //     // Handle different message types
-    //     processed++;
-    // }
-    
-    // Track dropped messages if queue was full
-    if (processed >= maxMessages)
+    const int maxMessages = 32;
+    UIToEngineMessage msg;
+    while (processed < maxMessages && m_messageDispatcher->getNumPendingUIMessages() > 0)
     {
-        m_droppedMessages.fetch_add(1);
+        // Pull from dispatcher's queue
+        m_messageDispatcher->processUIMessages(1);
+        processed++;
     }
 }
 

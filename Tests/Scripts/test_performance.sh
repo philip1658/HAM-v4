@@ -11,9 +11,9 @@ echo ""
 # Parse arguments
 TEST_TYPE=${1:-"all"}
 
-# Check if HAM is built
-if [ ! -f "../build/HAM.app/Contents/MacOS/HAM" ]; then
-    echo "❌ ERROR: HAM.app not found. Run ./build.sh first"
+# Check if CloneHAM is built
+if [ ! -f "../build/CloneHAM.app/Contents/MacOS/CloneHAM" ]; then
+    echo "❌ ERROR: CloneHAM.app not found. Run ./build.sh first"
     exit 1
 fi
 
@@ -43,8 +43,8 @@ test_cpu() {
     echo "---------------"
     echo "Running with 1 track for 30 seconds..."
     
-    # Start HAM with performance monitoring
-    ../build/HAM.app/Contents/MacOS/HAM --test-performance-cpu &
+    # Start CloneHAM with performance monitoring
+    ../build/CloneHAM.app/Contents/MacOS/CloneHAM --test-performance-cpu &
     HAM_PID=$!
     
     sleep 2  # Let it stabilize
@@ -104,8 +104,8 @@ test_memory() {
     echo "------------------"
     echo "Running memory test for 60 seconds..."
     
-    # Start HAM
-    ../build/HAM.app/Contents/MacOS/HAM --test-performance-memory &
+    # Start CloneHAM
+    ../build/CloneHAM.app/Contents/MacOS/CloneHAM --test-performance-memory &
     HAM_PID=$!
     
     sleep 2  # Let it stabilize
@@ -165,7 +165,7 @@ test_timing() {
     echo "Analyzing timing jitter..."
     
     # Run timing test
-    ../build/HAM.app/Contents/MacOS/HAM --test-timing-accuracy > /tmp/timing_test.log 2>&1 &
+    ../build/CloneHAM.app/Contents/MacOS/CloneHAM --test-timing-accuracy > /tmp/timing_test.log 2>&1 &
     HAM_PID=$!
     
     echo -n "  Collecting samples"
@@ -208,7 +208,7 @@ test_quick() {
     echo "Running quick performance check..."
     echo ""
     
-    ../build/HAM.app/Contents/MacOS/HAM --test-quick &
+    ../build/CloneHAM.app/Contents/MacOS/CloneHAM --test-quick &
     HAM_PID=$!
     
     sleep 5
@@ -306,7 +306,7 @@ case $TEST_TYPE in
         # Overall result
         if [ $cpu_result -eq 0 ] && [ $mem_result -eq 0 ] && [ $timing_result -eq 0 ]; then
             echo -e "${GREEN}🎉 ALL PERFORMANCE TESTS PASSED!${NC}"
-            echo "HAM is performing within specifications."
+            echo "CloneHAM is performing within specifications."
             exit 0
         elif [ $cpu_result -le 1 ] && [ $mem_result -le 1 ] && [ $timing_result -le 1 ]; then
             echo -e "${YELLOW}⚠️  PERFORMANCE ACCEPTABLE WITH WARNINGS${NC}"

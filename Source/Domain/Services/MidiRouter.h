@@ -159,6 +159,7 @@ private:
     std::array<std::unique_ptr<TrackBuffer>, MAX_TRACKS> m_trackBuffers;
     
     // Configuration
+    // Default: enabled for test visibility; UI can toggle off in app
     std::atomic<bool> m_debugEnabled{true};
     
     // Statistics

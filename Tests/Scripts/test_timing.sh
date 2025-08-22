@@ -8,9 +8,9 @@ echo "HAM Master Clock Timing Test"
 echo "========================================="
 echo ""
 
-# Check if HAM is built
-if [ ! -f "../build/HAM.app/Contents/MacOS/HAM" ]; then
-    echo "❌ ERROR: HAM.app not found. Run ./build.sh first"
+# Check if CloneHAM is built
+if [ ! -f "../build/CloneHAM.app/Contents/MacOS/CloneHAM" ]; then
+    echo "❌ ERROR: CloneHAM.app not found. Run ./build.sh first"
     exit 1
 fi
 
@@ -20,7 +20,7 @@ echo "Expected PPQN: 24"
 echo ""
 
 # Run timing test mode
-../build/HAM.app/Contents/MacOS/HAM --test-timing 2>&1 | while read line; do
+../build/CloneHAM.app/Contents/MacOS/CloneHAM --test-timing 2>&1 | while read line; do
     echo "$line"
     
     # Check for timing results
@@ -64,6 +64,6 @@ echo "========================================="
 echo "Timing Test Complete"
 echo ""
 echo "Next step: Open Instruments.app"
-echo "Run Time Profiler on HAM.app"
+echo "Run Time Profiler on CloneHAM.app"
 echo "Verify no timing spikes"
 echo "========================================="

@@ -53,6 +53,8 @@ struct UIToEngineMessage
         SET_TRACK_VOICE_MODE,
         SET_TRACK_DIVISION,
         SET_TRACK_CHANNEL,
+        ADD_TRACK,
+        REMOVE_TRACK,
         
         // Stage Parameters (NORMAL priority)
         SET_STAGE_PITCH,
@@ -270,6 +272,15 @@ public:
         msg.data.trackParam.value = mute ? 1 : 0;
         return msg;
     }
+
+        static UIToEngineMessage addTrack(int newTrackIndex)
+        {
+            UIToEngineMessage msg;
+            msg.type = UIToEngineMessage::ADD_TRACK;
+            msg.data.trackParam.trackIndex = newTrackIndex;
+            msg.data.trackParam.value = 0;
+            return msg;
+        }
     
     // Stage messages
     static UIToEngineMessage setStagePitch(int track, int stage, float pitch)

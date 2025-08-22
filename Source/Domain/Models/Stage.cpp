@@ -62,7 +62,8 @@ int Stage::getRatchetCount(int pulseIndex) const
 
 void Stage::setProbability(float probability)
 {
-    m_probability = juce::jlimit(0.0f, 1.0f, probability);
+    // Probability expressed in percent (0..100)
+    m_probability = juce::jlimit(0.0f, 100.0f, probability);
 }
 
 //==============================================================================

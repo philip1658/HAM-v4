@@ -232,28 +232,28 @@ public:
             "  Pool Hits: %llu, Misses: %llu (%.1f%% hit rate)\n"
             "  Avg Latency: %.2fms, Max: %.2fms\n"
             "  Queue Depth: %d/%d\n",
-            uiStats.messagesSent.load(),
-            uiStats.messagesReceived.load(),
-            uiStats.messagesDropped.load(),
-            uiStats.poolHits.load(),
-            uiStats.poolMisses.load(),
+            static_cast<unsigned long long>(uiStats.messagesSent.load()),
+            static_cast<unsigned long long>(uiStats.messagesReceived.load()),
+            static_cast<unsigned long long>(uiStats.messagesDropped.load()),
+            static_cast<unsigned long long>(uiStats.poolHits.load()),
+            static_cast<unsigned long long>(uiStats.poolMisses.load()),
             uiStats.poolHits > 0 ? 
                 (100.0 * uiStats.poolHits) / (uiStats.poolHits + uiStats.poolMisses) : 0.0,
-            uiStats.averageLatencyMs.load(),
-            uiStats.maxLatencyMs.load(),
-            uiStats.currentQueueDepth.load(),
-            uiStats.maxQueueDepth.load(),
-            engineStats.messagesSent.load(),
-            engineStats.messagesReceived.load(),
-            engineStats.messagesDropped.load(),
-            engineStats.poolHits.load(),
-            engineStats.poolMisses.load(),
+            static_cast<double>(uiStats.averageLatencyMs.load()),
+            static_cast<double>(uiStats.maxLatencyMs.load()),
+            static_cast<int>(uiStats.currentQueueDepth.load()),
+            static_cast<int>(uiStats.maxQueueDepth.load()),
+            static_cast<unsigned long long>(engineStats.messagesSent.load()),
+            static_cast<unsigned long long>(engineStats.messagesReceived.load()),
+            static_cast<unsigned long long>(engineStats.messagesDropped.load()),
+            static_cast<unsigned long long>(engineStats.poolHits.load()),
+            static_cast<unsigned long long>(engineStats.poolMisses.load()),
             engineStats.poolHits > 0 ?
                 (100.0 * engineStats.poolHits) / (engineStats.poolHits + engineStats.poolMisses) : 0.0,
-            engineStats.averageLatencyMs.load(),
-            engineStats.maxLatencyMs.load(),
-            engineStats.currentQueueDepth.load(),
-            engineStats.maxQueueDepth.load()
+            static_cast<double>(engineStats.averageLatencyMs.load()),
+            static_cast<double>(engineStats.maxLatencyMs.load()),
+            static_cast<int>(engineStats.currentQueueDepth.load()),
+            static_cast<int>(engineStats.maxQueueDepth.load())
         );
     }
     
@@ -323,6 +323,8 @@ private:
             case UIToEngineMessage::UPDATE_TRACK:
             case UIToEngineMessage::SET_TRACK_MUTE:
             case UIToEngineMessage::SET_TRACK_SOLO:
+            case UIToEngineMessage::ADD_TRACK:
+            case UIToEngineMessage::REMOVE_TRACK:
             case UIToEngineMessage::START_MORPH:
                 return UIMessageQueue::Priority::NORMAL;
             
@@ -406,14 +408,12 @@ private:
     void setupDefaultHandlers()
     {
         // Set up default unhandled message logging
-        m_defaultUIHandler = [](const UIToEngineMessage& msg)
-        {
-            DBG("Unhandled UI message type: " << msg.type);
+        m_defaultUIHandler = [](const UIToEngineMessage& msg) {
+            // Minimal default: no spam in real-time
         };
         
-        m_defaultEngineHandler = [](const EngineToUIMessage& msg)
-        {
-            DBG("Unhandled Engine message type: " << msg.type);
+        m_defaultEngineHandler = [](const EngineToUIMessage& msg) {
+            // Minimal default: no spam in UI
         };
     }
     

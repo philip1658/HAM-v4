@@ -336,7 +336,7 @@ void TrackControlStrip::setSelected(bool selected)
 
 TrackSidebar::TrackSidebar()
 {
-    // Create container for track strips (no viewport needed at fixed height)
+    // Create container for track strips
     m_trackContainer = std::make_unique<juce::Component>();
     addAndMakeVisible(m_trackContainer.get());
     
@@ -366,13 +366,7 @@ void TrackSidebar::resized()
 {
     auto bounds = getLocalBounds();
     
-    // Limit height to match stage cards (line 5 to line 26 = 480px)
-    const int maxHeight = 480;
-    if (bounds.getHeight() > maxHeight) {
-        bounds.setHeight(maxHeight);
-    }
-    
-    // Track container takes the limited bounds
+    // Track container fills available bounds (scrolling handled by parent viewport)
     m_trackContainer->setBounds(bounds);
     
     // Update track container layout
@@ -383,9 +377,7 @@ void TrackSidebar::setTrackCount(int count)
 {
     m_trackStrips.clear();
     
-    // For now, limit to 1 track since we have fixed 440px height
-    // Multiple tracks would require horizontal scrolling or tabs
-    int tracksToShow = std::min(count, 1);
+    int tracksToShow = std::max(1, count);
     
     for (int i = 0; i < tracksToShow; ++i)
     {
@@ -488,13 +480,18 @@ void TrackSidebar::timerCallback()
 
 void TrackSidebar::updateTrackLayout()
 {
-    // Fixed layout - track fills container (which is already limited to 480px)
-    if (!m_trackStrips.empty())
+    // Vertical list layout, allow container to grow for viewport scrolling
+    int y = 0;
+    const int gap = 8;
+    for (auto& strip : m_trackStrips)
     {
-        // Ensure track strip doesn't exceed 480px height
-        int height = std::min(m_trackContainer->getHeight(), 480);
-        m_trackStrips[0]->setBounds(0, 0, m_trackContainer->getWidth(), height);
+        if (strip)
+        {
+            strip->setBounds(0, y, m_trackContainer->getWidth(), 480);
+            y += 480 + gap;
+        }
     }
+    m_trackContainer->setSize(getWidth(), std::max(getHeight(), y));
 }
 
 void TrackSidebar::handleTrackSelection(int index)

@@ -10,12 +10,16 @@
 #include "MainComponent.h"
 #include "Infrastructure/Messaging/MessageDispatcher.h"
 #include "Infrastructure/Messaging/MessageTypes.h"
-#include "UI/Components/HAMComponentLibrary.h"
-#include "UI/Components/HAMComponentLibraryExtended.h"
+#include "Infrastructure/Audio/HAMAudioProcessor.h"
+#include "Infrastructure/Plugins/PluginManager.h"
+// UI Components will be added when implemented
 #include "Presentation/Core/DesignSystem.h"
 #include "Presentation/Views/StageGrid.h"
 #include "Presentation/Views/TransportBar.h"
 #include "Presentation/Views/TrackSidebar.h"
+// #include "Presentation/Views/HAMEditorPanel.h" // TODO: Implement HAMEditorPanel
+#include "Presentation/Views/PluginBrowser.h"
+#include <unordered_map>
 
 //==============================================================================
 class MainComponent::Impl : public juce::Timer
@@ -23,9 +27,15 @@ class MainComponent::Impl : public juce::Timer
 public:
     Impl(MainComponent& owner) : m_owner(owner)
     {
-        // Initialize message dispatcher
-        m_messageDispatcher = std::make_unique<HAM::MessageDispatcher>();
+        // Initialize audio engine and messaging bridge
+        m_processor = std::make_unique<HAM::HAMAudioProcessor>();
+        m_messageDispatcher = &m_processor->getMessageDispatcher();
         setupMessageHandlers();
+
+        // Setup audio I/O and attach processor
+        m_deviceManager.initialiseWithDefaultDevices(0, 2);
+        m_audioPlayer.setProcessor(m_processor.get());
+        m_deviceManager.addAudioCallback(&m_audioPlayer);
         
         // Create transport bar with Pulse components
         m_transportBar = std::make_unique<HAM::UI::TransportBar>();
@@ -35,14 +45,47 @@ public:
         m_transportBar->onBPMChanged = [this](float bpm) {
             handleBPMChange(bpm);
         };
+        m_transportBar->onMidiMonitorToggled = [this](bool enabled) {
+            handleMidiMonitorToggle(enabled);
+        };
         m_owner.addAndMakeVisible(m_transportBar.get());
+        
+        // Main tabs: Sequencer / Mixer
+        m_tabs = std::make_unique<juce::TabbedComponent>(juce::TabbedButtonBar::TabsAtTop);
+        m_tabs->setTabBarDepth(32);
+        m_owner.addAndMakeVisible(m_tabs.get());
+
+        // Sequencer page root container
+        m_sequencerPage = std::make_unique<juce::Component>();
+        m_tabs->addTab("Sequencer", juce::Colours::transparentBlack, m_sequencerPage.get(), false);
+
+        // Mixer page
+        m_mixerView = std::make_unique<HAM::UI::MixerView>();
+        m_mixerView->onAliasInstrumentPlugin = [this](int trackIndex) { openPluginBrowser(trackIndex); };
+        m_mixerView->onAddFxPlugin = [this](int trackIndex) { openFxPluginBrowser(trackIndex); };
+        m_tabs->addTab("Mixer", juce::Colours::transparentBlack, m_mixerView.get(), false);
         
         // Create stage grid
         m_stageGrid = std::make_unique<HAM::UI::StageGrid>();
         m_stageGrid->onStageParameterChanged = [this](int track, int stage, const juce::String& param, float value) {
             handleStageParameterChange(track, stage, param, value);
         };
-        m_owner.addAndMakeVisible(m_stageGrid.get());
+        m_stageGrid->onHAMEditorRequested = [this](int stage) {
+            // Expand editor and select stage
+            // TODO: Implement HAMEditorPanel
+            // if (m_hamEditor)
+            // {
+            //     m_hamEditor->setExpanded(true);
+            //     m_hamEditor->setCurrentStage(0, stage);
+            //     m_owner.resized(); // Relayout to show editor
+            // }
+        };
+        // Wrap StageGrid in a viewport for scrolling
+        m_stageViewport = std::make_unique<juce::Viewport>("stageViewport");
+        m_stageViewport->setViewedComponent(m_stageGrid.get(), false);
+        m_stageViewport->setScrollBarsShown(true, true);
+        m_stageViewport->setScrollOnDragEnabled(true);
+        m_sequencerPage->addAndMakeVisible(m_stageViewport.get());
         
         // Create track sidebar
         m_trackSidebar = std::make_unique<HAM::UI::TrackSidebar>();
@@ -52,7 +95,16 @@ public:
         m_trackSidebar->onTrackParameterChanged = [this](int trackIndex, const juce::String& param, float value) {
             handleTrackParameterChange(trackIndex, param, value);
         };
-        m_owner.addAndMakeVisible(m_trackSidebar.get());
+        m_trackSidebar->onAddTrack = [this]() { handleAddTrack(); };
+        // Öffne Plugin Browser beim Plugin Button
+        // (TrackSidebar gibt "openPlugin" als Param via onTrackParameterChanged – wir fangen es zusätzlich hier UI-seitig ab)
+        // Alternative: separater Callback onPluginButtonClicked im Sidebar; hier nutzen wir Param-Schiene unten.
+        // Wrap TrackSidebar in a viewport for vertical scrolling
+        m_trackViewport = std::make_unique<juce::Viewport>("trackViewport");
+        m_trackViewport->setViewedComponent(m_trackSidebar.get(), false);
+        m_trackViewport->setScrollBarsShown(true, false);
+        m_trackViewport->setScrollOnDragEnabled(true);
+        m_sequencerPage->addAndMakeVisible(m_trackViewport.get());
         
         // Create Add Track button for pattern bar
         m_addTrackButton = std::make_unique<HAM::UI::ModernButton>("+ ADD TRACK", HAM::UI::ModernButton::Style::Gradient);
@@ -61,8 +113,27 @@ public:
             handleAddTrack();
         };
         m_owner.addAndMakeVisible(m_addTrackButton.get());
+
+        // Create pattern buttons A–H in pattern bar
+        for (int i = 0; i < 8; ++i)
+        {
+            auto btn = std::make_unique<HAM::UI::ModernButton>(juce::String::charToString('A' + i), HAM::UI::ModernButton::Style::Outline);
+            btn->onClick = [this, i]() { selectPattern(i); };
+            m_owner.addAndMakeVisible(btn.get());
+            m_patternButtons.push_back(std::move(btn));
+        }
+        updatePatternButtonStyles();
         
         // Note: Removed main panel as it was covering other components
+        
+        // HAM Editor panel (collapsed by default)
+        // TODO: Implement HAMEditorPanel
+        // m_hamEditor = std::make_unique<HAM::UI::HAMEditorPanel>();
+        // m_hamEditor->setExpanded(false);
+        // m_hamEditor->onStageParamChanged = [this](int track, int stage, const juce::String& param, float value) {
+        //     handleStageParameterChange(track, stage, param, value);
+        // };
+        // m_sequencerPage->addAndMakeVisible(m_hamEditor.get());
         
         // Start timer for UI updates from engine
         startTimer(30); // ~33Hz UI update rate
@@ -71,6 +142,8 @@ public:
     ~Impl()
     {
         stopTimer();
+        m_deviceManager.removeAudioCallback(&m_audioPlayer);
+        m_audioPlayer.setProcessor(nullptr);
     }
     
     void resized()
@@ -93,21 +166,87 @@ public:
             buttonBounds.setWidth(120);
             m_addTrackButton->setBounds(buttonBounds);
         }
+
+        // Pattern buttons on the right side of pattern bar
+        {
+            auto buttonsArea = patternBar;
+            int buttonWidth = 34;
+            int gap = 4;
+            int totalWidth = 8 * buttonWidth + 7 * gap;
+            buttonsArea.setX(buttonsArea.getRight() - totalWidth - 8);
+            buttonsArea.setWidth(totalWidth);
+            for (int i = 0; i < static_cast<int>(m_patternButtons.size()); ++i)
+            {
+                auto x = buttonsArea.getX() + i * (buttonWidth + gap);
+                m_patternButtons[i]->setBounds(x, buttonsArea.getY() + 4, buttonWidth, buttonsArea.getHeight() - 8);
+            }
+        }
+        
+        // Tabs area below pattern bar
+        auto tabsArea = bounds;
+        if (m_tabs)
+            m_tabs->setBounds(tabsArea);
+
+        // Layout Sequencer page children
+        auto pageBounds = tabsArea;
+        if (m_tabs)
+        {
+            // Tab content equals tabsArea
+            pageBounds = m_tabs->getTabContentComponent(0)->getLocalBounds();
+        }
+
+        // HAM editor at bottom (collapsible)
+        // TODO: Implement HAMEditorPanel
+        // Use proportional height on small windows to avoid covering too much; clamp to [140..220]
+        // if (m_hamEditor)
+        // {
+        //     const int minEditor = 140;
+        //     const int maxEditor = 220;
+        //     int desired = juce::jlimit(minEditor, maxEditor, pageBounds.getHeight() / 4); // ~25% of page
+        //     if (m_hamEditor->isExpanded())
+        //     {
+        //         auto editorBounds = pageBounds.removeFromBottom(desired);
+        //         m_hamEditor->setBounds(editorBounds.reduced(0, 1));
+        //         m_hamEditor->setVisible(true);
+        //     }
+        //     else
+        //     {
+        //         m_hamEditor->setVisible(false);
+        //     }
+        // }
         
         // Calculate exact remaining height for perfect alignment
-        auto contentArea = bounds;  // This is now exactly 480px high (600 - 80 - 40)
+        auto contentArea = pageBounds;  // sequencer page area
         
         // Track sidebar on left - extended to line L (264px = 11 * 24px grid)
         static constexpr int SIDEBAR_WIDTH = 264;  // Line L
         auto sidebarBounds = contentArea.removeFromLeft(SIDEBAR_WIDTH);
-        m_trackSidebar->setBounds(sidebarBounds);
+        if (m_trackViewport)
+        {
+        m_trackViewport->setBounds(sidebarBounds);
+            if (auto* viewed = m_trackViewport->getViewedComponent())
+                viewed->setSize(sidebarBounds.getWidth(), std::max(sidebarBounds.getHeight(), viewed->getHeight()));
+        }
         
         // Add 1px gap between sidebar and stage grid (same as spacing between stage cards)
         contentArea.removeFromLeft(1);
         
         // Stage grid takes remaining space after 1px gap
         // This ensures both components have the exact same height
-        m_stageGrid->setBounds(contentArea);
+        if (m_stageViewport)
+        {
+            m_stageViewport->setBounds(contentArea);
+            if (auto* viewed = m_stageViewport->getViewedComponent())
+                viewed->setSize(std::max(contentArea.getWidth(), viewed->getWidth()), std::max(contentArea.getHeight(), viewed->getHeight()));
+        }
+
+        // Mixer tab fills its page
+        if (m_mixerView && m_tabs)
+        {
+            auto* mixerContent = m_tabs->getTabContentComponent(1);
+            if (mixerContent)
+                m_mixerView->setBounds(mixerContent->getLocalBounds());
+        }
     }
     
     void paint(juce::Graphics& g)
@@ -137,10 +276,37 @@ public:
     }
     
 private:
+    // Helpers exposed to MainComponent for key handling
+public:
+    void togglePlay()
+    {
+        if (!m_transportBar) return;
+        bool nowPlaying = !m_transportBar->isPlaying();
+        m_transportBar->setPlayState(nowPlaying);
+        handlePlayStateChange(nowPlaying);
+    }
+
+    void stepStageLeft()
+    {
+        int next = juce::jlimit(0, 7, m_currentStageIndex - 1);
+        if (next != m_currentStageIndex)
+        {
+            updateCurrentStage(m_currentTrackIndex, next);
+        }
+    }
+
+    void stepStageRight()
+    {
+        int next = juce::jlimit(0, 7, m_currentStageIndex + 1);
+        if (next != m_currentStageIndex)
+        {
+            updateCurrentStage(m_currentTrackIndex, next);
+        }
+    }
     void timerCallback() override
     {
         // Process messages from engine to UI
-        m_messageDispatcher->processEngineMessages(50);
+        if (m_messageDispatcher) m_messageDispatcher->processEngineMessages(50);
     }
     
     void setupMessageHandlers()
@@ -195,6 +361,16 @@ private:
         
         DBG("BPM changed to: " << bpm);
     }
+
+    void handleMidiMonitorToggle(bool enabled)
+    {
+        HAM::UIToEngineMessage msg;
+        msg.type = enabled ? HAM::UIToEngineMessage::ENABLE_DEBUG_MODE
+                            : HAM::UIToEngineMessage::DISABLE_DEBUG_MODE;
+        msg.data.boolParam.value = enabled;
+        m_messageDispatcher->sendToEngine(msg);
+        DBG("MIDI Monitor " << (enabled ? "ENABLED" : "DISABLED"));
+    }
     
     void handleStageParameterChange(int track, int stage, const juce::String& param, float value)
     {
@@ -234,10 +410,13 @@ private:
     void updatePlayheadPosition(float bars, float beats, float pulses)
     {
         // Update position display (future feature)
-        // For now just track it
         m_currentBar = static_cast<int>(bars);
         m_currentBeat = static_cast<int>(beats);
         m_currentPulse = static_cast<int>(pulses);
+        if (m_transportBar)
+        {
+            m_transportBar->setPosition(m_currentBar, m_currentBeat, m_currentPulse);
+        }
     }
     
     void updateCurrentStage(int track, int stage)
@@ -247,6 +426,14 @@ private:
         if (m_stageGrid) {
             m_stageGrid->setActiveStage(stage);
         }
+
+        // TODO: Implement HAMEditorPanel
+        // if (m_hamEditor)
+        // {
+        //     m_hamEditor->setCurrentStage(track, stage);
+        // }
+
+        m_currentStageIndex = stage;
     }
     
     void handleTrackSelection(int trackIndex)
@@ -258,6 +445,8 @@ private:
         m_messageDispatcher->sendToEngine(msg);
         
         DBG("Track " << trackIndex << " selected");
+
+        m_currentTrackIndex = trackIndex;
     }
     
     void handleTrackParameterChange(int trackIndex, const juce::String& param, float value)
@@ -283,6 +472,10 @@ private:
         } else if (param == "swing") {
             msg.type = UIToEngineMessage::SET_SWING;
             msg.data.floatParam = {value / 100.0f}; // Convert from 0-100 to 0-1
+        } else if (param == "openPlugin") {
+            // UI: Plugin Browser öffnen (nicht in Engine senden)
+            openPluginBrowser(trackIndex);
+            return;
         } else if (param == "octave") {
             // Note: No specific message type for octave, would need to be added
             // For now, we can log it
@@ -298,26 +491,253 @@ private:
     
     void handleAddTrack()
     {
-        // For now, just log - actual implementation would add a new track to the model
-        DBG("Add track requested");
-        // In future: send message to engine to add track
+        // Append neuer Track direkt nach Track 1 (Index-basiert am Ende)
+        m_numTracks = std::max(1, m_numTracks + 1);
+        int newTrackIndex = m_numTracks - 1;
+        // UI aktualisieren
+        if (m_trackSidebar) m_trackSidebar->setTrackCount(m_numTracks);
+        if (m_mixerView) m_mixerView->setTrackCount(m_numTracks);
+        // Engine informieren
+        auto msg = HAM::MessageFactory::addTrack(newTrackIndex);
+        if (m_messageDispatcher) m_messageDispatcher->sendToEngine(msg);
+        DBG("Add track requested -> index=" << newTrackIndex << ", total=" << m_numTracks);
+    }
+
+    void openPluginBrowser(int trackIndex)
+    {
+        if (!m_pluginBrowser)
+        {
+            m_pluginBrowser = std::make_unique<HAM::UI::PluginBrowser>();
+            m_pluginBrowser->onPluginChosen = [this, trackIndex](const juce::PluginDescription& desc){
+                instantiatePluginForTrack(desc, trackIndex);
+            };
+        }
+        if (!m_overlay)
+        {
+            m_overlay = std::make_unique<juce::Component>();
+            m_overlay->setInterceptsMouseClicks(true, true);
+            m_overlay->setAlwaysOnTop(true);
+            if (m_tabs)
+                m_tabs->addAndMakeVisible(m_overlay.get());
+            else
+                m_owner.addAndMakeVisible(m_overlay.get());
+        }
+        // Layout: zentriertes Panel innerhalb des Tabs
+        auto hostBounds = (m_tabs ? m_tabs->getBounds() : m_owner.getLocalBounds());
+        auto b = hostBounds.reduced(120, 80);
+        m_overlay->setBounds(hostBounds);
+        m_pluginBrowser->setBounds(b);
+        m_overlay->addAndMakeVisible(m_pluginBrowser.get());
+        m_overlay->toFront(true);
+    }
+
+    void openFxPluginBrowser(int trackIndex)
+    {
+        // Re-use PluginBrowser for FX insert selection; upon choose, add to FX list
+        if (!m_pluginBrowser)
+        {
+            m_pluginBrowser = std::make_unique<HAM::UI::PluginBrowser>();
+            m_pluginBrowser->onPluginChosen = [this, trackIndex](const juce::PluginDescription& desc){
+                instantiateFxForTrack(desc, trackIndex);
+            };
+        }
+        if (!m_overlay)
+        {
+            m_overlay = std::make_unique<juce::Component>();
+            m_overlay->setInterceptsMouseClicks(true, true);
+            m_overlay->setAlwaysOnTop(true);
+            if (m_tabs)
+                m_tabs->addAndMakeVisible(m_overlay.get());
+            else
+                m_owner.addAndMakeVisible(m_overlay.get());
+        }
+        auto hostBounds2 = (m_tabs ? m_tabs->getBounds() : m_owner.getLocalBounds());
+        auto b2 = hostBounds2.reduced(120, 80);
+        m_overlay->setBounds(hostBounds2);
+        m_pluginBrowser->setBounds(b2);
+        m_overlay->addAndMakeVisible(m_pluginBrowser.get());
+        m_overlay->toFront(true);
+    }
+
+    void instantiatePluginForTrack(const juce::PluginDescription& desc, int trackIndex)
+    {
+        // Zuerst Sandbox-Probe in separatem Prozess (PluginProbeWorker)
+        auto exe = juce::File::getSpecialLocation(juce::File::currentExecutableFile);
+        // MacOS -> Contents -> *.app -> Release -> HAM_artefacts -> build (6 Ebenen)
+        auto dir = exe; for (int i = 0; i < 6; ++i) dir = dir.getParentDirectory();
+        auto worker1 = dir.getChildFile("bin").getChildFile("PluginProbeWorker");
+        auto worker2 = dir.getChildFile("PluginProbeWorker_artefacts").getChildFile("Release").getChildFile("PluginProbeWorker");
+        juce::File worker = worker1.existsAsFile() ? worker1 : worker2;
+
+        struct ProbeResult { bool success{false}; bool usedRosetta{false}; };
+        auto runProbe = [](const juce::File& workerFile, const juce::String& fmtName, const juce::String& ident) -> ProbeResult
+        {
+            auto escapeArg = [](const juce::String& s){ return juce::String("\"") + s.replace("\"", "\\\"") + "\""; };
+            auto baseCmd = workerFile.getFullPathName() + " " + escapeArg(fmtName) + " " + escapeArg(ident);
+
+            auto runAndWait = [](const juce::String& cmd) -> std::optional<int>
+            {
+                juce::ChildProcess p;
+                if (!p.start(cmd)) return std::nullopt;
+                for (int i = 0; i < 120; ++i) { if (!p.isRunning()) break; juce::Thread::sleep(50); }
+                return p.getExitCode();
+            };
+
+            if (auto ec = runAndWait(baseCmd))
+            {
+                if (*ec == 0) return { true, false };
+            }
+
+            // Fallback: Rosetta (x86_64) starten, falls Plugin nur Intel ist
+            juce::String rosettaCmd = "/usr/bin/arch -x86_64 " + baseCmd;
+            if (auto ec2 = runAndWait(rosettaCmd))
+            {
+                if (*ec2 == 0) return { true, true };
+            }
+            return { false, false };
+        };
+
+        if (worker.existsAsFile())
+        {
+            juce::String fmtName = desc.pluginFormatName;
+            juce::String ident = desc.fileOrIdentifier.isNotEmpty() ? desc.fileOrIdentifier : desc.name;
+            ProbeResult probe = runProbe(worker, fmtName, ident);
+            // Selbst wenn der Probe-Test fehlschlug, versuche die Bridge (manche Formate/IDs schlagen im Probe-Worker fehl)
+            bool useRosetta = probe.usedRosetta;
+            launchPluginEditorBridge(fmtName, ident, useRosetta);
+            // Browser schließen
+            m_pluginBrowser.reset();
+            return;
+        }
+        else
+        {
+            // Falls kein Probe-Worker vorhanden ist, direkt Bridge versuchen
+            juce::String fmtName = desc.pluginFormatName;
+            juce::String ident = desc.fileOrIdentifier.isNotEmpty() ? desc.fileOrIdentifier : desc.name;
+            launchPluginEditorBridge(fmtName, ident, false);
+            m_pluginBrowser.reset();
+            return;
+        }
+
+        // In-Process Instanziierung wird durch Bridge ersetzt
+        juce::ignoreUnused(desc, trackIndex);
+        return;
+    }
+
+    void instantiateFxForTrack(const juce::PluginDescription& desc, int trackIndex)
+    {
+        // Sandbox-Probe identisch wie bei Instrument, inkl. Rosetta-Fallback
+        auto exe = juce::File::getSpecialLocation(juce::File::currentExecutableFile);
+        auto dir = exe; for (int i = 0; i < 6; ++i) dir = dir.getParentDirectory();
+        auto worker1 = dir.getChildFile("bin").getChildFile("PluginProbeWorker");
+        auto worker2 = dir.getChildFile("PluginProbeWorker_artefacts").getChildFile("Release").getChildFile("PluginProbeWorker");
+        juce::File worker = worker1.existsAsFile() ? worker1 : worker2;
+        if (!worker.existsAsFile())
+        {
+            // Direkt Bridge nutzen, wenn kein Probe-Worker existiert
+            juce::String fmtName = desc.pluginFormatName;
+            juce::String ident = desc.fileOrIdentifier.isNotEmpty() ? desc.fileOrIdentifier : desc.name;
+            launchPluginEditorBridge(fmtName, ident, false);
+            m_pluginBrowser.reset();
+            return;
+        }
+
+        struct ProbeResult { bool success{false}; bool usedRosetta{false}; };
+        auto runProbe = [](const juce::File& workerFile, const juce::String& fmtName, const juce::String& ident) -> ProbeResult
+        {
+            auto escapeArg = [](const juce::String& s){ return juce::String("\"") + s.replace("\"", "\\\"") + "\""; };
+            auto baseCmd = workerFile.getFullPathName() + " " + escapeArg(fmtName) + " " + escapeArg(ident);
+
+            auto runAndWait = [](const juce::String& cmd) -> std::optional<int>
+            {
+                juce::ChildProcess p;
+                if (!p.start(cmd)) return std::nullopt;
+                for (int i = 0; i < 120; ++i) { if (!p.isRunning()) break; juce::Thread::sleep(50); }
+                return p.getExitCode();
+            };
+
+            if (auto ec = runAndWait(baseCmd))
+            {
+                if (*ec == 0) return { true, false };
+            }
+
+            juce::String rosettaCmd = "/usr/bin/arch -x86_64 " + baseCmd;
+            if (auto ec2 = runAndWait(rosettaCmd))
+            {
+                if (*ec2 == 0) return { true, true };
+            }
+            return { false, false };
+        };
+
+        juce::String fmtName = desc.pluginFormatName;
+        juce::String ident = desc.fileOrIdentifier.isNotEmpty() ? desc.fileOrIdentifier : desc.name;
+        ProbeResult probe = runProbe(worker, fmtName, ident);
+        // Auch bei fehlgeschlagenem Probe-Test: Bridge probieren
+        launchPluginEditorBridge(fmtName, ident, probe.usedRosetta);
+        // Schließe Browser
+        m_pluginBrowser.reset();
+        return;
+    }
+
+    // Pattern selection
+    void selectPattern(int index)
+    {
+        if (index < 0 || index >= 8) return;
+        m_activePatternIndex = index;
+        updatePatternButtonStyles();
+        // TODO: send message to engine when pattern scheduler is wired
+        DBG("Pattern selected: " << static_cast<char>('A' + index));
+    }
+
+    void updatePatternButtonStyles()
+    {
+        auto activeColor = juce::Colour(HAM::UI::DesignTokens::Colors::ACCENT_BLUE);
+        auto inactiveColor = juce::Colour(HAM::UI::DesignTokens::Colors::TEXT_DIM);
+        for (int i = 0; i < static_cast<int>(m_patternButtons.size()); ++i)
+        {
+            if (m_patternButtons[i])
+                m_patternButtons[i]->setColor(i == m_activePatternIndex ? activeColor : inactiveColor);
+        }
     }
     
     MainComponent& m_owner;
     
-    // Message system
-    std::unique_ptr<HAM::MessageDispatcher> m_messageDispatcher;
+    // Message system (from audio processor)
+    HAM::MessageDispatcher* m_messageDispatcher { nullptr };
     
     // UI Components
     std::unique_ptr<HAM::UI::TransportBar> m_transportBar;
+    // Tabs
+    std::unique_ptr<juce::TabbedComponent> m_tabs;
+    std::unique_ptr<juce::Component> m_sequencerPage;
+    std::unique_ptr<HAM::UI::MixerView> m_mixerView;
     std::unique_ptr<HAM::UI::StageGrid> m_stageGrid;
+    std::unique_ptr<juce::Viewport> m_stageViewport;
     std::unique_ptr<HAM::UI::TrackSidebar> m_trackSidebar;
+    std::unique_ptr<juce::Viewport> m_trackViewport;
+    // std::unique_ptr<HAM::UI::HAMEditorPanel> m_hamEditor; // TODO: Implement HAMEditorPanel
     std::unique_ptr<HAM::UI::ModernButton> m_addTrackButton;
+    std::vector<std::unique_ptr<HAM::UI::ModernButton>> m_patternButtons;
+    std::unique_ptr<juce::Component> m_overlay;
+    std::unique_ptr<HAM::UI::PluginBrowser> m_pluginBrowser;
+    std::unordered_map<int, std::unique_ptr<juce::AudioPluginInstance>> m_trackPlugins;
+    std::unordered_map<int, std::vector<std::unique_ptr<juce::AudioPluginInstance>>> m_trackFxPlugins;
+    std::unique_ptr<juce::AudioProcessorEditor> m_pluginEditor;
+    std::unique_ptr<juce::ChildProcess> m_bridgeProcess;
+
+    // Audio hosting
+    juce::AudioDeviceManager m_deviceManager;
+    juce::AudioProcessorPlayer m_audioPlayer;
+    std::unique_ptr<HAM::HAMAudioProcessor> m_processor;
     
     // Current state
     int m_currentBar = 0;
     int m_currentBeat = 0;
     int m_currentPulse = 0;
+    int m_currentStageIndex = 0;
+    int m_currentTrackIndex = 0;
+    int m_numTracks = 1;
+    int m_activePatternIndex = 0;
     
     // Pattern bar bounds for future use
     juce::Rectangle<int> m_patternBarBounds;
@@ -381,6 +801,65 @@ private:
             g.drawHorizontalLine(y, 0, bounds.getWidth());
         }
     }
+
+    // Bridge launcher helpers
+    static juce::File findPluginHostBridge()
+    {
+        auto exe = juce::File::getSpecialLocation(juce::File::currentExecutableFile);
+        auto dir = exe; for (int i = 0; i < 6; ++i) dir = dir.getParentDirectory();
+        auto candidateApp = dir.getChildFile("PluginHostBridge_artefacts").getChildFile("Release")
+                               .getChildFile("PluginHostBridge.app").getChildFile("Contents")
+                               .getChildFile("MacOS").getChildFile("PluginHostBridge");
+        if (candidateApp.existsAsFile()) return candidateApp;
+        auto candidateBin = dir.getChildFile("bin").getChildFile("PluginHostBridge");
+        if (candidateBin.existsAsFile()) return candidateBin;
+        return {};
+    }
+
+    void launchPluginEditorBridge(const juce::String& formatName, const juce::String& identifier, bool useRosetta)
+    {
+        auto bridge = findPluginHostBridge();
+        if (!bridge.existsAsFile())
+        {
+            juce::AlertWindow::showMessageBoxAsync(
+                juce::MessageBoxIconType::WarningIcon,
+                "Bridge fehlt",
+                "PluginHostBridge wurde nicht gefunden.");
+            return;
+        }
+
+        // Choose a localhost port for window control (SHOW/HIDE)
+        const int ipcPort = 53621; // fixed for MVP; could be randomized if multiple instances are needed
+        auto escapeArg = [](const juce::String& s){ return juce::String("\"") + s.replace("\"", "\\\"") + "\""; };
+        juce::String cmd = bridge.getFullPathName()
+                            + " --format=" + escapeArg(formatName)
+                            + " --identifier=" + escapeArg(identifier)
+                            + " --port=" + juce::String(ipcPort);
+       #if JUCE_MAC
+        if (useRosetta)
+            cmd = "/usr/bin/arch -x86_64 " + cmd;
+       #endif
+        m_bridgeProcess = std::make_unique<juce::ChildProcess>();
+        if (!m_bridgeProcess->start(cmd))
+        {
+            m_bridgeProcess.reset();
+            juce::AlertWindow::showMessageBoxAsync(
+                juce::MessageBoxIconType::WarningIcon,
+                "Bridge Start fehlgeschlagen",
+                "Der PluginHostBridge-Prozess konnte nicht gestartet werden.");
+            return;
+        }
+
+        // Fire-and-forget: bring window to front after short delay
+        juce::Timer::callAfterDelay(300, [ipcPort]() {
+            juce::StreamingSocket s;
+            if (s.connect("127.0.0.1", ipcPort, 1000))
+            {
+                const char* msg = "SHOW";
+                s.write(msg, (int) std::strlen(msg));
+            }
+        });
+    }
 };
 
 //==============================================================================
@@ -393,6 +872,9 @@ MainComponent::MainComponent()
     
     // Apply Pulse look and feel
     setLookAndFeel(&m_pulseLookAndFeel);
+
+    setWantsKeyboardFocus(true);
+    grabKeyboardFocus();
 }
 
 MainComponent::~MainComponent()
@@ -414,4 +896,23 @@ void MainComponent::paintOverChildren(juce::Graphics& g)
 void MainComponent::resized()
 {
     m_impl->resized();
+}
+
+bool MainComponent::keyPressed(const juce::KeyPress& key)
+{
+    // Space: toggle play/pause
+    if (key == juce::KeyPress(juce::KeyPress::spaceKey))
+    {
+        if (m_impl) m_impl->togglePlay();
+        return true;
+    }
+    // Left/Right: change active stage within 0..7
+    if (key == juce::KeyPress(juce::KeyPress::leftKey) || key == juce::KeyPress(juce::KeyPress::rightKey))
+    {
+        if (!m_impl) return false;
+        if (key == juce::KeyPress(juce::KeyPress::leftKey)) m_impl->stepStageLeft();
+        if (key == juce::KeyPress(juce::KeyPress::rightKey)) m_impl->stepStageRight();
+        return true;
+    }
+    return false;
 }

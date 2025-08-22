@@ -4,7 +4,7 @@
 # Quick validation for daily development
 
 echo "========================================="
-echo "HAM Daily Test Suite"
+echo "CloneHAM Daily Test Suite"
 echo "Date: $(date)"
 echo "========================================="
 echo ""
@@ -29,8 +29,8 @@ run_test() {
     fi
 }
 
-# Change to HAM directory
-cd /Users/philipkrieger/Desktop/HAM
+# Change to CloneHAM directory
+cd /Users/philipkrieger/Desktop/CloneHAM
 
 echo "1. Build Check"
 echo "--------------"
@@ -65,8 +65,8 @@ fi
 echo ""
 echo "4. Smoke Test"
 echo "-------------"
-echo -n "Checking if HAM launches... "
-if ./build/HAM.app/Contents/MacOS/HAM --version > /dev/null 2>&1; then
+echo -n "Checking if CloneHAM launches... "
+if ./build/CloneHAM.app/Contents/MacOS/CloneHAM --version > /dev/null 2>&1; then
     echo "✅ PASS"
 else
     echo "❌ FAIL"

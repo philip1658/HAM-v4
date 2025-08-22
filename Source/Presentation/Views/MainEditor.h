@@ -19,8 +19,8 @@ class HAMAudioProcessor;
 
 /**
  * Main editor window for HAM sequencer
- * This is a placeholder that will be fully implemented
- * when the UI is connected to the audio processor
+ * This is a placeholder that will be expanded as the UI is
+ * connected to the audio processor and the HAM Editor panel is added.
  */
 class MainEditor : public juce::AudioProcessorEditor
 {

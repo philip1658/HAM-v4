@@ -8,9 +8,9 @@ echo "HAM MIDI Routing Test"
 echo "========================================="
 echo ""
 
-# Check if HAM is built
-if [ ! -f "../build/HAM.app/Contents/MacOS/HAM" ]; then
-    echo "❌ ERROR: HAM.app not found. Run ./build.sh first"
+# Check if CloneHAM is built
+if [ ! -f "../build/CloneHAM.app/Contents/MacOS/CloneHAM" ]; then
+    echo "❌ ERROR: CloneHAM.app not found. Run ./build.sh first"
     exit 1
 fi
 
@@ -22,11 +22,11 @@ echo "--------------------------------"
 echo "Creating 4 tracks with different patterns..."
 echo ""
 
-# Launch HAM with multi-track test
-../build/HAM.app/Contents/MacOS/HAM --test-midi-routing &
+# Launch CloneHAM with multi-track test
+../build/CloneHAM.app/Contents/MacOS/CloneHAM --test-midi-routing &
 HAM_PID=$!
 
-echo "HAM running with 4-track test pattern (PID: $HAM_PID)"
+echo "CloneHAM running with 4-track test pattern (PID: $HAM_PID)"
 echo ""
 echo "Track 1: C Major scale"
 echo "Track 2: E Minor scale"
@@ -91,7 +91,7 @@ echo ""
 
 # Send rapid MIDI data
 kill $HAM_PID 2>/dev/null
-../build/HAM.app/Contents/MacOS/HAM --test-midi-stress &
+../build/CloneHAM.app/Contents/MacOS/CloneHAM --test-midi-stress &
 HAM_PID=$!
 
 echo "Sending 1000 events/second for 10 seconds..."
@@ -121,7 +121,7 @@ echo "Analyzing timing between events..."
 echo ""
 
 # Run timing analysis
-../build/HAM.app/Contents/MacOS/HAM --test-midi-timing > /tmp/midi_timing.log 2>&1 &
+../build/CloneHAM.app/Contents/MacOS/CloneHAM --test-midi-timing > /tmp/midi_timing.log 2>&1 &
 HAM_PID=$!
 
 sleep 5

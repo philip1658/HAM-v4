@@ -309,7 +309,12 @@ void MidiRouter::addDebugEvent(const juce::MidiMessage& originalMessage,
     auto debugMessage = routeToChannel(originalMessage, DEBUG_CHANNEL);
     
     // Add a small offset to avoid exact collision with main event
-    int debugOffset = juce::jmin(sampleOffset + 1, outputBuffer.getLastEventTime());
+    // Place debug message shortly after the main event; if buffer is empty,
+    // just use the same offset.
+    const int lastTime = outputBuffer.getNumEvents() > 0 ? outputBuffer.getLastEventTime() : sampleOffset;
+    int debugOffset = sampleOffset;
+    if (m_debugEnabled.load())
+        debugOffset = (lastTime <= sampleOffset ? sampleOffset : juce::jmin(sampleOffset + 1, lastTime));
     outputBuffer.addEvent(debugMessage, debugOffset);
     
     // Also send a CC message with track index for identification

@@ -1,8 +1,8 @@
-# HAM - Hardware Accumulator Mode Sequencer
+# CloneHAM - Hardware Accumulator Mode Sequencer
 
 ## 🎹 Overview
 
-HAM is a modern MIDI sequencer inspired by the Intellijel Metropolix, built with JUCE and C++20. It features sample-accurate timing, unlimited tracks, and sophisticated gate/ratchet patterns with both mono and polyphonic voice modes.
+CloneHAM is a modern MIDI sequencer inspired by the Intellijel Metropolix, built with JUCE and C++20. It features sample-accurate timing, unlimited tracks, and sophisticated gate/ratchet patterns with both mono and polyphonic voice modes.
 
 ## ✨ Key Features
 
@@ -38,7 +38,7 @@ cd HAM
 ./build.sh
 
 # The app will be copied to your Desktop
-# Run it from: ~/Desktop/HAM.app
+# Run it from: ~/Desktop/CloneHAM.app
 ```
 
 ### Development Build
@@ -50,7 +50,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Debug
 make -j8
 
 # Run with debug output
-./HAM.app/Contents/MacOS/HAM --debug
+./CloneHAM.app/Contents/MacOS/CloneHAM --debug
 ```
 
 ## 🏗️ Architecture
@@ -136,10 +136,10 @@ The monitor shows all MIDI events on channel 16 with timing analysis.
 ### Performance Profiling
 ```bash
 # Run with performance counters
-./HAM.app/Contents/MacOS/HAM --profile
+./CloneHAM.app/Contents/MacOS/CloneHAM --profile
 
 # Use macOS Instruments
-instruments -t "Time Profiler" HAM.app
+instruments -t "Time Profiler" CloneHAM.app
 ```
 
 ## 📚 Documentation

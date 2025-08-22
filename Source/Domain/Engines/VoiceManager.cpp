@@ -114,8 +114,11 @@ void VoiceManager::noteOff(int noteNumber, int channel)
             if (voiceIndex >= 0 && voiceIndex < MAX_VOICES)
             {
                 voiceAt(voiceIndex).stopNote();
+                int prev = m_activeVoiceCount.fetch_sub(1);
+                if (prev <= 0) m_activeVoiceCount.store(0);
                 m_lastNoteNumber.store(-1);
                 m_lastVoiceIndex.store(-1);
+                updateStatistics();
             }
         }
         return;
@@ -446,6 +449,9 @@ int VoiceManager::handleMonoNoteOn(int noteNumber, int velocity, int channel)
         if (voiceAt(voiceIndex).active.load())
         {
             voiceAt(voiceIndex).stopNote();
+            // Active voice count should reflect replacement in mono
+            int prev = m_activeVoiceCount.fetch_sub(1);
+            if (prev <= 0) m_activeVoiceCount.store(0);
         }
         
         // Start new note

@@ -11,6 +11,7 @@
 
 #include <JuceHeader.h>
 #include <memory>
+#include "Presentation/Views/MixerView.h"
 
 //==============================================================================
 /**
@@ -28,6 +29,8 @@ public:
     void paint(juce::Graphics&) override;
     void paintOverChildren(juce::Graphics&) override;
     void resized() override;
+
+    bool keyPressed(const juce::KeyPress& key) override;
 
 private:
     // Forward declaration for implementation

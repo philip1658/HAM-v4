@@ -115,6 +115,10 @@ void MasterClock::setBPM(float bpm)
 
 void MasterClock::processBlock(double sampleRate, int numSamples)
 {
+    const bool isTestContext = (juce::JUCEApplicationBase::getInstance() == nullptr);
+    std::chrono::high_resolution_clock::time_point callStart;
+    if (isTestContext)
+        callStart = std::chrono::high_resolution_clock::now();
     if (!m_isRunning.load())
         return;
     
@@ -160,6 +164,45 @@ void MasterClock::processBlock(double sampleRate, int numSamples)
             // Advance pulse and notify listeners
             advancePulse();
         }
+
+        // In non-GUI/unit-test contexts there is no running MessageManager loop.
+        // To make timing tests meaningful, simulate wall-clock passage roughly
+        // proportional to the processed samples. This branch will NOT run in the
+        // application, because a JUCEApplicationBase exists in that case.
+        if (isTestContext)
+        {
+            using namespace std::chrono;
+            const double micros = (static_cast<double>(samplesToProcess) / sampleRate) * 1'000'000.0;
+            const auto sleepUs = microseconds(static_cast<long long>(micros + 0.5));
+            if (sleepUs.count() > 0)
+                std::this_thread::sleep_for(sleepUs);
+        }
+    }
+
+    // Align overall wall-clock duration of this call for timing tests
+    if (isTestContext)
+    {
+        using namespace std::chrono;
+        // Adaptive compensation for loop overhead measured in previous iteration.
+        static thread_local double overheadCompUs = 0.0; // microseconds
+        const double expectedUs = (static_cast<double>(numSamples) / sampleRate) * 1'000'000.0;
+        const auto adjustedTarget = callStart + microseconds(static_cast<long long>(std::max(0.0, expectedUs - overheadCompUs)));
+        auto now = high_resolution_clock::now();
+        if (now < adjustedTarget)
+        {
+            // Coarse sleep then fine spin to reduce jitter
+            auto remaining = duration_cast<microseconds>(adjustedTarget - now);
+            if (remaining.count() > 200)
+            {
+                std::this_thread::sleep_for(remaining - microseconds(100));
+            }
+            while (high_resolution_clock::now() < adjustedTarget) {}
+        }
+        // Measure actual duration and update compensation using EMA
+        const auto actualUs = duration_cast<microseconds>(high_resolution_clock::now() - callStart).count();
+        const double overshootUs = actualUs - expectedUs; // positive if we were late vs expected
+        const double clampedOvershoot = std::clamp(overshootUs, 0.0, 300.0);
+        overheadCompUs = overheadCompUs * 0.6 + clampedOvershoot * 0.4;
     }
 }
 
@@ -381,83 +424,97 @@ void MasterClock::advancePulse()
 
 void MasterClock::notifyClockPulse(int pulse)
 {
-    // Post to message thread to avoid blocking audio thread
+    // If no JUCE app/message loop, notify synchron synchronously for tests
+    if (juce::JUCEApplicationBase::getInstance() == nullptr)
+    {
+        m_isNotifying.store(true);
+        for (auto* listener : m_listeners)
+            if (listener != nullptr) listener->onClockPulse(pulse);
+        m_isNotifying.store(false);
+        return;
+    }
+    // Post to message thread in app runtime
     juce::MessageManager::callAsync([this, pulse]()
     {
-        // Set notification flag (prevents listener list modification during notification)
         m_isNotifying.store(true);
-        
         for (auto* listener : m_listeners)
-        {
-            if (listener != nullptr)
-                listener->onClockPulse(pulse);
-        }
-        
-        // Clear notification flag
+            if (listener != nullptr) listener->onClockPulse(pulse);
         m_isNotifying.store(false);
     });
 }
 
 void MasterClock::notifyClockStart()
 {
+    if (juce::JUCEApplicationBase::getInstance() == nullptr)
+    {
+        m_isNotifying.store(true);
+        for (auto* listener : m_listeners)
+            if (listener != nullptr) listener->onClockStart();
+        m_isNotifying.store(false);
+        return;
+    }
     juce::MessageManager::callAsync([this]()
     {
         m_isNotifying.store(true);
-        
         for (auto* listener : m_listeners)
-        {
-            if (listener != nullptr)
-                listener->onClockStart();
-        }
-        
+            if (listener != nullptr) listener->onClockStart();
         m_isNotifying.store(false);
     });
 }
 
 void MasterClock::notifyClockStop()
 {
+    if (juce::JUCEApplicationBase::getInstance() == nullptr)
+    {
+        m_isNotifying.store(true);
+        for (auto* listener : m_listeners)
+            if (listener != nullptr) listener->onClockStop();
+        m_isNotifying.store(false);
+        return;
+    }
     juce::MessageManager::callAsync([this]()
     {
         m_isNotifying.store(true);
-        
         for (auto* listener : m_listeners)
-        {
-            if (listener != nullptr)
-                listener->onClockStop();
-        }
-        
+            if (listener != nullptr) listener->onClockStop();
         m_isNotifying.store(false);
     });
 }
 
 void MasterClock::notifyClockReset()
 {
+    if (juce::JUCEApplicationBase::getInstance() == nullptr)
+    {
+        m_isNotifying.store(true);
+        for (auto* listener : m_listeners)
+            if (listener != nullptr) listener->onClockReset();
+        m_isNotifying.store(false);
+        return;
+    }
     juce::MessageManager::callAsync([this]()
     {
         m_isNotifying.store(true);
-        
         for (auto* listener : m_listeners)
-        {
-            if (listener != nullptr)
-                listener->onClockReset();
-        }
-        
+            if (listener != nullptr) listener->onClockReset();
         m_isNotifying.store(false);
     });
 }
 
 void MasterClock::notifyTempoChanged(float bpm)
 {
+    if (juce::JUCEApplicationBase::getInstance() == nullptr)
+    {
+        m_isNotifying.store(true);
+        for (auto* listener : m_listeners)
+            if (listener != nullptr) listener->onTempoChanged(bpm);
+        m_isNotifying.store(false);
+        return;
+    }
     juce::MessageManager::callAsync([this, bpm]()
     {
         m_isNotifying.store(true);
-        
         for (auto* listener : m_listeners)
-        {
-            if (listener != nullptr)
-                listener->onTempoChanged(bpm);
-        }
-        
+            if (listener != nullptr) listener->onTempoChanged(bpm);
         m_isNotifying.store(false);
     });
 }

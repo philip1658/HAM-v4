@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 # UI Designer Tool - Separate from main HAM app
-project(HAMUIDesigner VERSION 1.0.0)
+project(CloneHAMUIDesigner VERSION 1.0.0)
 
 # C++ Standard
 set(CMAKE_CXX_STANDARD 20)
@@ -16,18 +16,18 @@ set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build universal binary"
 add_subdirectory(../../build/_deps/juce-src ${CMAKE_CURRENT_BINARY_DIR}/JUCE)
 
 # Define the UI Designer app
-juce_add_gui_app(HAMUIDesigner
-    PRODUCT_NAME "HAM UI Designer"
+juce_add_gui_app(CloneHAMUIDesigner
+    PRODUCT_NAME "CloneHAM UI Designer"
     COMPANY_NAME "Philip Krieger"
-    BUNDLE_ID "com.philipkrieger.ham.uidesigner"
+    BUNDLE_ID "com.philipkrieger.cloneham.uidesigner"
     VERSION "1.0.0"
 )
 
 # Generate JUCE header
-juce_generate_juce_header(HAMUIDesigner)
+juce_generate_juce_header(CloneHAMUIDesigner)
 
 # Source files
-target_sources(HAMUIDesigner PRIVATE
+target_sources(CloneHAMUIDesigner PRIVATE
     Source/Main.cpp
     Source/MainWindow.cpp
     Source/MainWindow.h
@@ -40,7 +40,7 @@ target_sources(HAMUIDesigner PRIVATE
 )
 
 # Compile definitions
-target_compile_definitions(HAMUIDesigner PRIVATE
+target_compile_definitions(CloneHAMUIDesigner PRIVATE
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_DISPLAY_SPLASH_SCREEN=0
@@ -49,13 +49,13 @@ target_compile_definitions(HAMUIDesigner PRIVATE
 )
 
 # Include directories
-target_include_directories(HAMUIDesigner PRIVATE
+target_include_directories(CloneHAMUIDesigner PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Source
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Source
 )
 
 # Link with JUCE modules
-target_link_libraries(HAMUIDesigner PRIVATE
+target_link_libraries(CloneHAMUIDesigner PRIVATE
     juce::juce_core
     juce::juce_data_structures
     juce::juce_events
@@ -69,9 +69,9 @@ target_link_libraries(HAMUIDesigner PRIVATE
 )
 
 # Copy to Desktop after build
-add_custom_command(TARGET HAMUIDesigner POST_BUILD
+add_custom_command(TARGET CloneHAMUIDesigner POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-    "$<TARGET_BUNDLE_DIR:HAMUIDesigner>"
-    "$ENV{HOME}/Desktop/HAM UI Designer.app"
-    COMMENT "Copying HAM UI Designer to Desktop..."
+    "$<TARGET_BUNDLE_DIR:CloneHAMUIDesigner>"
+    "$ENV{HOME}/Desktop/CloneHAM UI Designer.app"
+    COMMENT "Copying CloneHAM UI Designer to Desktop..."
 )

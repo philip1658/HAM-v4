@@ -7,7 +7,7 @@
 set -e
 
 echo "========================================"
-echo "HAM Timing Performance Test"
+echo "CloneHAM Timing Performance Test"
 echo "========================================"
 echo ""
 
@@ -46,11 +46,11 @@ echo "========================================"
 if [[ "$OSTYPE" == "darwin"* ]]; then
     echo ""
     echo "For detailed timing analysis, run:"
-    echo "  instruments -t 'Time Profiler' -D timing_profile.trace HAM.app"
+    echo "  instruments -t 'Time Profiler' -D timing_profile.trace CloneHAM.app"
     echo ""
     echo "To check CPU usage:"
-    echo "  1. Open HAM.app"
-    echo "  2. Run: ps aux | grep HAM"
+    echo "  1. Open CloneHAM.app"
+    echo "  2. Run: ps aux | grep CloneHAM"
     echo "  3. Monitor CPU% column (should be <1% at 120 BPM)"
 fi
 

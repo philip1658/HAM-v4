@@ -11,9 +11,9 @@ echo "This tests the most critical feature that's"
 echo "hard to retrofit later. Pay attention!"
 echo ""
 
-# Check if HAM is built
-if [ ! -f "../build/HAM.app/Contents/MacOS/HAM" ]; then
-    echo "❌ ERROR: HAM.app not found. Run ./build.sh first"
+# Check if CloneHAM is built
+if [ ! -f "../build/CloneHAM.app/Contents/MacOS/CloneHAM" ]; then
+    echo "❌ ERROR: CloneHAM.app not found. Run ./build.sh first"
     exit 1
 fi
 
@@ -31,11 +31,11 @@ echo "  Note On C  → Note Off C → Note On E → Note Off E → Note On G"
 echo ""
 read -p "Press ENTER when ready to test MONO mode..."
 
-# Launch HAM in test mode
-../build/HAM.app/Contents/MacOS/HAM --test-voice-mono &
+# Launch CloneHAM in test mode
+../build/CloneHAM.app/Contents/MacOS/CloneHAM --test-voice-mono &
 HAM_PID=$!
 
-echo "HAM running in MONO test mode (PID: $HAM_PID)"
+echo "CloneHAM running in MONO test mode (PID: $HAM_PID)"
 echo ""
 echo "✓ Play test pattern now"
 echo "✓ Check MIDI Monitor on Channel 1"
@@ -63,11 +63,11 @@ read -p "Press ENTER when ready to test POLY mode..."
 # Kill previous instance
 kill $HAM_PID 2>/dev/null
 
-# Launch HAM in poly test mode
-../build/HAM.app/Contents/MacOS/HAM --test-voice-poly &
+# Launch CloneHAM in poly test mode
+../build/CloneHAM.app/Contents/MacOS/CloneHAM --test-voice-poly &
 HAM_PID=$!
 
-echo "HAM running in POLY test mode (PID: $HAM_PID)"
+echo "CloneHAM running in POLY test mode (PID: $HAM_PID)"
 echo ""
 echo "✓ Play test pattern now"
 echo "✓ Check MIDI Monitor on Channel 1"
@@ -114,8 +114,8 @@ echo ""
 
 # Run with allocation checking
 echo "Running allocation check (30 seconds)..."
-instruments -t Allocations -D /tmp/ham_voice_alloc.trace \
-    ../build/HAM.app/Contents/MacOS/HAM --test-voice-performance &
+instruments -t Allocations -D /tmp/cloneham_voice_alloc.trace \
+    ../build/CloneHAM.app/Contents/MacOS/CloneHAM --test-voice-performance &
 INST_PID=$!
 
 sleep 30

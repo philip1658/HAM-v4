@@ -2,8 +2,8 @@
 
 ## 🎯 Projekt-Übersicht
 
-**HAM** (Hardware Accumulator Mode) ist ein MIDI-Sequencer inspiriert von Intellijel Metropolix.
-- **Projektpfad**: `/Users/philipkrieger/Desktop/HAM/`
+**CloneHAM** (Hardware Accumulator Mode) ist ein MIDI-Sequencer inspiriert von Intellijel Metropolix.
+- **Projektpfad**: `/Users/philipkrieger/Desktop/CloneHAM/`
 - **Entwickler**: Philip Krieger
 - **Platform**: macOS (Apple Silicon M3 Max, 128GB RAM)
 - **Framework**: JUCE 8.0.8 mit C++20
@@ -167,7 +167,7 @@ mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 
 # Daily Build (immer auf Desktop)
-./build.sh  # Baut und kopiert HAM.app auf Desktop
+./build.sh  # Baut und kopiert CloneHAM.app auf Desktop
 
 # Debug Build
 cmake .. -DCMAKE_BUILD_TYPE=Debug
@@ -186,7 +186,7 @@ make -j8
 
 ### Testing Workflow
 1. Build mit `./build.sh`
-2. App liegt auf Desktop: `/Users/philipkrieger/Desktop/HAM.app`
+2. App liegt auf Desktop: `/Users/philipkrieger/Desktop/CloneHAM.app`
 3. MIDI Monitor.app parallel für External MIDI
 4. Instruments.app für Performance Profiling
 
@@ -339,7 +339,7 @@ counter.stop();
 ### Häufige Terminal Commands
 ```bash
 # Build & Run
-./build.sh && /Users/philipkrieger/Desktop/HAM.app/Contents/MacOS/HAM
+./build.sh && /Users/philipkrieger/Desktop/CloneHAM.app/Contents/MacOS/CloneHAM
 
 # Git Workflow
 git add -A && git commit -m "feat: implement VoiceManager"

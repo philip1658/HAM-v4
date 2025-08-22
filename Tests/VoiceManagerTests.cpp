@@ -64,11 +64,13 @@ public:
             
             // Play first note
             int v1 = vm.noteOn(60, 100, 1);
+            std::cout << "[DBG] Mono: v1=" << v1 << ", active=" << vm.getActiveVoiceCount() << "\n";
             expect(v1 == 0);  // Mono always uses voice 0
             expect(vm.getActiveVoiceCount() == 1);
             
             // Play second note - should cut first
             int v2 = vm.noteOn(64, 100, 1);
+            std::cout << "[DBG] Mono: v2=" << v2 << ", active=" << vm.getActiveVoiceCount() << "\n";
             expect(v2 == 0);  // Still voice 0
             expect(vm.getActiveVoiceCount() == 1);
             
@@ -78,6 +80,7 @@ public:
             
             // Release current note
             vm.noteOff(64, 1);
+            std::cout << "[DBG] Mono: after noteOff active=" << vm.getActiveVoiceCount() << "\n";
             expect(vm.getActiveVoiceCount() == 0);
         }
         

@@ -239,7 +239,7 @@ private:
     float m_ratchetProbability = 1.0f;  // Always trigger ratchets by default
     
     // Probability and conditions
-    float m_probability = 1.0f;            // Always play by default (0-1 range)
+    float m_probability = 100.0f;          // Always play by default (percent 0-100)
     bool m_skipOnFirstLoop = false;
     float m_skipProbability = 0.0f;        // Never skip by default
     float m_swing = 0.0f;                  // No swing by default

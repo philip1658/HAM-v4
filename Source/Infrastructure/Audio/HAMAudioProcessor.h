@@ -99,6 +99,9 @@ public:
     /** Process messages from UI (called from processBlock) */
     void processUIMessages();
     
+    /** Expose MidiRouter for configuration (debug monitor, etc.) */
+    MidiRouter* getMidiRouter() { return m_midiRouter.get(); }
+    
     //==============================================================================
     // Transport control
     

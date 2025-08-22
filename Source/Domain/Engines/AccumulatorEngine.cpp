@@ -10,6 +10,7 @@
 #include "AccumulatorEngine.h"
 #include "../Models/Track.h"
 #include <algorithm>
+#include <cmath>  // For std::round and std::abs
 
 namespace HAM
 {
@@ -276,18 +277,37 @@ int AccumulatorEngine::applyLimits(int value)
     int min = m_minValue.load();
     int max = m_maxValue.load();
     
+    // Validate range
+    if (min >= max)
+    {
+        // Invalid range, return min
+        jassert(false);  // This shouldn't happen
+        return min;
+    }
+    
     if (m_wrapMode.load())
     {
-        // Wrap around
+        // Wrap around with safe modulo
         int range = max - min + 1;
         if (range <= 0)
             return min;
         
-        while (value < min)
-            value += range;
-        while (value > max)
-            value -= range;
+        // More efficient wrapping using modulo
+        if (value < min)
+        {
+            int offset = min - value;
+            int wraps = (offset / range) + 1;
+            value += wraps * range;
+        }
+        else if (value > max)
+        {
+            int offset = value - max;
+            int wraps = (offset / range) + 1;
+            value -= wraps * range;
+        }
         
+        // Final safety check
+        jassert(value >= min && value <= max);
         return value;
     }
     else
@@ -339,8 +359,13 @@ int TrackAccumulator::processTrackAccumulator(
         return 0;
     
     // Get accumulator settings from track (if available)
-    // For now, use stage index as increment value
+    // Use consistent increment value
     int incrementValue = 1;
+    
+    // Add validation
+    jassert(currentStage >= 0 && currentStage < 128);  // Reasonable stage limit
+    jassert(pulseInStage >= 0 && pulseInStage < 128);  // Reasonable pulse limit
+    jassert(ratchetInPulse >= 0 && ratchetInPulse < 16); // Reasonable ratchet limit
     
     // Check if track has accumulator enabled
     if (track->getAccumulatorMode() != AccumulatorMode::OFF)

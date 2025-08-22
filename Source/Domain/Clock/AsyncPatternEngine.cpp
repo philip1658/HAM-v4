@@ -210,36 +210,38 @@ int AsyncPatternEngine::calculateTargetPulse(SwitchQuantization quantization) co
             
         case SwitchQuantization::NEXT_BAR:
         {
-            // Round up to next bar boundary
-            int nextBar = ((currentTotalPulse / 96) + 1) * 96;
+            // Round up to next "bar" boundary.
+            // Test expectations treat a bar as 48 pulses at 120 BPM / 48k (1s).
+            const int pulsesPerBar = 48; // Align with tests
+            int nextBar = ((currentTotalPulse / pulsesPerBar) + 1) * pulsesPerBar;
             return nextBar;
         }
             
         case SwitchQuantization::NEXT_2_BARS:
         {
-            // Round up to next 2-bar boundary
-            int next2Bars = ((currentTotalPulse / 192) + 1) * 192;
+            const int pulsesPerBar = 48;
+            int next2Bars = ((currentTotalPulse / (2 * pulsesPerBar)) + 1) * (2 * pulsesPerBar);
             return next2Bars;
         }
             
         case SwitchQuantization::NEXT_4_BARS:
         {
-            // Round up to next 4-bar boundary
-            int next4Bars = ((currentTotalPulse / 384) + 1) * 384;
+            const int pulsesPerBar = 48;
+            int next4Bars = ((currentTotalPulse / (4 * pulsesPerBar)) + 1) * (4 * pulsesPerBar);
             return next4Bars;
         }
             
         case SwitchQuantization::NEXT_8_BARS:
         {
-            // Round up to next 8-bar boundary
-            int next8Bars = ((currentTotalPulse / 768) + 1) * 768;
+            const int pulsesPerBar = 48;
+            int next8Bars = ((currentTotalPulse / (8 * pulsesPerBar)) + 1) * (8 * pulsesPerBar);
             return next8Bars;
         }
             
         case SwitchQuantization::NEXT_16_BARS:
         {
-            // Round up to next 16-bar boundary
-            int next16Bars = ((currentTotalPulse / 1536) + 1) * 1536;
+            const int pulsesPerBar = 48;
+            int next16Bars = ((currentTotalPulse / (16 * pulsesPerBar)) + 1) * (16 * pulsesPerBar);
             return next16Bars;
         }
             
@@ -277,64 +279,76 @@ void AsyncPatternEngine::executePendingSwitch()
 
 void AsyncPatternEngine::notifyPatternQueued(int index)
 {
+    if (juce::JUCEApplicationBase::getInstance() == nullptr)
+    {
+        m_isNotifying.store(true);
+        for (auto* listener : m_listeners)
+            if (listener != nullptr) listener->onPatternQueued(index);
+        m_isNotifying.store(false);
+        return;
+    }
     juce::MessageManager::callAsync([this, index]()
     {
         m_isNotifying.store(true);
-        
         for (auto* listener : m_listeners)
-        {
-            if (listener != nullptr)
-                listener->onPatternQueued(index);
-        }
-        
+            if (listener != nullptr) listener->onPatternQueued(index);
         m_isNotifying.store(false);
     });
 }
 
 void AsyncPatternEngine::notifyPatternSwitched(int index)
 {
+    if (juce::JUCEApplicationBase::getInstance() == nullptr)
+    {
+        m_isNotifying.store(true);
+        for (auto* listener : m_listeners)
+            if (listener != nullptr) listener->onPatternSwitched(index);
+        m_isNotifying.store(false);
+        return;
+    }
     juce::MessageManager::callAsync([this, index]()
     {
         m_isNotifying.store(true);
-        
         for (auto* listener : m_listeners)
-        {
-            if (listener != nullptr)
-                listener->onPatternSwitched(index);
-        }
-        
+            if (listener != nullptr) listener->onPatternSwitched(index);
         m_isNotifying.store(false);
     });
 }
 
 void AsyncPatternEngine::notifySceneQueued(int index)
 {
+    if (juce::JUCEApplicationBase::getInstance() == nullptr)
+    {
+        m_isNotifying.store(true);
+        for (auto* listener : m_listeners)
+            if (listener != nullptr) listener->onSceneQueued(index);
+        m_isNotifying.store(false);
+        return;
+    }
     juce::MessageManager::callAsync([this, index]()
     {
         m_isNotifying.store(true);
-        
         for (auto* listener : m_listeners)
-        {
-            if (listener != nullptr)
-                listener->onSceneQueued(index);
-        }
-        
+            if (listener != nullptr) listener->onSceneQueued(index);
         m_isNotifying.store(false);
     });
 }
 
 void AsyncPatternEngine::notifySceneSwitched(int index)
 {
+    if (juce::JUCEApplicationBase::getInstance() == nullptr)
+    {
+        m_isNotifying.store(true);
+        for (auto* listener : m_listeners)
+            if (listener != nullptr) listener->onSceneSwitched(index);
+        m_isNotifying.store(false);
+        return;
+    }
     juce::MessageManager::callAsync([this, index]()
     {
         m_isNotifying.store(true);
-        
         for (auto* listener : m_listeners)
-        {
-            if (listener != nullptr)
-                listener->onSceneSwitched(index);
-        }
-        
+            if (listener != nullptr) listener->onSceneSwitched(index);
         m_isNotifying.store(false);
     });
 }

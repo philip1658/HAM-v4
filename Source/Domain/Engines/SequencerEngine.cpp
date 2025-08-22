@@ -13,6 +13,7 @@
 #include "../Models/Scale.h"
 #include <algorithm>
 #include <random>
+#include <cmath>  // For std::round, std::abs
 
 namespace HAM {
 
@@ -193,10 +194,22 @@ void SequencerEngine::processTrack(Track& track, int trackIndex, int pulseNumber
     if (!shouldTrackTrigger(track, pulseNumber))
         return;
     
-    // Get current stage
-    int stageIndex = track.getCurrentStageIndex();
-    Stage& stage = track.getStage(stageIndex);
+    // Get current stage with bounds checking
+    size_t stageIndex = static_cast<size_t>(track.getCurrentStageIndex());
+    size_t maxStages = static_cast<size_t>(track.getLength());
     
+    // Validate stage index bounds
+    if (maxStages == 0)
+        return;  // No stages to process
+    
+    // Ensure stage index is within valid range
+    if (stageIndex >= maxStages)
+    {
+        stageIndex = stageIndex % maxStages;  // Safe modulo operation
+        track.setCurrentStageIndex(static_cast<int>(stageIndex));
+    }
+    
+    Stage& stage = track.getStage(static_cast<int>(stageIndex));
     
     // Get track pulse counter (ensure within bounds)
     if (trackIndex >= 128)
@@ -216,10 +229,10 @@ void SequencerEngine::processTrack(Track& track, int trackIndex, int pulseNumber
         // Process current stage on first trigger
         if (pulseCounter == 0)
         {
-            generateStageEvents(track, stage, trackIndex, stageIndex);
+            generateStageEvents(track, stage, trackIndex, static_cast<int>(stageIndex));
             
             // Start ratchet processing for this stage
-            processRatchets(stage, track, trackIndex, stageIndex);
+            processRatchets(stage, track, trackIndex, static_cast<int>(stageIndex));
             
             // Set counter to 1 to indicate stage has been triggered
             m_trackPulseCounters[trackIndex].store(1);
@@ -242,16 +255,22 @@ void SequencerEngine::processTrack(Track& track, int trackIndex, int pulseNumber
             advanceTrackStage(track, pulseNumber);
             
             // Get the new stage after advancement
-            stageIndex = track.getCurrentStageIndex();
-            const Stage& newStage = track.getStage(stageIndex);
+            size_t newStageIndex = static_cast<size_t>(track.getCurrentStageIndex());
+            // Validate after advancement
+            if (newStageIndex >= maxStages)
+            {
+                newStageIndex = 0;  // Wrap to beginning
+                track.setCurrentStageIndex(0);
+            }
+            const Stage& newStage = track.getStage(static_cast<int>(newStageIndex));
             
             // Start the new stage
             if (m_voiceManager)
             {
                 m_voiceManager->allNotesOff(track.getMidiChannel());
             }
-            generateStageEvents(track, newStage, trackIndex, stageIndex);
-            processRatchets(newStage, track, trackIndex, stageIndex);
+            generateStageEvents(track, newStage, trackIndex, static_cast<int>(newStageIndex));
+            processRatchets(newStage, track, trackIndex, static_cast<int>(newStageIndex));
             
             // Reset counter for new stage (already playing first pulse)
             m_trackPulseCounters[trackIndex].store(1);
@@ -266,13 +285,13 @@ void SequencerEngine::processTrack(Track& track, int trackIndex, int pulseNumber
                 {
                     m_voiceManager->allNotesOff(track.getMidiChannel());
                 }
-                generateStageEvents(track, stage, trackIndex, stageIndex);
+                generateStageEvents(track, stage, trackIndex, static_cast<int>(stageIndex));
             }
             
             // Process ratchets for current pulse
             if (pulseCounter < stage.getPulseCount())
             {
-                processRatchets(stage, track, trackIndex, stageIndex);
+                processRatchets(stage, track, trackIndex, static_cast<int>(stageIndex));
             }
             
             // Increment pulse counter for next trigger
@@ -288,6 +307,13 @@ void SequencerEngine::advanceTrackStage(Track& track, int pulseNumber)
 {
     int currentIndex = track.getCurrentStageIndex();
     int nextIndex = getNextStageIndex(track, currentIndex);
+    
+    // Bounds check the next index
+    size_t maxStages = static_cast<size_t>(track.getLength());
+    if (maxStages > 0 && static_cast<size_t>(nextIndex) >= maxStages)
+    {
+        nextIndex = static_cast<int>(static_cast<size_t>(nextIndex) % maxStages);
+    }
     
     // Apply accumulator if needed
     if (track.getAccumulatorMode() == AccumulatorMode::STAGE)
@@ -321,7 +347,8 @@ bool SequencerEngine::shouldTrackTrigger(const Track& track, int pulseNumber) co
     
     // Apply swing timing if available
     float swing = track.getSwing();
-    if (swing > 50.0f && (pulseNumber % 2) == 1)  // Apply swing to off-beats
+    constexpr float SWING_EPSILON = 0.01f;
+    if (swing > (50.0f + SWING_EPSILON) && (pulseNumber % 2) == 1)  // Apply swing to off-beats
     {
         // Swing calculation would modify the timing here
         // For now, just check the boundary
@@ -347,8 +374,9 @@ void SequencerEngine::generateStageEvents(Track& track, const Stage& stage,
     // Ensure pitch is in valid MIDI range
     pitch = juce::jlimit(0, 127, pitch);
     
-    // Get velocity
-    int velocity = static_cast<int>(stage.getVelocity() * 127.0f);
+    // Get velocity with proper rounding
+    float velocityFloat = stage.getVelocity();
+    int velocity = static_cast<int>(std::round(velocityFloat * 127.0f));
     velocity = juce::jlimit(1, 127, velocity);
     
     // Create MIDI note-on
@@ -405,26 +433,36 @@ void SequencerEngine::processRatchets(const Stage& stage, Track& track,
     if (ratchetCount <= 1)
         return;  // No ratcheting
     
-    // Calculate ratchet timing
+    // Calculate ratchet timing with double precision
     double samplesPerPulse = 0.0;  // Need to get from MasterClock
     if (m_masterClock)
     {
-        // Calculate based on BPM and sample rate
-        float bpm = m_masterClock->getBPM();
+        // Use double precision for all timing calculations
+        double bpm = static_cast<double>(m_masterClock->getBPM());
         double sampleRate = 44100.0;  // Need to get actual sample rate
-        samplesPerPulse = (60.0 / bpm) * sampleRate / 24.0;  // 24 PPQN
+        
+        // Validate BPM range
+        constexpr double MIN_BPM = 20.0;
+        constexpr double MAX_BPM = 999.0;
+        bpm = std::clamp(bpm, MIN_BPM, MAX_BPM);
+        
+        // Calculate with double precision and proper PPQN
+        constexpr double PPQN = 24.0;  // Pulses per quarter note
+        samplesPerPulse = (60.0 / bpm) * sampleRate / PPQN;
     }
     
-    double samplesPerRatchet = samplesPerPulse / ratchetCount;
+    double samplesPerRatchet = samplesPerPulse / static_cast<double>(ratchetCount);
     
     // Generate ratchet events
     for (int r = 1; r < ratchetCount; ++r)  // Start at 1, first ratchet already played
     {
-        int sampleOffset = static_cast<int>(r * samplesPerRatchet);
+        // Use std::round for proper float-to-int conversion
+        int sampleOffset = static_cast<int>(std::round(static_cast<double>(r) * samplesPerRatchet));
         
-        // Apply ratchet probability
+        // Apply ratchet probability with epsilon comparison
         float probability = stage.getRatchetProbability();
-        if (probability < 1.0f)
+        constexpr float EPSILON = 1e-6f;
+        if (probability < (1.0f - EPSILON))  // Not effectively 1.0
         {
             static std::random_device rd;
             static std::mt19937 gen(rd());
@@ -441,7 +479,7 @@ void SequencerEngine::processRatchets(const Stage& stage, Track& track,
         {
             // Create note event for ratchet
             int pitch = calculatePitch(track, stage);
-            int velocity = static_cast<int>(stage.getVelocity() * 127.0f);
+            int velocity = static_cast<int>(std::round(stage.getVelocity() * 127.0f));
             
             MidiEvent event;
             event.message = juce::MidiMessage::noteOn(
@@ -538,7 +576,13 @@ float SequencerEngine::getPatternPosition() const
     int currentPulse = m_masterClock->getCurrentPulse();
     int totalPulses = getTotalPatternBars() * 96;  // 96 pulses per bar
     
-    return static_cast<float>(currentPulse) / static_cast<float>(totalPulses);
+    // Avoid division by zero
+    if (totalPulses <= 0)
+        return 0.0f;
+    
+    // Use double precision for intermediate calculation
+    double position = static_cast<double>(currentPulse) / static_cast<double>(totalPulses);
+    return static_cast<float>(position);
 }
 
 int SequencerEngine::getTotalPatternBars() const
@@ -654,15 +698,31 @@ int SequencerEngine::calculateSampleOffset(int pulseNumber, int numSamples) cons
     if (!m_masterClock)
         return 0;
     
-    // Calculate sample position within buffer
+    // Calculate sample position within buffer with proper rounding
     float pulsePhase = m_masterClock->getPulsePhase();
-    return static_cast<int>(pulsePhase * numSamples);
+    
+    // Clamp phase to valid range
+    pulsePhase = juce::jlimit(0.0f, 1.0f, pulsePhase);
+    
+    // Use double precision and round properly
+    double offset = static_cast<double>(pulsePhase) * static_cast<double>(numSamples);
+    return static_cast<int>(std::round(offset));
 }
 
 int SequencerEngine::getNextStageIndex(const Track& track, int currentIndex) const
 {
     int length = track.getLength();
     Direction direction = track.getDirection();
+    
+    // Validate length
+    if (length <= 0)
+        return 0;  // Invalid length, return first stage
+    
+    // Ensure currentIndex is valid
+    if (currentIndex < 0)
+        currentIndex = 0;
+    if (currentIndex >= length)
+        currentIndex = currentIndex % length;
     
     switch (direction)
     {
@@ -703,6 +763,9 @@ int SequencerEngine::getNextStageIndex(const Track& track, int currentIndex) con
             
         case Direction::RANDOM:
         {
+            if (length <= 1)
+                return 0;  // Only one stage or invalid
+            
             static std::random_device rd;
             static std::mt19937 gen(rd());
             std::uniform_int_distribution<> dis(0, length - 1);
@@ -716,9 +779,10 @@ int SequencerEngine::getNextStageIndex(const Track& track, int currentIndex) con
 
 bool SequencerEngine::shouldSkipStage(const Stage& stage) const
 {
-    // Check skip probability
+    // Check skip probability with epsilon comparison
     float skipProbability = stage.getSkipProbability();
-    if (skipProbability > 0.0f)
+    constexpr float EPSILON = 1e-6f;
+    if (skipProbability > EPSILON)  // Not effectively zero
     {
         static std::random_device rd;
         static std::mt19937 gen(rd());
