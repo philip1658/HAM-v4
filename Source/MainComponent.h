@@ -2,7 +2,7 @@
   ==============================================================================
 
     MainComponent.h
-    Main component for HAM sequencer with Pulse UI integration
+    Main component for HAM sequencer - Refactored to use modular architecture
 
   ==============================================================================
 */
@@ -11,12 +11,22 @@
 
 #include <JuceHeader.h>
 #include <memory>
-#include "Presentation/Views/MixerView.h"
+
+namespace HAM {
+namespace UI {
+    class MainWindow;
+    class AppController;
+    class UICoordinator;
+}
+}
 
 //==============================================================================
 /**
  * Main component for HAM sequencer
- * Uses Pulse UI component library with message-based architecture
+ * Now acts as a thin coordinator between MainWindow, AppController, and UICoordinator
+ * All business logic moved to AppController
+ * All UI orchestration moved to UICoordinator
+ * All window management moved to MainWindow
  */
 class MainComponent : public juce::Component
 {
@@ -29,13 +39,15 @@ public:
     void paint(juce::Graphics&) override;
     void paintOverChildren(juce::Graphics&) override;
     void resized() override;
-
+    
     bool keyPressed(const juce::KeyPress& key) override;
 
 private:
-    // Forward declaration for implementation
-    class Impl;
-    std::unique_ptr<Impl> m_impl;
+    //==============================================================================
+    // Core modules (refactored from monolithic Impl)
+    std::unique_ptr<HAM::UI::MainWindow> m_mainWindow;
+    std::unique_ptr<HAM::UI::AppController> m_appController;
+    std::unique_ptr<HAM::UI::UICoordinator> m_uiCoordinator;
     
     // Look and feel
     juce::LookAndFeel_V4 m_pulseLookAndFeel;

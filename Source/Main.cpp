@@ -114,7 +114,7 @@ public:
             g.fillAll(juce::Colour(0xFF0A0A0A));
 
             auto bounds = getLocalBounds().reduced(40);
-            auto title = juce::Font(28.0f, juce::Font::bold);
+            auto title = juce::Font(juce::FontOptions(28.0f).withStyle(juce::Font::bold));
             g.setColour(juce::Colours::white);
             g.setFont(title);
             g.drawFittedText("HAM-Happy Accident Machine", bounds.removeFromTop(60), juce::Justification::centred, 1);

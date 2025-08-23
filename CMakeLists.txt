@@ -113,6 +113,14 @@ target_sources(HAM PRIVATE
     # Presentation Layer - Core
     Source/Presentation/Core/DesignSystem.h
     Source/Presentation/Core/BaseComponent.h
+    Source/Presentation/Core/ComponentBase.h
+    Source/Presentation/Core/ComponentBase.cpp
+    Source/Presentation/Core/MainWindow.h
+    Source/Presentation/Core/MainWindow.cpp
+    Source/Presentation/Core/AppController.h
+    Source/Presentation/Core/AppController.cpp
+    Source/Presentation/Core/UICoordinator.h
+    Source/Presentation/Core/UICoordinator.cpp
     
     # Presentation Layer - ViewModels
     Source/Presentation/ViewModels/StageViewModel.h
@@ -129,7 +137,15 @@ target_sources(HAM PRIVATE
     Source/Presentation/Views/PluginBrowser.h
     Source/Presentation/Views/MixerView.h
     
-    # UI Components - Extended Library
+    # UI Components - New Modular Architecture
+    Source/UI/ComponentBase.h
+    Source/UI/ComponentBase.cpp
+    Source/UI/BasicComponents.h
+    Source/UI/BasicComponents.cpp
+    Source/UI/AdvancedComponents.h
+    Source/UI/AdvancedComponents.cpp
+    Source/UI/LayoutComponents.h
+    Source/UI/LayoutComponents.cpp
     
     # Infrastructure Layer - Audio
     Source/Infrastructure/Audio/HAMAudioProcessor.h
