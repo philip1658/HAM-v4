@@ -1,5 +1,6 @@
 # Build directories
 build/
+build_*/
 cmake-build-*/
 .build/
 *.build/
@@ -37,6 +38,8 @@ Tests/Evidence/
 *.temp
 *.swp
 *~
+*.backup
+*.bak
 .last_successful_daily_test
 
 # Dependencies
