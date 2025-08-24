@@ -287,7 +287,7 @@ void PulseButton::paint(juce::Graphics& g)
     }
     
     // Button text
-    g.setFont(juce::Font(juce::FontOptions(12.0f * scaleFactor).withName("Helvetica Neue").withStyle(juce::Font::bold)));
+    g.setFont(juce::Font(juce::FontOptions(12.0f * scaleFactor).withName("Helvetica Neue")));
     g.setColour(isPressed ? PulseColors::TEXT_DIMMED : PulseColors::TEXT_PRIMARY);
     g.drawText(buttonText.isEmpty() ? componentName : buttonText, 
               bounds, juce::Justification::centred);

@@ -67,7 +67,7 @@ public:
         m_positionLabel->setText("001:01:00", juce::dontSendNotification);
         m_positionLabel->setColour(juce::Label::textColourId, 
                                   juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
-        m_positionLabel->setFont(juce::Font("Menlo", 14.0f, juce::Font::plain));
+        m_positionLabel->setFont(juce::Font(juce::FontOptions(14.0f).withName("Menlo")));
         m_positionLabel->setJustificationType(juce::Justification::centred);
         addAndMakeVisible(m_positionLabel.get());
         
@@ -111,6 +111,7 @@ public:
         // Background panel - dark void aesthetic
         g.setColour(juce::Colour(DesignTokens::Colors::BG_PANEL));
         g.fillRoundedRectangle(bounds, scaled(DesignTokens::Dimensions::CORNER_RADIUS));
+        
         
         // Bottom border
         g.setColour(juce::Colour(DesignTokens::Colors::BORDER));

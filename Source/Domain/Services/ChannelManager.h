@@ -157,6 +157,7 @@ public:
         std::atomic<int> conflictsResolved{0};
         std::atomic<int> voicesStolen{0};
         std::atomic<int> eventsDropped{0};
+        std::atomic<int> totalEventsProcessed{0};
         std::atomic<float> averageMergeTime{0.0f};
     };
     
@@ -167,6 +168,7 @@ public:
         int conflictsResolved;
         int voicesStolen;
         int eventsDropped;
+        int totalEventsProcessed;
         float averageMergeTime;
     };
     

@@ -439,6 +439,7 @@ ChannelManager::PerformanceSnapshot ChannelManager::getPerformanceStats() const
         m_stats.conflictsResolved.load(),
         m_stats.voicesStolen.load(),
         m_stats.eventsDropped.load(),
+        m_stats.totalEventsProcessed.load(),
         m_stats.averageMergeTime.load()
     };
 }
@@ -450,6 +451,7 @@ void ChannelManager::resetPerformanceStats()
     m_stats.conflictsResolved.store(0);
     m_stats.voicesStolen.store(0);
     m_stats.eventsDropped.store(0);
+    m_stats.totalEventsProcessed.store(0);
     m_stats.averageMergeTime.store(0.0f);
 }
 
@@ -621,8 +623,7 @@ void ChannelManager::processMidiBuffer(juce::MidiBuffer& midiBuffer, int numSamp
     // Full implementation would handle channel routing and merging
     
     // Update statistics
-    // TODO: Add totalEventsProcessed to PerformanceStats if needed
-    // m_stats.totalEventsProcessed.fetch_add(midiBuffer.getNumEvents());
+    m_stats.totalEventsProcessed.fetch_add(midiBuffer.getNumEvents());
 }
 
 } // namespace HAM

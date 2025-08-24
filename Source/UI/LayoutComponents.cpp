@@ -37,7 +37,7 @@ void PulsePanel::paint(juce::Graphics& g)
         auto bounds = getLocalBounds().toFloat();
         auto titleBounds = bounds.removeFromTop(25);
         
-        g.setFont(juce::Font(juce::FontOptions(12.0f * scaleFactor).withName("Helvetica Neue").withStyle(juce::Font::bold)));
+        g.setFont(juce::Font(juce::FontOptions(12.0f * scaleFactor).withName("Helvetica Neue")));
         g.setColour(PulseColors::TEXT_PRIMARY);
         g.drawText(panelTitle, titleBounds, juce::Justification::centred);
     }
@@ -206,7 +206,7 @@ void TrackControlPanel::paint(juce::Graphics& g)
     
     // Track name
     auto nameBounds = bounds.removeFromTop(30);
-    g.setFont(juce::Font(juce::FontOptions(14.0f * scaleFactor).withName("Helvetica Neue").withStyle(juce::Font::bold)));
+    g.setFont(juce::Font(juce::FontOptions(14.0f * scaleFactor).withName("Helvetica Neue")));
     g.setColour(PulseColors::TEXT_PRIMARY);
     g.drawText(trackName, nameBounds.reduced(10, 0), juce::Justification::centredLeft);
     
@@ -359,7 +359,7 @@ void SectionContainer::paint(juce::Graphics& g)
                         PulseColors::BG_DARK);
         
         // Header text
-        g.setFont(juce::Font(juce::FontOptions(12.0f * scaleFactor).withName("Helvetica Neue").withStyle(juce::Font::bold)));
+        g.setFont(juce::Font(juce::FontOptions(12.0f * scaleFactor).withName("Helvetica Neue")));
         g.setColour(PulseColors::TEXT_PRIMARY);
         g.drawText(sectionTitle, 
                   headerBounds.reduced(10, 0),

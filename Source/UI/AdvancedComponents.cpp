@@ -51,7 +51,7 @@ void StageCard::paint(juce::Graphics& g)
     g.setColour(PulseColors::BG_MID.withAlpha(0.5f));
     g.fillRoundedRectangle(headerBounds, 3.0f);
     
-    g.setFont(juce::Font(juce::FontOptions(14.0f * scaleFactor).withName("Helvetica Neue").withStyle(juce::Font::bold)));
+    g.setFont(juce::Font(juce::FontOptions(14.0f * scaleFactor).withName("Helvetica Neue")));
     g.setColour(PulseColors::TEXT_PRIMARY);
     g.drawText("STAGE " + juce::String(stageNum), 
               headerBounds, juce::Justification::centred);

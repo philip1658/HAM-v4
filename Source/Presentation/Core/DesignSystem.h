@@ -110,12 +110,12 @@ struct DesignSystem {
         static constexpr float SIZE_TITLE = 20.0f;
         static constexpr float SIZE_HEADER = 24.0f;
         
-        static juce::Font getTinyFont() { return juce::Font(SIZE_TINY); }
-        static juce::Font getSmallFont() { return juce::Font(SIZE_SMALL); }
-        static juce::Font getNormalFont() { return juce::Font(SIZE_NORMAL); }
-        static juce::Font getLargeFont() { return juce::Font(SIZE_LARGE); }
-        static juce::Font getTitleFont() { return juce::Font(SIZE_TITLE, juce::Font::bold); }
-        static juce::Font getHeaderFont() { return juce::Font(SIZE_HEADER, juce::Font::bold); }
+        static juce::Font getTinyFont() { return juce::Font(juce::FontOptions(SIZE_TINY)); }
+        static juce::Font getSmallFont() { return juce::Font(juce::FontOptions(SIZE_SMALL)); }
+        static juce::Font getNormalFont() { return juce::Font(juce::FontOptions(SIZE_NORMAL)); }
+        static juce::Font getLargeFont() { return juce::Font(juce::FontOptions(SIZE_LARGE)); }
+        static juce::Font getTitleFont() { return juce::Font(juce::FontOptions(SIZE_TITLE)).withStyle(juce::Font::bold); }
+        static juce::Font getHeaderFont() { return juce::Font(juce::FontOptions(SIZE_HEADER)).withStyle(juce::Font::bold); }
     };
     
     // Animation

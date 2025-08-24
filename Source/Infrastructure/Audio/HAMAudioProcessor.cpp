@@ -346,6 +346,35 @@ void HAMAudioProcessor::onTempoChanged(float newBPM)
 }
 
 //==============================================================================
+// Performance monitoring
+
+size_t HAMAudioProcessor::getMemoryUsage() const
+{
+    size_t totalMemory = 0;
+    
+    // Estimate memory usage of major components
+    // Pattern memory
+    if (m_currentPattern)
+    {
+        // Approximate: 8 tracks * 8 stages * sizeof(Stage) + overhead
+        totalMemory += 8 * 8 * 256; // Rough estimate per stage
+    }
+    
+    // MIDI buffer memory
+    totalMemory += m_midiEventBuffer.capacity() * sizeof(SequencerEngine::MidiEvent);
+    
+    // Engine memory estimates (these would need actual implementation in each engine)
+    totalMemory += 64 * sizeof(float) * 8; // Voice manager estimate (64 voices)
+    totalMemory += 1024 * 4; // Accumulator history estimate
+    totalMemory += 512 * 4; // Gate processor estimate
+    
+    // Audio buffer memory (if we were using internal buffers)
+    totalMemory += m_currentBlockSize * sizeof(float) * 2; // Stereo buffer estimate
+    
+    return totalMemory;
+}
+
+//==============================================================================
 juce::AudioProcessorEditor* HAMAudioProcessor::createEditor()
 {
     // TODO: Create and return MainEditor

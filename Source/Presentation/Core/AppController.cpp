@@ -168,7 +168,7 @@ void AppController::setTrackMute(int trackIndex, bool muted)
     if (m_messageDispatcher)
     {
         UIToEngineMessage msg;
-        msg.type = UIToEngineMessage::TRACK_MUTE;
+        msg.type = UIToEngineMessage::SET_TRACK_MUTE;
         msg.data.trackParam.trackIndex = trackIndex;
         msg.data.trackParam.value = muted ? 1 : 0;
         m_messageDispatcher->sendToEngine(msg);
@@ -185,7 +185,7 @@ void AppController::setTrackSolo(int trackIndex, bool solo)
     if (m_messageDispatcher)
     {
         UIToEngineMessage msg;
-        msg.type = UIToEngineMessage::TRACK_SOLO;
+        msg.type = UIToEngineMessage::SET_TRACK_SOLO;
         msg.data.trackParam.trackIndex = trackIndex;
         msg.data.trackParam.value = solo ? 1 : 0;
         m_messageDispatcher->sendToEngine(msg);
@@ -202,7 +202,7 @@ void AppController::setTrackVolume(int trackIndex, float volume)
     if (m_messageDispatcher)
     {
         UIToEngineMessage msg;
-        msg.type = UIToEngineMessage::TRACK_VOLUME;
+        msg.type = UIToEngineMessage::UPDATE_TRACK;
         msg.data.trackParam.trackIndex = trackIndex;
         msg.data.trackParam.value = static_cast<int>(m_trackStates[trackIndex].volume * 127);
         m_messageDispatcher->sendToEngine(msg);
@@ -216,14 +216,15 @@ void AppController::setTrackPan(int trackIndex, float pan)
     
     m_trackStates[trackIndex].pan = juce::jlimit(0.0f, 1.0f, pan);
     
-    if (m_messageDispatcher)
-    {
-        UIToEngineMessage msg;
-        msg.type = UIToEngineMessage::TRACK_PAN;
-        msg.data.trackParam.trackIndex = trackIndex;
-        msg.data.trackParam.value = static_cast<int>(m_trackStates[trackIndex].pan * 127);
-        m_messageDispatcher->sendToEngine(msg);
-    }
+    // TODO: Add SET_TRACK_PAN message type
+    // if (m_messageDispatcher)
+    // {
+    //     UIToEngineMessage msg;
+    //     msg.type = UIToEngineMessage::SET_TRACK_PAN;
+    //     msg.data.trackParam.trackIndex = trackIndex;
+    //     msg.data.trackParam.value = static_cast<int>(m_trackStates[trackIndex].pan * 127);
+    //     m_messageDispatcher->sendToEngine(msg);
+    // }
 }
 
 //==============================================================================
@@ -378,22 +379,9 @@ void AppController::updatePerformanceStats()
     // Process any messages from the engine
     if (m_messageDispatcher)
     {
-        EngineToUIMessage msg;
-        while (m_messageDispatcher->processEngineMessage(msg))
-        {
-            if (msg.type == EngineToUIMessage::CPU_USAGE)
-            {
-                m_performanceStats.cpuUsage = msg.data.performance.cpu;
-            }
-            else if (msg.type == EngineToUIMessage::ACTIVE_VOICE_COUNT)
-            {
-                m_performanceStats.activeVoices = msg.data.voices.count;
-            }
-            else if (msg.type == EngineToUIMessage::TIMING_DRIFT)
-            {
-                m_performanceStats.audioLatency = msg.data.timing.latency;
-            }
-        }
+        // Process messages from the audio engine
+        m_messageDispatcher->processEngineMessages(10);
+        // TODO: Register handlers for engine messages to update stats
     }
 }
 

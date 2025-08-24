@@ -42,7 +42,7 @@ public:
     {
         g.fillAll(juce::Colour(0xff1e1e1e));
         g.setColour(juce::Colours::white);
-        g.setFont(16.0f);
+        g.setFont(juce::Font(juce::FontOptions(16.0f)));
         g.drawText("Plugin Browser (Not Implemented)", 
                    getLocalBounds(), 
                    juce::Justification::centred);

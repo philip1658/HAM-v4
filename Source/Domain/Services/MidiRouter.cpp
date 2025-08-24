@@ -306,7 +306,15 @@ void MidiRouter::addDebugEvent(const juce::MidiMessage& originalMessage,
 {
     // Create debug message on channel 16 with track info
     // We can encode track index in velocity or CC for debugging
-    auto debugMessage = routeToChannel(originalMessage, DEBUG_CHANNEL);
+    // Get debug channel from configuration
+    auto& config = HAM::Application::Configuration::getInstance();
+    int debugChannel = config.getDebugMidiChannel();
+    
+    // Only add debug events if debug channel is enabled (not 0)
+    if (debugChannel == 0 || !m_debugEnabled.load())
+        return;
+    
+    auto debugMessage = routeToChannel(originalMessage, debugChannel);
     
     // Add a small offset to avoid exact collision with main event
     // Place debug message shortly after the main event; if buffer is empty,
@@ -318,7 +326,7 @@ void MidiRouter::addDebugEvent(const juce::MidiMessage& originalMessage,
     outputBuffer.addEvent(debugMessage, debugOffset);
     
     // Also send a CC message with track index for identification
-    auto trackIdMessage = juce::MidiMessage::controllerEvent(DEBUG_CHANNEL,
+    auto trackIdMessage = juce::MidiMessage::controllerEvent(debugChannel,
                                                             120, // CC120 for track ID
                                                             trackIndex % 128);
     outputBuffer.addEvent(trackIdMessage, debugOffset);

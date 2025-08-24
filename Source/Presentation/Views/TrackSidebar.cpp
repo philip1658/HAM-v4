@@ -38,7 +38,7 @@ void TrackControlStrip::setupControls()
     m_trackNameEditor->setColour(juce::TextEditor::textColourId, juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
     m_trackNameEditor->setColour(juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
     m_trackNameEditor->setColour(juce::TextEditor::focusedOutlineColourId, m_trackColor.withAlpha(0.5f));
-    m_trackNameEditor->setFont(juce::Font(16.0f, juce::Font::bold));
+    m_trackNameEditor->setFont(juce::Font(juce::FontOptions(16.0f)).withStyle(juce::Font::bold));
     m_trackNameEditor->setJustification(juce::Justification::centredLeft);
     m_trackNameEditor->onReturnKey = [this] {
         m_trackName = m_trackNameEditor->getText();
@@ -166,7 +166,7 @@ void TrackControlStrip::setupControls()
 std::unique_ptr<juce::Label> TrackControlStrip::createLabel(const juce::String& text)
 {
     auto label = std::make_unique<juce::Label>(text, text);
-    label->setFont(juce::Font(11.0f));
+    label->setFont(juce::Font(juce::FontOptions(11.0f)));
     label->setColour(juce::Label::textColourId, juce::Colour(DesignTokens::Colors::TEXT_MUTED));
     label->setJustificationType(juce::Justification::left);
     addAndMakeVisible(label.get());

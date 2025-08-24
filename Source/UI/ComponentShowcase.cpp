@@ -105,7 +105,7 @@ void ComponentShowcase::paint(juce::Graphics& g)
     // Draw grid labels if enabled
     if (grid.showLabels)
     {
-        g.setFont(10.0f);
+        g.setFont(juce::Font(juce::FontOptions(10.0f)));
         g.setColour(Colors::TEXT_DIMMED);
         
         // Column numbers (1-24)
@@ -341,7 +341,7 @@ void ComponentShowcase::VerticalSlider::paint(juce::Graphics& g)
     g.drawLine(trackBounds.getX(), valueY, trackBounds.getRight(), valueY, 2.0f);
     
     // Label
-    g.setFont(10.0f * scaleFactor);
+    g.setFont(juce::Font(juce::FontOptions(10.0f * scaleFactor)));
     g.setColour(Colors::TEXT_SECONDARY);
     g.drawText(name, bounds.removeFromBottom(15), juce::Justification::centred);
 }
@@ -390,7 +390,7 @@ void ComponentShowcase::HorizontalSlider::paint(juce::Graphics& g)
     g.fillEllipse(thumbX - 6, trackBounds.getCentreY() - 6, 12, 12);
     
     // Label
-    g.setFont(10.0f * scaleFactor);
+    g.setFont(juce::Font(juce::FontOptions(10.0f * scaleFactor)));
     g.setColour(Colors::TEXT_SECONDARY);
     g.drawText(name, bounds, juce::Justification::centredBottom);
 }
@@ -445,7 +445,7 @@ void ComponentShowcase::ModernButton::paint(juce::Graphics& g)
     }
     
     // Text
-    g.setFont((style == Style::Small ? 12.0f : 16.0f) * scaleFactor);
+    g.setFont(juce::Font(juce::FontOptions((style == Style::Small ? 12.0f : 16.0f) * scaleFactor)));
     g.setColour(type == Type::Solid ? Colors::BG_DARKEST : Colors::TEXT_PRIMARY);
     g.drawText(name, bounds, juce::Justification::centred);
 }
@@ -510,7 +510,7 @@ void ComponentShowcase::ToggleSwitch::paint(juce::Graphics& g)
     g.fillEllipse(thumbX, thumbY, thumbSize, thumbSize);
     
     // Label
-    g.setFont(10.0f * scaleFactor);
+    g.setFont(juce::Font(juce::FontOptions(10.0f * scaleFactor)));
     g.setColour(Colors::TEXT_SECONDARY);
     g.drawText(name, getLocalBounds().removeFromBottom(15), juce::Justification::centred);
 }
@@ -557,7 +557,7 @@ void ComponentShowcase::Dropdown::paint(juce::Graphics& g)
     
     // Text
     auto textBounds = bounds.reduced(8, 0);
-    g.setFont((style == Style::Small ? 12.0f : 14.0f) * scaleFactor);
+    g.setFont(juce::Font(juce::FontOptions((style == Style::Small ? 12.0f : 14.0f) * scaleFactor)));
     g.setColour(Colors::TEXT_PRIMARY);
     g.drawText(selectedText, textBounds, juce::Justification::centredLeft);
     
@@ -565,7 +565,7 @@ void ComponentShowcase::Dropdown::paint(juce::Graphics& g)
     drawArrow(g, bounds.removeFromRight(20));
     
     // Label
-    g.setFont(10.0f * scaleFactor);
+    g.setFont(juce::Font(juce::FontOptions(10.0f * scaleFactor)));
     g.setColour(Colors::TEXT_SECONDARY);
     g.drawText(name, getLocalBounds().removeFromBottom(15), juce::Justification::centred);
 }
@@ -659,7 +659,7 @@ void ComponentShowcase::Panel::paint(juce::Graphics& g)
     }
     
     // Label
-    g.setFont(12.0f * scaleFactor);
+    g.setFont(juce::Font(juce::FontOptions(12.0f * scaleFactor)));
     g.setColour(Colors::TEXT_SECONDARY);
     g.drawText(name, bounds.reduced(10), juce::Justification::topLeft);
 }

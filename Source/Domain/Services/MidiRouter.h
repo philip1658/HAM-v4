@@ -14,6 +14,7 @@
 #include <array>
 #include <atomic>
 #include <memory>
+#include "../../Application/Configuration.h"
 
 namespace HAM {
 
@@ -35,7 +36,6 @@ public:
     // Constants
     static constexpr int MAX_TRACKS = 128;
     static constexpr int OUTPUT_CHANNEL = 1;    // All tracks output on ch1
-    static constexpr int DEBUG_CHANNEL = 16;    // Debug monitor channel
     static constexpr int BUFFER_SIZE = 512;     // Events per track buffer
     
     //==========================================================================

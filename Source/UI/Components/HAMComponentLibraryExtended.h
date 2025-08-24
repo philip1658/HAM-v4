@@ -65,7 +65,7 @@ public:
         if (onPlayStateChanged) onPlayStateChanged(m_isPlaying);
     }
     
-    void timerCallback() {
+    void timerCallback() override {
         if (m_isPlaying) {
             m_animPhase += 0.1f;
             repaint();
@@ -207,13 +207,13 @@ public:
         
         // BPM value
         g.setColour(juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
-        g.setFont(juce::Font(scaled(24)).withStyle(juce::Font::bold));
+        g.setFont(juce::Font(juce::FontOptions(scaled(24))).withStyle(juce::Font::bold));
         
         auto textBounds = bounds.reduced(scaled(4));
         g.drawText(juce::String(m_bpm, 1), textBounds, juce::Justification::centred);
         
         // BPM label
-        g.setFont(juce::Font(scaled(10)));
+        g.setFont(juce::Font(juce::FontOptions(scaled(10))));
         g.setColour(juce::Colour(DesignTokens::Colors::TEXT_MUTED));
         g.drawText("BPM", textBounds, juce::Justification::centredBottom);
         
@@ -293,7 +293,7 @@ public:
             
             // Step number
             g.setColour(juce::Colour(DesignTokens::Colors::TEXT_MUTED));
-            g.setFont(juce::Font(scaled(10)));
+            g.setFont(juce::Font(juce::FontOptions(scaled(10))));
             g.drawText(juce::String(i + 1), stepBounds, juce::Justification::centred);
         }
     }
@@ -457,7 +457,7 @@ public:
             
             // Slot number
             g.setColour(juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
-            g.setFont(juce::Font(scaled(12)));
+            g.setFont(juce::Font(juce::FontOptions(scaled(12))));
             g.drawText(juce::String(i + 1), slotBounds, juce::Justification::centred);
         }
     }
@@ -584,7 +584,7 @@ public:
         
         // Value
         g.setColour(juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
-        g.setFont(juce::Font(scaled(14)));
+        g.setFont(juce::Font(juce::FontOptions(scaled(14))));
         g.drawText(juce::String(m_value, 1), bounds, juce::Justification::centred);
         
         // Up/Down arrows
@@ -661,7 +661,7 @@ public:
             g.setColour(i == m_selectedIndex 
                        ? juce::Colours::white
                        : juce::Colour(DesignTokens::Colors::TEXT_MUTED));
-            g.setFont(juce::Font(scaled(12)));
+            g.setFont(juce::Font(juce::FontOptions(scaled(12))));
             g.drawText(m_segments[i], segmentBounds, juce::Justification::centred);
             
             // Separator

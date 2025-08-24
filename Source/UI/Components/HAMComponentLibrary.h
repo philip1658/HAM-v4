@@ -176,7 +176,7 @@ public:
         // Draw label at the top for vertical sliders
         if (m_label.isNotEmpty()) {
             g.setColour(juce::Colour(DesignTokens::Colors::TEXT_MUTED));
-            g.setFont(juce::Font(scaled(9)));
+            g.setFont(juce::Font(juce::FontOptions(scaled(9))));
             if (m_vertical) {
                 // Draw label at the very top of the component
                 auto labelBounds = getLocalBounds().toFloat().withHeight(scaled(14));
@@ -322,7 +322,7 @@ public:
         
         // Text uses the button color
         g.setColour(bgColor);
-        g.setFont(juce::Font(scaled(11)).withStyle(juce::Font::bold));
+        g.setFont(juce::Font(juce::FontOptions(scaled(11))).withStyle(juce::Font::bold));
         g.drawText(m_text, bounds, juce::Justification::centred);
     }
     

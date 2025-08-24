@@ -121,6 +121,13 @@ public:
     Pattern* getCurrentPattern() { return m_currentPattern.get(); }
     
     //==============================================================================
+    // Performance monitoring
+    
+    float getCpuUsage() const { return m_cpuUsage.load(); }
+    int getDroppedMessages() const { return m_droppedMessages.load(); }
+    size_t getMemoryUsage() const;
+    
+    //==============================================================================
     // Track management
     
     Track* getTrack(int index);

@@ -14,10 +14,12 @@
 #include "Presentation/Views/TrackSidebar.h"
 #include "Presentation/Views/MixerView.h"
 #include "Presentation/Views/PluginBrowser.h"
-#include "Presentation/Core/BasicComponents.h"
+#include "../../UI/Components/HAMComponentLibrary.h"
 
 namespace HAM {
 namespace UI {
+
+// Use the component library types (already in HAM::UI namespace)
 
 //==============================================================================
 UICoordinator::UICoordinator(AppController& controller)
@@ -62,18 +64,18 @@ void UICoordinator::createUIComponents()
     
     // Create track sidebar
     m_trackSidebar = std::make_unique<TrackSidebar>();
+    m_trackSidebar->setTrackCount(1); // Start with 1 track
     m_sequencerPage->addAndMakeVisible(m_trackSidebar.get());
     
     // Create stage grid
     m_stageGrid = std::make_unique<StageGrid>();
+    m_stageGrid->setTrackCount(1); // Start with 1 track (creates 8 stage cards)
     
     // Wrap StageGrid in a viewport for scrolling
     m_stageViewport = std::make_unique<juce::Viewport>("stageViewport");
     m_stageViewport->setViewedComponent(m_stageGrid.get(), false);
-    m_stageViewport->setScrollBarsShown(false, true); // Horizontal scrolling only
-    m_stageViewport->setScrollOnDragMode(juce::Viewport::ScrollOnDragMode::all);
-    m_stageViewport->setViewPosition(0, 0);
-    m_stageViewport->setScrollBarThickness(0); // Hide scrollbar
+    m_stageViewport->setScrollBarsShown(true, true); // Both vertical and horizontal scrolling
+    m_stageViewport->setScrollBarThickness(10);
     m_sequencerPage->addAndMakeVisible(m_stageViewport.get());
     
     // Create mixer view
@@ -81,10 +83,13 @@ void UICoordinator::createUIComponents()
     m_contentContainer->addAndMakeVisible(m_mixerView.get());
     m_mixerView->setVisible(false); // Start with sequencer view
     
-    // Create plugin browser (initially hidden)
+    // Create plugin browser (initially hidden - don't add to component yet)
     m_pluginBrowser = std::make_unique<PluginBrowser>();
     m_pluginBrowser->setVisible(false);
-    addAndMakeVisible(m_pluginBrowser.get());
+    // Don't add it as child - we'll add it only when needed
+    
+    // Initialize with sequencer view
+    setActiveView(ViewMode::Sequencer);
 }
 
 void UICoordinator::setupEventHandlers()
@@ -137,26 +142,26 @@ void UICoordinator::setupEventHandlers()
         showHAMEditor(stage);
     };
     
-    // Track sidebar handlers
-    m_trackSidebar->onTrackMuted = [this](int trackIndex, bool muted)
-    {
-        m_controller.setTrackMute(trackIndex, muted);
-    };
+    // TODO: Connect track sidebar callbacks when UI components are fully implemented
+    // m_trackSidebar->onTrackMuted = [this](int trackIndex, bool muted)
+    // {
+    //     m_controller.setTrackMute(trackIndex, muted);
+    // };
     
-    m_trackSidebar->onTrackSoloed = [this](int trackIndex, bool solo)
-    {
-        m_controller.setTrackSolo(trackIndex, solo);
-    };
+    // m_trackSidebar->onTrackSoloed = [this](int trackIndex, bool solo)
+    // {
+    //     m_controller.setTrackSolo(trackIndex, solo);
+    // };
     
-    m_trackSidebar->onTrackVolumeChanged = [this](int trackIndex, float volume)
-    {
-        m_controller.setTrackVolume(trackIndex, volume);
-    };
+    // m_trackSidebar->onTrackVolumeChanged = [this](int trackIndex, float volume)
+    // {
+    //     m_controller.setTrackVolume(trackIndex, volume);
+    // };
     
-    m_trackSidebar->onTrackPanChanged = [this](int trackIndex, float pan)
-    {
-        m_controller.setTrackPan(trackIndex, pan);
-    };
+    // m_trackSidebar->onTrackPanChanged = [this](int trackIndex, float pan)
+    // {
+    //     m_controller.setTrackPan(trackIndex, pan);
+    // };
     
     // Mixer view handlers
     m_mixerView->onAliasInstrumentPlugin = [this](int trackIndex)
@@ -189,15 +194,45 @@ void UICoordinator::showPluginBrowser(int trackIndex, bool forEffects)
     if (!m_pluginBrowser)
         return;
     
+    // Add to component hierarchy if not already added
+    if (!m_pluginBrowser->getParentComponent())
+    {
+        addAndMakeVisible(m_pluginBrowser.get());
+    }
+    
     // TODO: Configure plugin browser for the specific track
     m_pluginBrowser->setVisible(true);
     m_pluginBrowser->toFront(true);
+    
+    // Setup callback
+    m_pluginBrowser->onPluginChosen = [this, trackIndex, forEffects](const juce::PluginDescription& desc)
+    {
+        if (forEffects)
+        {
+            // TODO: Add effect to track
+        }
+        else
+        {
+            // TODO: Set instrument for track
+        }
+        hidePluginBrowser();
+    };
+    
+    resized();
 }
 
 void UICoordinator::hidePluginBrowser()
 {
     if (m_pluginBrowser)
+    {
         m_pluginBrowser->setVisible(false);
+        // Optionally remove from component hierarchy
+        if (m_pluginBrowser->getParentComponent())
+        {
+            removeChildComponent(m_pluginBrowser.get());
+        }
+        resized();
+    }
 }
 
 void UICoordinator::showHAMEditor(int stageIndex)
@@ -271,6 +306,12 @@ void UICoordinator::resized()
     {
         m_contentContainer->setBounds(bounds);
         
+        // Also set the sequencer page bounds
+        if (m_sequencerPage)
+        {
+            m_sequencerPage->setBounds(m_contentContainer->getLocalBounds());
+        }
+        
         // Layout based on active view
         if (m_activeView == ViewMode::Sequencer)
         {
@@ -321,7 +362,10 @@ void UICoordinator::layoutSequencerView()
         if (m_stageGrid)
         {
             const int gridWidth = 8 * STAGE_CARD_WIDTH + 7 * 10; // 8 cards + gaps
-            const int gridHeight = STAGE_CARD_HEIGHT;
+            // Calculate total height needed based on track count
+            const int numTracks = 1; // TODO: Get actual track count from model
+            const int verticalPadding = 1; // Matches StageGrid::resized()
+            const int gridHeight = numTracks * STAGE_CARD_HEIGHT + (numTracks - 1) * verticalPadding;
             m_stageGrid->setSize(gridWidth, gridHeight);
         }
     }
@@ -338,32 +382,33 @@ void UICoordinator::layoutMixerView()
 void UICoordinator::updateViewButtonStates()
 {
     // Update button styles based on active view
-    if (m_sequencerTabButton)
-    {
-        m_sequencerTabButton->setStyle(
-            m_activeView == ViewMode::Sequencer ? 
-            ModernButton::Style::Solid : 
-            ModernButton::Style::Outline
-        );
-    }
+    // TODO: Update button styles when ModernButton::setStyle is implemented
+    // if (m_sequencerTabButton)
+    // {
+    //     m_sequencerTabButton->setStyle(
+    //         m_activeView == ViewMode::Sequencer ? 
+    //         ModernButton::Style::Solid : 
+    //         ModernButton::Style::Outline
+    //     );
+    // }
     
-    if (m_mixerTabButton)
-    {
-        m_mixerTabButton->setStyle(
-            m_activeView == ViewMode::Mixer ? 
-            ModernButton::Style::Solid : 
-            ModernButton::Style::Outline
-        );
-    }
+    // if (m_mixerTabButton)
+    // {
+    //     m_mixerTabButton->setStyle(
+    //         m_activeView == ViewMode::Mixer ? 
+    //         ModernButton::Style::Solid : 
+    //         ModernButton::Style::Outline
+    //     );
+    // }
     
-    if (m_settingsTabButton)
-    {
-        m_settingsTabButton->setStyle(
-            m_activeView == ViewMode::Settings ? 
-            ModernButton::Style::Solid : 
-            ModernButton::Style::Outline
-        );
-    }
+    // if (m_settingsTabButton)
+    // {
+    //     m_settingsTabButton->setStyle(
+    //         m_activeView == ViewMode::Settings ? 
+    //         ModernButton::Style::Solid : 
+    //         ModernButton::Style::Outline
+    //     );
+    // }
 }
 
 } // namespace UI

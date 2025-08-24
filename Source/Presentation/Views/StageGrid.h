@@ -54,8 +54,8 @@ public:
         int cardWidth = availableWidth / numCardsPerRow;
         
         // Cards should align directly at the top of the content area
-        // Height from line 6 to line 26 = (26-6) * 24px = 480px
-        int cardHeight = 480; // Fixed height for stage cards
+        // Use consistent height from UICoordinator constants
+        int cardHeight = 420; // Fixed height for stage cards matching UICoordinator::STAGE_CARD_HEIGHT
         
         // Position cards for each track
         for (int track = 0; track < m_trackCount; ++track) {

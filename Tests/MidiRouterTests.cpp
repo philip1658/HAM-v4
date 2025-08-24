@@ -84,7 +84,7 @@ private:
                 expect(msg.getNoteNumber() == 60);
                 eventCount++;
             }
-            else if (msg.getChannel() == MidiRouter::DEBUG_CHANNEL)
+            else if (msg.getChannel() == 16) // Debug channel (if enabled)
             {
                 // Debug copies on channel 16
                 eventCount++;
