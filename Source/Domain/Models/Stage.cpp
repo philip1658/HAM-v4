@@ -8,8 +8,101 @@
 */
 
 #include "Stage.h"
+#include <cmath>
+#include <random>
 
 namespace HAM {
+
+//==============================================================================
+// VelocityCurve implementation
+
+int VelocityCurve::applyToVelocity(int inputVelocity, float randomValue) const
+{
+    // Clamp input
+    float normalized = static_cast<float>(juce::jlimit(0, 127, inputVelocity)) / 127.0f;
+    float output = normalized;
+    
+    switch (type)
+    {
+        case VelocityCurveType::LINEAR:
+            // Direct mapping, no change
+            break;
+            
+        case VelocityCurveType::EXPONENTIAL:
+            // Softer at low values
+            output = std::pow(normalized, 2.0f + amount);
+            break;
+            
+        case VelocityCurveType::LOGARITHMIC:
+            // Harder at low values
+            if (normalized > 0.0f)
+                output = std::pow(normalized, 1.0f / (2.0f + amount));
+            break;
+            
+        case VelocityCurveType::S_CURVE:
+            // S-shaped curve (compressed at extremes)
+            {
+                float x = normalized * 2.0f - 1.0f; // Map to -1..1
+                float curve = amount * 2.0f + 1.0f;
+                output = (std::tanh(x * curve) + 1.0f) * 0.5f;
+            }
+            break;
+            
+        case VelocityCurveType::INVERTED:
+            // Invert the velocity
+            output = 1.0f - normalized;
+            break;
+            
+        case VelocityCurveType::FIXED:
+            // Always return fixed velocity
+            return juce::jlimit(0, 127, fixedVelocity);
+            
+        case VelocityCurveType::RANDOM:
+            // Random variation around base
+            {
+                float variation = (randomValue * 2.0f - 1.0f) * amount;
+                output = normalized + variation;
+            }
+            break;
+            
+        case VelocityCurveType::CUSTOM:
+            // Interpolate between custom points
+            {
+                int numPoints = customPoints.size();
+                float scaledPos = normalized * (numPoints - 1);
+                int index = static_cast<int>(scaledPos);
+                float frac = scaledPos - index;
+                
+                if (index >= numPoints - 1)
+                {
+                    output = customPoints[numPoints - 1];
+                }
+                else
+                {
+                    // Linear interpolation between points
+                    output = customPoints[index] * (1.0f - frac) + 
+                            customPoints[index + 1] * frac;
+                }
+            }
+            break;
+    }
+    
+    // Apply randomization if specified
+    if (randomization > 0.0f && type != VelocityCurveType::RANDOM)
+    {
+        float variation = (randomValue * 2.0f - 1.0f) * randomization * 0.2f;
+        output += variation;
+    }
+    
+    // Apply amount blending (except for FIXED and RANDOM)
+    if (type != VelocityCurveType::FIXED && type != VelocityCurveType::RANDOM)
+    {
+        output = normalized * (1.0f - amount) + output * amount;
+    }
+    
+    // Convert back to MIDI velocity
+    return juce::jlimit(0, 127, static_cast<int>(output * 127.0f + 0.5f));
+}
 
 //==============================================================================
 Stage::Stage()

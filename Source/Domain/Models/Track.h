@@ -104,6 +104,14 @@ public:
     void setSolo(bool solo) { m_solo = solo; }
     bool isSolo() const { return m_solo; }
     
+    /** Set track volume (0.0 - 1.0) */
+    void setVolume(float volume);
+    float getVolume() const { return m_volume; }
+    
+    /** Set track pan (-1.0 to 1.0, center = 0.0) */
+    void setPan(float pan);
+    float getPan() const { return m_pan; }
+    
     //==========================================================================
     // MIDI Configuration
     
@@ -218,6 +226,8 @@ private:
     bool m_enabled = true;
     bool m_muted = false;
     bool m_solo = false;
+    float m_volume = 0.8f;              // Default 80% volume
+    float m_pan = 0.0f;                 // Center pan
     
     // MIDI settings
     int m_midiChannel = 1;              // MIDI channel 1-16

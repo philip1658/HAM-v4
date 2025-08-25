@@ -107,6 +107,9 @@ private:
         engine.reset();
         expect(engine.getCurrentPatternBar() == 0);
         expect(pattern->getTrack(0)->getCurrentStageIndex() == 0);
+        
+        // Clean up: Remove clock reference before objects are destroyed
+        engine.setMasterClock(nullptr);
     }
     
     //==========================================================================
@@ -177,6 +180,9 @@ private:
         engine.onClockPulse(4);
         expect(track->getCurrentStageIndex() == 1,
                "MONO mode should advance after all pulses complete");
+        
+        // Clean up: Remove clock reference before objects are destroyed
+        engine.setMasterClock(nullptr);
     }
     
     //==========================================================================
@@ -225,6 +231,9 @@ private:
                "POLY mode should advance after 1 pulse");
         
         // Note: Stage 0 is still playing its remaining pulses in the background
+        
+        // Clean up: Remove clock reference before objects are destroyed
+        engine.setMasterClock(nullptr);
     }
     
     //==========================================================================
@@ -256,6 +265,9 @@ private:
         expect(engine.shouldTrackTrigger(*track, 2) == true, "Pulse 2 should trigger");
         expect(engine.shouldTrackTrigger(*track, 6) == true, "Pulse 6 should trigger (6 % 2 = 0)");
         expect(engine.shouldTrackTrigger(*track, 12) == true, "Pulse 12 should trigger");
+        
+        // Clean up: Remove clock reference before objects are destroyed
+        engine.setMasterClock(nullptr);
     }
     
     //==========================================================================
@@ -325,6 +337,9 @@ private:
                 expect(msg.getVelocity() > 0);
             }
         }
+        
+        // Clean up: Remove clock reference before objects are destroyed
+        engine.setMasterClock(nullptr);
     }
     
     //==========================================================================
@@ -391,6 +406,9 @@ private:
         // Check stats - should show processing
         auto stats = engine.getStats();
         expect(stats.stagesProcessed > 0);
+        
+        // Clean up: Remove clock reference before objects are destroyed
+        engine.setMasterClock(nullptr);
     }
     
     //==========================================================================
@@ -439,6 +457,9 @@ private:
         
         // Test loop point detection
         expect(engine.isAtLoopPoint() == false);  // Not at loop initially
+        
+        // Clean up: Remove clock reference before objects are destroyed
+        engine.setMasterClock(nullptr);
     }
     
     //==========================================================================

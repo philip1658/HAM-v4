@@ -201,9 +201,22 @@ public:
         }
 
         // Sandbox-Scan (out-of-process) starten; Splash pollt den Status
-        auto& pm = HAM::PluginManager::instance();
-        pm.initialise();
-        pm.startSandboxedScan(false);
+        try
+        {
+            auto& pm = HAM::PluginManager::instance();
+            pm.initialise();
+            
+            // Only start scan if not in test mode
+            if (!m_testMode)
+            {
+                pm.startSandboxedScan(true);  // Use async scanning to avoid blocking
+            }
+        }
+        catch (const std::exception& e)
+        {
+            DBG("Failed to initialize plugin manager: " << e.what());
+            // Continue without plugin support
+        }
     }
 
 private:

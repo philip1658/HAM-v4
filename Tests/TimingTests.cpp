@@ -156,42 +156,53 @@ public:
         {
             MasterClock clock;
             clock.setBPM(120.0f);
-            clock.start();
             
             double sampleRate = 48000.0;
-            int samplesPerPulse = 1000;  // At 120 BPM
             
-            std::vector<high_resolution_clock::time_point> timestamps;
+            // Test that clock generates pulses at correct intervals
+            // At 120 BPM, 24 PPQN: one pulse = 1000 samples at 48kHz
+            double samplesPerPulse = sampleRate * 60.0 / (120.0 * 24.0);
+            expect(std::abs(samplesPerPulse - 1000.0) < 0.1, 
+                   "Samples per pulse calculation should be accurate");
             
-            // Process 10 pulses and measure timing
-            for (int i = 0; i < 10; ++i)
+            TestClockListener listener;
+            clock.addListener(&listener);
+            clock.start();
+            
+            // Process exactly 10 pulses worth of samples
+            int totalPulses = 10;
+            int samplesPerBlock = 512;
+            int totalSamples = static_cast<int>(totalPulses * samplesPerPulse);
+            int samplesProcessed = 0;
+            
+            while (samplesProcessed < totalSamples)
             {
-                auto startTime = high_resolution_clock::now();
-                clock.processBlock(sampleRate, samplesPerPulse);
-                timestamps.push_back(startTime);
+                int samplesToProcess = std::min(samplesPerBlock, 
+                                               totalSamples - samplesProcessed);
+                clock.processBlock(sampleRate, samplesToProcess);
+                samplesProcessed += samplesToProcess;
             }
             
-            // Calculate jitter (deviation from expected interval)
-            if (timestamps.size() > 1)
+            // We should have received approximately totalPulses pulses
+            // Allow for ±1 pulse due to rounding
+            int actualPulses = static_cast<int>(listener.pulses.size());
+            expect(std::abs(actualPulses - totalPulses) <= 1,
+                   "Clock should generate correct number of pulses");
+            
+            // Verify pulses are evenly spaced (check pulse numbers)
+            bool pulsesSequential = true;
+            for (size_t i = 1; i < listener.pulses.size(); ++i)
             {
-                double maxJitter = 0.0;
-                
-                for (size_t i = 1; i < timestamps.size(); ++i)
+                // Each pulse should be 1 higher than the previous
+                if (listener.pulses[i] != listener.pulses[i-1] + 1)
                 {
-                    auto interval = duration_cast<microseconds>(
-                        timestamps[i] - timestamps[i-1]).count();
-                    
-                    // Expected interval in microseconds
-                    double expected = (samplesPerPulse / sampleRate) * 1000000.0;
-                    double jitter = std::abs(interval - expected);
-                    
-                    if (jitter > maxJitter)
-                        maxJitter = jitter;
+                    pulsesSequential = false;
+                    break;
                 }
-                
-                // Jitter should be < 100 microseconds (0.1ms)
-                expect(maxJitter < 100.0, "Timing jitter exceeds 0.1ms");
             }
+            expect(pulsesSequential, "Pulse numbers should be sequential");
+            
+            clock.removeListener(&listener);
         }
     }
 };

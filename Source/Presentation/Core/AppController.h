@@ -39,6 +39,9 @@ public:
     void shutdownAudio();
     bool isAudioInitialized() const { return m_audioInitialized; }
     
+    // Plugin system management
+    void initializePlugins();
+    
     // Transport control
     void play();
     void stop();
@@ -89,6 +92,9 @@ public:
     
     // Message dispatcher access
     MessageDispatcher* getMessageDispatcher() { return m_messageDispatcher; }
+    
+    // Audio processor access
+    HAMAudioProcessor* getAudioProcessor() { return m_processor.get(); }
     
     //==============================================================================
     // Timer callback for performance monitoring

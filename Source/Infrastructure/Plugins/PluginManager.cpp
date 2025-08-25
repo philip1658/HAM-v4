@@ -15,18 +15,313 @@ namespace HAM
 //==============================================================================
 PluginManager::PluginManager()
 {
-    // Initialize supported plugin formats
-    m_formatManager.addDefaultFormats();
-    
-    // Create bridge process manager
-    m_bridgeProcess = std::make_unique<BridgeProcess>();
+    try
+    {
+        // Initialize supported plugin formats
+        m_formatManager.addDefaultFormats();
+        
+        // Create bridge process manager
+        m_bridgeProcess = std::make_unique<BridgeProcess>();
+    }
+    catch (const std::exception& e)
+    {
+        DBG("PluginManager constructor exception: " << e.what());
+        // Continue with minimal functionality
+    }
+    catch (...)
+    {
+        DBG("PluginManager constructor unknown exception");
+        // Continue with minimal functionality
+    }
 }
 
 PluginManager::~PluginManager()
 {
+    // Stop timer-based scanning
+    stopTimer();
+    
+    // Stop any ongoing scan
+    if (m_scanThread && m_scanThread->joinable())
+    {
+        m_isScanning = false;
+        m_scanThread->join();
+    }
+    
     // Clean up all resources in proper order
     clearAllPlugins();
     terminateBridge();
+}
+
+//==============================================================================
+// Plugin Scanning
+
+void PluginManager::initialise()
+{
+    try
+    {
+        // Cache all directory paths in main thread for thread safety
+        cacheDirectoryPaths();
+        
+        // Create application data directories if they don't exist
+        if (m_cachedPaths.isValid)
+        {
+            if (m_cachedPaths.appDataDir.isDirectory() || m_cachedPaths.appDataDir.createDirectory())
+            {
+                DBG("PluginManager: App data directory ready: " << m_cachedPaths.appDataDir.getFullPathName());
+            }
+            
+            // Load previously scanned plugins from settings
+            if (m_cachedPaths.pluginListFile.existsAsFile())
+            {
+                try
+                {
+                    auto xml = juce::XmlDocument::parse(m_cachedPaths.pluginListFile);
+                    if (xml)
+                    {
+                        m_knownPluginList.recreateFromXml(*xml);
+                        DBG("PluginManager: Loaded " << m_knownPluginList.getNumTypes() << " plugins from cache");
+                    }
+                }
+                catch (...)
+                {
+                    DBG("PluginManager: Could not load plugin cache - starting fresh");
+                }
+            }
+        }
+        else
+        {
+            DBG("PluginManager: Could not cache directory paths - plugin scanning disabled");
+        }
+    }
+    catch (const std::exception& e)
+    {
+        DBG("PluginManager::initialise exception: " << e.what());
+    }
+    catch (...)
+    {
+        DBG("PluginManager::initialise unknown exception - continuing with defaults");
+    }
+}
+
+void PluginManager::cacheDirectoryPaths()
+{
+    // This MUST be called from the main thread
+    // Cache all paths that would normally be accessed from background thread
+    
+    try
+    {
+        // Try to get app data directory
+        try 
+        {
+            m_cachedPaths.appDataDir = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+                                           .getChildFile("HAM");
+        }
+        catch (...)
+        {
+            // Fallback to home directory
+            m_cachedPaths.appDataDir = juce::File::getSpecialLocation(juce::File::userHomeDirectory)
+                                           .getChildFile(".ham");
+            DBG("PluginManager: Using fallback directory: " << m_cachedPaths.appDataDir.getFullPathName());
+        }
+        
+        // Cache plugin list file path
+        m_cachedPaths.pluginListFile = m_cachedPaths.appDataDir.getChildFile("plugin_list.xml");
+        
+        // Cache plugin search paths
+        #if JUCE_MAC
+        m_cachedPaths.searchPaths.add(juce::File("/Library/Audio/Plug-Ins/VST3"));
+        m_cachedPaths.searchPaths.add(juce::File::getSpecialLocation(juce::File::userHomeDirectory)
+                                         .getChildFile("Library/Audio/Plug-Ins/VST3"));
+        m_cachedPaths.searchPaths.add(juce::File("/Library/Audio/Plug-Ins/Components"));
+        m_cachedPaths.searchPaths.add(juce::File::getSpecialLocation(juce::File::userHomeDirectory)
+                                         .getChildFile("Library/Audio/Plug-Ins/Components"));
+        #elif JUCE_WINDOWS
+        m_cachedPaths.searchPaths.add(juce::File("C:/Program Files/Common Files/VST3"));
+        m_cachedPaths.searchPaths.add(juce::File("C:/Program Files (x86)/Common Files/VST3"));
+        #endif
+        
+        // Add format-specific paths
+        for (int i = 0; i < m_formatManager.getNumFormats(); ++i)
+        {
+            auto* format = m_formatManager.getFormat(i);
+            if (format)
+            {
+                format->searchPathsForPlugins(m_cachedPaths.searchPaths, true);
+            }
+        }
+        
+        m_cachedPaths.isValid = true;
+        DBG("PluginManager: Successfully cached all directory paths");
+    }
+    catch (const std::exception& e)
+    {
+        DBG("PluginManager::cacheDirectoryPaths exception: " << e.what());
+        m_cachedPaths.isValid = false;
+    }
+    catch (...)
+    {
+        DBG("PluginManager::cacheDirectoryPaths unknown exception");
+        m_cachedPaths.isValid = false;
+    }
+}
+
+void PluginManager::startSandboxedScan(bool async)
+{
+    try
+    {
+        // Check if we have valid cached paths
+        if (!m_cachedPaths.isValid)
+        {
+            DBG("PluginManager: Cannot start scan - no valid cached paths");
+            return;
+        }
+        
+        // Stop any existing scan
+        if (m_isScanning)
+        {
+            stopTimer();  // Stop timer-based scanning
+            m_isScanning = false;
+            if (m_scanThread && m_scanThread->joinable())
+            {
+                m_scanThread->join();
+            }
+        }
+        
+        // Reset progress
+        m_scanProgress = 0;
+        m_scanTotal = 0;
+        m_currentPlugin = "";
+        
+        // Use cached search paths - no file system access in background thread!
+        const juce::FileSearchPath& searchPath = m_cachedPaths.searchPaths;
+        
+        // Create scanner with cached paths
+        try
+        {
+            for (int i = 0; i < m_formatManager.getNumFormats(); ++i)
+            {
+                auto* format = m_formatManager.getFormat(i);
+                
+                if (format)
+                {
+                    // Create scanner for this format using cached paths
+                    m_scanner = std::make_unique<juce::PluginDirectoryScanner>(
+                        m_knownPluginList,
+                        *format,
+                        searchPath,
+                        true,  // recursive search
+                        juce::File()  // no dead man's pedal file for now
+                    );
+                    break; // Just use the first format for now (typically VST3)
+                }
+            }
+        }
+        catch (const std::exception& e)
+        {
+            DBG("PluginManager: Error creating scanner: " << e.what());
+            m_scanner.reset();
+            return;
+        }
+        
+        // Get total number of files to scan
+        m_scanTotal = searchPath.getNumPaths() * 100;  // Estimate
+    
+    if (async)
+    {
+        // Use timer-based scanning on the message thread for safety
+        // This avoids all the thread-safety issues with file system access
+        m_isScanning = true;
+        
+        DBG("PluginManager: Starting timer-based plugin scan");
+        
+        // Start timer to scan incrementally on message thread
+        // Scan a few plugins every 50ms to avoid blocking UI
+        startTimer(50);
+    }
+    else
+    {
+        // Synchronous scan (blocks)
+        m_isScanning = true;
+        juce::String pluginName;
+        
+        while (!m_scanner->scanNextFile(true, pluginName))
+        {
+            m_currentPlugin = pluginName;
+            m_scanProgress++;
+        }
+        
+        savePluginList();
+        m_isScanning = false;
+        m_scanner.reset();
+    }
+    }
+    catch (const std::exception& e)
+    {
+        DBG("PluginManager::startSandboxedScan exception: " << e.what());
+        m_isScanning = false;
+        m_scanner.reset();
+    }
+    catch (...)
+    {
+        DBG("PluginManager::startSandboxedScan unknown exception");
+        m_isScanning = false;
+        m_scanner.reset();
+    }
+}
+
+bool PluginManager::isScanning() const
+{
+    return m_isScanning.load();
+}
+
+PluginManager::ScanProgress PluginManager::getProgress() const
+{
+    ScanProgress progress;
+    progress.total = m_scanTotal.load();
+    progress.scanned = m_scanProgress.load();
+    progress.current = m_currentPlugin;
+    return progress;
+}
+
+void PluginManager::savePluginList()
+{
+    try
+    {
+        // Use cached paths - this method should only be called from main thread
+        if (!m_cachedPaths.isValid)
+        {
+            DBG("PluginManager: Cannot save - no valid cached paths");
+            return;
+        }
+        
+        const juce::File& settingsFile = m_cachedPaths.pluginListFile;
+        
+        // Make sure parent directory exists
+        if (!settingsFile.getParentDirectory().exists())
+        {
+            settingsFile.getParentDirectory().createDirectory();
+        }
+        
+        if (auto xml = m_knownPluginList.createXml())
+        {
+            if (!xml->writeTo(settingsFile))
+            {
+                DBG("PluginManager: Could not save plugin list to: " << settingsFile.getFullPathName());
+            }
+            else
+            {
+                DBG("PluginManager: Successfully saved plugin list");
+            }
+        }
+    }
+    catch (const std::exception& e)
+    {
+        DBG("PluginManager::savePluginList exception: " << e.what());
+    }
+    catch (...)
+    {
+        DBG("PluginManager::savePluginList unknown exception - plugin list not saved");
+    }
 }
 
 //==============================================================================
@@ -301,6 +596,60 @@ juce::File PluginManager::findPluginHostBridge()
         return candidateBin;
     
     return {};
+}
+
+void PluginManager::timerCallback()
+{
+    // This runs on the message thread, so it's safe to access file system
+    
+    if (!m_isScanning || !m_scanner)
+    {
+        stopTimer();
+        return;
+    }
+    
+    try
+    {
+        juce::String pluginName;
+        
+        // Scan a few plugins per timer callback to avoid blocking UI
+        for (int i = 0; i < 3; ++i)  // Scan up to 3 plugins per tick
+        {
+            if (!m_scanner)
+                break;
+                
+            bool scanComplete = m_scanner->scanNextFile(false, pluginName);
+            
+            if (!pluginName.isEmpty())
+            {
+                m_currentPlugin = pluginName;
+                m_scanProgress++;
+                DBG("PluginManager: Scanning " << pluginName);
+            }
+            
+            if (scanComplete)
+            {
+                DBG("PluginManager: Scan complete! Found " << m_knownPluginList.getNumTypes() << " plugins");
+                stopTimer();
+                m_isScanning = false;
+                m_scanner.reset();
+                
+                // Save the results
+                savePluginList();
+                break;
+            }
+        }
+    }
+    catch (const std::exception& e)
+    {
+        DBG("PluginManager: Timer scan exception: " << e.what());
+        // Continue scanning despite errors
+    }
+    catch (...)
+    {
+        DBG("PluginManager: Timer scan unknown exception");
+        // Continue scanning despite errors
+    }
 }
 
 } // namespace HAM

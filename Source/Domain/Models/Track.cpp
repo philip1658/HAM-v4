@@ -47,12 +47,24 @@ void Track::setMidiChannel(int channel)
 void Track::setMaxVoices(int voices)
 {
     m_maxVoices = juce::jlimit(1, 16, voices);
-    
     // If we're in mono mode, force max voices to 1
     if (m_voiceMode == VoiceMode::MONO)
     {
         m_maxVoices = 1;
     }
+}
+
+//==============================================================================
+// Track Parameters
+
+void Track::setVolume(float volume)
+{
+    m_volume = juce::jlimit(0.0f, 1.0f, volume);
+}
+
+void Track::setPan(float pan)
+{
+    m_pan = juce::jlimit(-1.0f, 1.0f, pan);
 }
 
 //==============================================================================
@@ -158,6 +170,8 @@ juce::ValueTree Track::toValueTree() const
     tree.setProperty("enabled", m_enabled, nullptr);
     tree.setProperty("muted", m_muted, nullptr);
     tree.setProperty("solo", m_solo, nullptr);
+    tree.setProperty("volume", m_volume, nullptr);
+    tree.setProperty("pan", m_pan, nullptr);
     
     // MIDI settings
     tree.setProperty("midiChannel", m_midiChannel, nullptr);
@@ -206,6 +220,8 @@ void Track::fromValueTree(const juce::ValueTree& tree)
     m_enabled = tree.getProperty("enabled", true);
     m_muted = tree.getProperty("muted", false);
     m_solo = tree.getProperty("solo", false);
+    m_volume = tree.getProperty("volume", 0.8f);
+    m_pan = tree.getProperty("pan", 0.0f);
     
     // MIDI settings
     m_midiChannel = tree.getProperty("midiChannel", 1);

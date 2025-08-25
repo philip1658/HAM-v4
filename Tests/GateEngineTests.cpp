@@ -48,7 +48,7 @@ private:
         {
             stage.setGateType(0); // MULTIPLE
             stage.setRatchetCount(0, 4); // 4 ratchets on first pulse
-            stage.setProbability(1.0f);
+            stage.setProbability(100.0f); // 100% probability
             
             auto events = engine.processStageGate(stage, 0, sampleRate, samplesPerPulse);
             
@@ -69,6 +69,7 @@ private:
         {
             stage.setGateType(1); // HOLD
             stage.setRatchetCount(0, 4); // 4 ratchets but should be one long gate
+            stage.setProbability(100.0f); // 100% probability
             
             auto events = engine.processStageGate(stage, 0, sampleRate, samplesPerPulse);
             
@@ -83,6 +84,7 @@ private:
         {
             stage.setGateType(2); // SINGLE
             stage.setRatchetCount(0, 4); // 4 ratchets but only first triggers
+            stage.setProbability(100.0f); // 100% probability
             
             auto events = engine.processStageGate(stage, 0, sampleRate, samplesPerPulse);
             
@@ -186,22 +188,66 @@ private:
             expect(offset == 100, "No swing should not change offset");
         }
         
-        // Test positive swing on odd beat
+        // Test positive swing on odd beat (25% max swing)
         {
             int offset = engine.applySwing(100, 0.5f, false);
             expect(offset > 100, "Positive swing should delay odd beats");
+            // 0.5 * 0.25 = 0.125, so 100 * 0.125 = 12.5 -> 112
+            expect(offset == 112, "50% swing should add 12.5% delay");
         }
         
         // Test negative swing on odd beat
         {
             int offset = engine.applySwing(100, -0.5f, false);
             expect(offset < 100, "Negative swing should advance odd beats");
+            // -0.5 * 0.25 = -0.125, so 100 * -0.125 = -12.5
+            // Using integer truncation, this becomes 87
+            expectWithinAbsoluteError(offset, 87, 1, "Negative swing should subtract ~12.5%");
         }
         
         // Test swing doesn't affect even beats
         {
             int offset = engine.applySwing(100, 0.5f, true);
             expect(offset == 100, "Swing should not affect even beats");
+        }
+        
+        // Test swing integration with full stage
+        {
+            Stage stage;
+            stage.setGateType(GateType::MULTIPLE);
+            stage.setRatchetCount(0, 2); // 2 ratchets for simpler testing
+            stage.setProbability(100.0f);
+            stage.setSwing(0.0f); // No per-stage swing
+            
+            // Set global swing to 0.2 (20% late on odd beats)
+            engine.setGlobalSwing(0.2f);
+            
+            const double sampleRate = 48000.0;
+            const int samplesPerPulse = 1000; // Simple numbers
+            
+            auto events = engine.processStageGate(stage, 0, sampleRate, samplesPerPulse);
+            
+            // Find note-on events
+            std::vector<int> noteOnOffsets;
+            for (const auto& event : events)
+            {
+                if (event.isNoteOn)
+                    noteOnOffsets.push_back(event.sampleOffset);
+            }
+            
+            expect(noteOnOffsets.size() == 2, "Should have 2 note-ons");
+            
+            if (noteOnOffsets.size() == 2)
+            {
+                // First ratchet (even index) should be on time
+                expect(noteOnOffsets[0] == 0, "First ratchet at 0");
+                
+                // Second ratchet (odd index) should be swung
+                // Base position is 500, swing adds 0.2 * 0.25 * 500 = 25
+                int expectedSecondOffset = 500 + static_cast<int>(500 * 0.2f * 0.25f);
+                expect(noteOnOffsets[1] == expectedSecondOffset, 
+                       "Second ratchet should be swung late");
+            }
         }
     }
     
@@ -244,6 +290,48 @@ private:
             // Should be around 500, allow for variance
             expect(triggers > 400 && triggers < 600, 
                    "50% probability should trigger roughly half the time");
+        }
+        
+        // Test ratchet probability
+        {
+            beginTest("Ratchet Probability");
+            
+            Stage stage;
+            stage.setGateType(GateType::MULTIPLE);
+            stage.setRatchetCount(0, 4); // 4 ratchets
+            stage.setProbability(100.0f); // Stage always plays
+            stage.setRatchetProbability(0.5f); // 50% chance for each ratchet after first
+            
+            const double sampleRate = 48000.0;
+            const int samplesPerPulse = 12000;
+            
+            // Run multiple times to test statistical behavior
+            int totalRatchets = 0;
+            int iterations = 100;
+            
+            for (int iter = 0; iter < iterations; ++iter)
+            {
+                auto events = engine.processStageGate(stage, 0, sampleRate, samplesPerPulse);
+                
+                // Count note-on events (each represents a triggered ratchet)
+                int ratchetCount = 0;
+                for (const auto& event : events)
+                {
+                    if (event.isNoteOn)
+                        ratchetCount++;
+                }
+                
+                // First ratchet should always play (if stage probability passes)
+                expect(ratchetCount >= 1, "At least first ratchet should play");
+                expect(ratchetCount <= 4, "Maximum 4 ratchets");
+                
+                totalRatchets += ratchetCount;
+            }
+            
+            // Average should be around 2.5 (1 guaranteed + 1.5 from 3 * 0.5 probability)
+            float averageRatchets = static_cast<float>(totalRatchets) / iterations;
+            expectWithinAbsoluteError(averageRatchets, 2.5f, 0.5f,
+                                    "Average ratchets should be ~2.5 with 50% probability");
         }
     }
     
@@ -314,7 +402,7 @@ private:
             stage.setPitch(60 + i);
             stage.setGateType(0); // MULTIPLE
             stage.setRatchetCount(0, 2); // 2 ratchets
-            stage.setProbability(1.0f);
+            stage.setProbability(100.0f); // 100% probability (expects percentage)
         }
         
         // Process first stage
@@ -350,6 +438,9 @@ static GateEngineTests gateEngineTests;
 // Main test runner
 int main(int, char*[])
 {
+    // Initialize JUCE
+    juce::ScopedJuceInitialiser_GUI scopedJuce;
+    
     juce::UnitTestRunner runner;
     runner.runAllTests();
     
@@ -368,6 +459,10 @@ int main(int, char*[])
     DBG("Tests Passed: " << numPassed);
     DBG("Tests Failed: " << numFailed);
     DBG("===========================================");
+    
+    // Clean up JUCE singletons before exit
+    juce::MessageManager::deleteInstance();
+    juce::DeletedAtShutdown::deleteAll();
     
     return numFailed > 0 ? 1 : 0;
 }

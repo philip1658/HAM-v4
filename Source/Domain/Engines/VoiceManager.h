@@ -110,6 +110,14 @@ public:
         std::atomic<int> peakVoiceCount{0};
         std::atomic<float> cpuUsage{0.0f};
         
+        // Additional stealing statistics
+        std::atomic<int> oldestStolen{0};      // Notes stolen via oldest strategy
+        std::atomic<int> lowestStolen{0};      // Notes stolen via lowest pitch strategy
+        std::atomic<int> highestStolen{0};     // Notes stolen via highest pitch strategy
+        std::atomic<int> quietestStolen{0};    // Notes stolen via quietest strategy
+        std::atomic<int> lastStolenNote{-1};   // Last note that was stolen
+        std::atomic<int64_t> lastStealTime{0}; // Timestamp of last steal
+        
         void reset()
         {
             activeVoices.store(0);
@@ -117,6 +125,12 @@ public:
             notesStolen.store(0);
             peakVoiceCount.store(0);
             cpuUsage.store(0.0f);
+            oldestStolen.store(0);
+            lowestStolen.store(0);
+            highestStolen.store(0);
+            quietestStolen.store(0);
+            lastStolenNote.store(-1);
+            lastStealTime.store(0);
         }
     };
     
@@ -260,7 +274,8 @@ private:
     std::atomic<int> m_lastVoiceIndex{-1};
     
     // Pre-allocated array for voice queries (avoid allocations)
-    mutable std::array<Voice*, MAX_VOICES> m_activeVoiceCache;
+    // Currently unused but kept for future optimization
+    // mutable std::array<Voice*, MAX_VOICES> m_activeVoiceCache;
     
     //==========================================================================
     // Internal Methods
@@ -291,6 +306,9 @@ private:
     
     /** Handle poly mode note on */
     int handlePolyNoteOn(int noteNumber, int velocity, int channel);
+    
+    /** Handle unison mode note on */
+    int handleUnisonNoteOn(int noteNumber, int velocity, int channel);
     
     /** Safe voice access helper */
     Voice& voiceAt(int index) { return m_voices[static_cast<size_t>(index)]; }

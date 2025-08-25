@@ -91,8 +91,7 @@ int VoiceManager::noteOn(int noteNumber, int velocity, int channel)
             return handlePolyNoteOn(noteNumber, velocity, channel);
             
         case VoiceMode::UNISON:
-            // TODO: Implement unison mode (all voices play same note)
-            return handlePolyNoteOn(noteNumber, velocity, channel);
+            return handleUnisonNoteOn(noteNumber, velocity, channel);
             
         default:
             return handlePolyNoteOn(noteNumber, velocity, channel);
@@ -120,6 +119,19 @@ void VoiceManager::noteOff(int noteNumber, int channel)
                 m_lastVoiceIndex.store(-1);
                 updateStatistics();
             }
+        }
+        return;
+    }
+    
+    // In UNISON mode, stop all voices playing this note
+    if (mode == VoiceMode::UNISON)
+    {
+        if (m_lastNoteNumber.load() == noteNumber)
+        {
+            // Stop all voices as they're all playing the same note
+            allNotesOff(channel);
+            m_lastNoteNumber.store(-1);
+            m_lastVoiceIndex.store(-1);
         }
         return;
     }
@@ -292,25 +304,48 @@ int VoiceManager::findFreeVoice()
 int VoiceManager::stealVoice()
 {
     StealingMode mode = m_stealingMode.load();
+    int voiceIndex = -1;
     
     switch (mode)
     {
         case StealingMode::OLDEST:
-            return findOldestVoice();
+            voiceIndex = findOldestVoice();
+            if (voiceIndex >= 0)
+                m_statistics.oldestStolen.fetch_add(1);
+            break;
             
         case StealingMode::LOWEST:
-            return findLowestVoice();
+            voiceIndex = findLowestVoice();
+            if (voiceIndex >= 0)
+                m_statistics.lowestStolen.fetch_add(1);
+            break;
             
         case StealingMode::HIGHEST:
-            return findHighestVoice();
+            voiceIndex = findHighestVoice();
+            if (voiceIndex >= 0)
+                m_statistics.highestStolen.fetch_add(1);
+            break;
             
         case StealingMode::QUIETEST:
-            return findQuietestVoice();
+            voiceIndex = findQuietestVoice();
+            if (voiceIndex >= 0)
+                m_statistics.quietestStolen.fetch_add(1);
+            break;
             
         case StealingMode::NONE:
         default:
             return -1;  // Don't steal
     }
+    
+    // Track the note that was stolen and when
+    if (voiceIndex >= 0)
+    {
+        int stolenNote = voiceAt(voiceIndex).noteNumber.load();
+        m_statistics.lastStolenNote.store(stolenNote);
+        m_statistics.lastStealTime.store(juce::Time::getHighResolutionTicks());
+    }
+    
+    return voiceIndex;
 }
 
 int VoiceManager::findOldestVoice()
@@ -494,6 +529,46 @@ int VoiceManager::handlePolyNoteOn(int noteNumber, int velocity, int channel)
     
     updateStatistics();
     return voiceIndex;
+}
+
+int VoiceManager::handleUnisonNoteOn(int noteNumber, int velocity, int channel)
+{
+    // In UNISON mode, all available voices play the same note
+    // First, stop all currently playing notes
+    allNotesOff(channel);
+    
+    const int maxVoices = m_maxVoices.load();
+    int voicesStarted = 0;
+    
+    // Start the note on all available voices
+    for (int i = 0; i < maxVoices; ++i)
+    {
+        // Optional: Add slight detuning for a richer sound
+        // Each voice could have a slightly different pitch bend
+        float detune = 0.0f;
+        if (maxVoices > 1)
+        {
+            // Spread voices across +/- 10 cents
+            detune = ((float)i / (float)(maxVoices - 1) - 0.5f) * 0.1f;
+        }
+        
+        // Start the note on this voice
+        voiceAt(i).startNote(noteNumber, velocity, channel);
+        voiceAt(i).pitchBend.store(detune);
+        voicesStarted++;
+    }
+    
+    // Update active voice count
+    m_activeVoiceCount.store(voicesStarted);
+    
+    // Store the note as the last played (for consistent note-off)
+    m_lastNoteNumber.store(noteNumber);
+    m_lastVoiceIndex.store(0); // Track first voice as primary
+    
+    updateStatistics();
+    
+    // Return the first voice index as the primary voice
+    return voicesStarted > 0 ? 0 : -1;
 }
 
 } // namespace HAM

@@ -15,6 +15,7 @@
 #include "Presentation/Views/MixerView.h"
 #include "Presentation/Views/PluginBrowser.h"
 #include "../../UI/Components/HAMComponentLibrary.h"
+#include "Infrastructure/Audio/HAMAudioProcessor.h"
 
 namespace HAM {
 namespace UI {
@@ -30,6 +31,30 @@ UICoordinator::UICoordinator(AppController& controller)
 }
 
 UICoordinator::~UICoordinator() = default;
+
+//==============================================================================
+void UICoordinator::setAudioProcessor(HAMAudioProcessor* processor)
+{
+    if (!processor)
+        return;
+    
+    // Create the mixer view now that we have a processor
+    if (!m_mixerView)
+    {
+        m_mixerView = std::make_unique<MixerView>(*processor);
+        m_contentContainer->addAndMakeVisible(m_mixerView.get());
+        m_mixerView->setVisible(m_activeView == ViewMode::Mixer);
+        
+        // MixerView handles plugin browsing internally
+        // No external callbacks needed as MixerView uses its own plugin browser
+        
+        // If we're currently showing the mixer view, layout it
+        if (m_activeView == ViewMode::Mixer)
+        {
+            resized();
+        }
+    }
+}
 
 //==============================================================================
 void UICoordinator::createUIComponents()
@@ -78,10 +103,7 @@ void UICoordinator::createUIComponents()
     m_stageViewport->setScrollBarThickness(10);
     m_sequencerPage->addAndMakeVisible(m_stageViewport.get());
     
-    // Create mixer view
-    m_mixerView = std::make_unique<MixerView>();
-    m_contentContainer->addAndMakeVisible(m_mixerView.get());
-    m_mixerView->setVisible(false); // Start with sequencer view
+    // Mixer view will be created when we have processor available
     
     // Create plugin browser (initially hidden - don't add to component yet)
     m_pluginBrowser = std::make_unique<PluginBrowser>();
@@ -142,37 +164,89 @@ void UICoordinator::setupEventHandlers()
         showHAMEditor(stage);
     };
     
-    // TODO: Connect track sidebar callbacks when UI components are fully implemented
-    // m_trackSidebar->onTrackMuted = [this](int trackIndex, bool muted)
-    // {
-    //     m_controller.setTrackMute(trackIndex, muted);
-    // };
-    
-    // m_trackSidebar->onTrackSoloed = [this](int trackIndex, bool solo)
-    // {
-    //     m_controller.setTrackSolo(trackIndex, solo);
-    // };
-    
-    // m_trackSidebar->onTrackVolumeChanged = [this](int trackIndex, float volume)
-    // {
-    //     m_controller.setTrackVolume(trackIndex, volume);
-    // };
-    
-    // m_trackSidebar->onTrackPanChanged = [this](int trackIndex, float pan)
-    // {
-    //     m_controller.setTrackPan(trackIndex, pan);
-    // };
-    
-    // Mixer view handlers
-    m_mixerView->onAliasInstrumentPlugin = [this](int trackIndex)
+    // Connect track sidebar callbacks
+    if (m_trackSidebar)
     {
-        showPluginBrowser(trackIndex, false);
-    };
+        m_trackSidebar->onTrackParameterChanged = [this](int trackIndex, const juce::String& param, float value)
+        {
+            // Handle plugin button click
+            if (param == "openPlugin")
+            {
+                showPluginBrowser(trackIndex, false); // false = instrument plugin
+            }
+            else if (param == "openAccumulator")
+            {
+                // TODO: Show accumulator editor
+                DBG("Accumulator editor requested for track " << trackIndex);
+            }
+            else if (param == "mute")
+            {
+                m_controller.setTrackMute(trackIndex, value > 0.5f);
+            }
+            else if (param == "solo")
+            {
+                m_controller.setTrackSolo(trackIndex, value > 0.5f);
+            }
+            else if (param == "channel")
+            {
+                // TODO: Add setTrackMidiChannel to AppController
+                // m_controller.setTrackMidiChannel(trackIndex, static_cast<int>(value));
+                DBG("MIDI channel change requested for track " << trackIndex << ": " << static_cast<int>(value));
+            }
+            else if (param == "voiceMode")
+            {
+                // TODO: Add setTrackVoiceMode to AppController
+                // m_controller.setTrackVoiceMode(trackIndex, value > 0.5f ? 1 : 0); // 1 = poly, 0 = mono
+                DBG("Voice mode change requested for track " << trackIndex << ": " << (value > 0.5f ? "poly" : "mono"));
+            }
+            else if (param == "division")
+            {
+                // TODO: Add setTrackDivision to AppController
+                // m_controller.setTrackDivision(trackIndex, static_cast<int>(value));
+                DBG("Division change requested for track " << trackIndex << ": " << static_cast<int>(value));
+            }
+            else if (param == "swing")
+            {
+                // TODO: Add setTrackSwing to AppController
+                // m_controller.setTrackSwing(trackIndex, value);
+                DBG("Swing change requested for track " << trackIndex << ": " << value);
+            }
+            else if (param == "octave")
+            {
+                // TODO: Add setTrackOctave to AppController
+                // m_controller.setTrackOctave(trackIndex, static_cast<int>(value));
+                DBG("Octave change requested for track " << trackIndex << ": " << static_cast<int>(value));
+            }
+            else if (param == "maxPulseLength")
+            {
+                // TODO: Add setTrackMaxPulseLength to AppController
+                // m_controller.setTrackMaxPulseLength(trackIndex, static_cast<int>(value));
+                DBG("Max pulse length change requested for track " << trackIndex << ": " << static_cast<int>(value));
+            }
+        };
+        
+        m_trackSidebar->onTrackSelected = [this](int trackIndex)
+        {
+            // TODO: Add selectTrack to AppController
+            // m_controller.selectTrack(trackIndex);
+            DBG("Track " << trackIndex << " selected");
+        };
+        
+        m_trackSidebar->onAddTrack = [this]()
+        {
+            // TODO: Add addTrack to AppController
+            // m_controller.addTrack();
+            DBG("Add track requested");
+        };
+        
+        m_trackSidebar->onRemoveTrack = [this](int trackIndex)
+        {
+            // TODO: Add removeTrack to AppController
+            // m_controller.removeTrack(trackIndex);
+            DBG("Remove track " << trackIndex << " requested");
+        };
+    }
     
-    m_mixerView->onAddFxPlugin = [this](int trackIndex)
-    {
-        showPluginBrowser(trackIndex, true);
-    };
 }
 
 //==============================================================================
@@ -181,8 +255,31 @@ void UICoordinator::setActiveView(ViewMode mode)
     m_activeView = mode;
     
     // Update visibility
-    m_sequencerPage->setVisible(mode == ViewMode::Sequencer);
-    m_mixerView->setVisible(mode == ViewMode::Mixer);
+    if (m_sequencerPage)
+        m_sequencerPage->setVisible(mode == ViewMode::Sequencer);
+    
+    // Create placeholder Component if MixerView doesn't exist yet
+    if (mode == ViewMode::Mixer && !m_mixerView && !m_mixerPlaceholder)
+    {
+        // Create a placeholder component with basic UI
+        m_mixerPlaceholder = std::make_unique<juce::Component>();
+        m_contentContainer->addAndMakeVisible(m_mixerPlaceholder.get());
+        
+        // Add a label to show it's a placeholder
+        auto* label = new juce::Label("placeholder", "Mixer View - Waiting for Audio Processor");
+        label->setFont(juce::Font(juce::FontOptions(20.0f)));
+        label->setColour(juce::Label::textColourId, juce::Colours::grey);
+        label->setJustificationType(juce::Justification::centred);
+        m_mixerPlaceholder->addAndMakeVisible(label);
+        
+        DBG("Created placeholder for MixerView");
+    }
+    
+    if (m_mixerView)
+        m_mixerView->setVisible(mode == ViewMode::Mixer);
+    else if (m_mixerPlaceholder)
+        m_mixerPlaceholder->setVisible(mode == ViewMode::Mixer);
+    
     // Settings view will be implemented later
     
     updateViewButtonStates();
@@ -204,17 +301,25 @@ void UICoordinator::showPluginBrowser(int trackIndex, bool forEffects)
     m_pluginBrowser->setVisible(true);
     m_pluginBrowser->toFront(true);
     
-    // Setup callback
+    // Setup callback to load plugin through audio processor
     m_pluginBrowser->onPluginChosen = [this, trackIndex, forEffects](const juce::PluginDescription& desc)
     {
-        if (forEffects)
+        // Get audio processor from controller
+        if (auto* processor = m_controller.getAudioProcessor())
         {
-            // TODO: Add effect to track
+            // Load plugin through the audio processor
+            bool isInstrument = !forEffects && desc.isInstrument;
+            processor->loadPlugin(trackIndex, desc, isInstrument);
+            
+            // Update track state
+            m_controller.loadPluginForTrack(trackIndex, desc.fileOrIdentifier);
         }
-        else
-        {
-            // TODO: Set instrument for track
-        }
+        hidePluginBrowser();
+    };
+    
+    // Setup close callback
+    m_pluginBrowser->onCloseRequested = [this]()
+    {
         hidePluginBrowser();
     };
     
@@ -373,10 +478,20 @@ void UICoordinator::layoutSequencerView()
 
 void UICoordinator::layoutMixerView()
 {
-    if (!m_mixerView)
-        return;
-    
-    m_mixerView->setBounds(m_contentContainer->getLocalBounds());
+    if (m_mixerView)
+    {
+        m_mixerView->setBounds(m_contentContainer->getLocalBounds());
+    }
+    else if (m_mixerPlaceholder)
+    {
+        m_mixerPlaceholder->setBounds(m_contentContainer->getLocalBounds());
+        
+        // Position the label
+        if (auto* label = m_mixerPlaceholder->findChildWithID("placeholder"))
+        {
+            label->setBounds(m_mixerPlaceholder->getLocalBounds());
+        }
+    }
 }
 
 void UICoordinator::updateViewButtonStates()

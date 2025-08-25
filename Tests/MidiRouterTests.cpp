@@ -9,6 +9,7 @@
 
 #include <JuceHeader.h>
 #include "../Source/Domain/Services/MidiRouter.h"
+#include "../Source/Application/Configuration.h"
 
 using namespace HAM;
 
@@ -201,6 +202,10 @@ private:
         beginTest("Debug Channel");
         
         MidiRouter router;
+        
+        // Configure debug channel to 16 (must set in config singleton)
+        auto& config = HAM::Application::Configuration::getInstance();
+        config.setDebugMidiChannel(16);
         
         // Test with debug enabled
         router.setDebugChannelEnabled(true);

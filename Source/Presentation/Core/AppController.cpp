@@ -11,6 +11,7 @@
 #include "Infrastructure/Messaging/MessageDispatcher.h"
 #include "Infrastructure/Messaging/MessageTypes.h"
 #include "Infrastructure/Audio/HAMAudioProcessor.h"
+#include "Infrastructure/Plugins/PluginManager.h"
 
 namespace HAM {
 namespace UI {
@@ -19,6 +20,9 @@ namespace UI {
 AppController::AppController()
 {
     initializeAudio();
+    
+    // Initialize plugin system and start scanning
+    initializePlugins();
     
     // Start performance monitoring timer (10Hz)
     startTimer(100);
@@ -61,6 +65,33 @@ void AppController::shutdownAudio()
     m_messageDispatcher = nullptr;
     
     m_audioInitialized = false;
+}
+
+void AppController::initializePlugins()
+{
+    try
+    {
+        DBG("AppController: Initializing plugin system...");
+        
+        // Initialize plugin manager and load saved plugin list
+        auto& pluginManager = PluginManager::instance();
+        pluginManager.initialise();
+        
+        // Start asynchronous plugin scanning in background
+        // Now with proper thread safety and cached paths!
+        DBG("AppController: Starting plugin scan with thread-safe implementation");
+        pluginManager.startSandboxedScan(true);
+    }
+    catch (const std::exception& e)
+    {
+        DBG("AppController: Plugin initialization failed: " << e.what());
+        // Continue without plugin support
+    }
+    catch (...)
+    {
+        DBG("AppController: Plugin initialization failed with unknown error");
+        // Continue without plugin support
+    }
 }
 
 //==============================================================================

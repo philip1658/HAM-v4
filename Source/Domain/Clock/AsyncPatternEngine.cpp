@@ -157,7 +157,11 @@ void AsyncPatternEngine::onClockPulse(int pulseNumber)
 
 void AsyncPatternEngine::onClockStart()
 {
-    // Clock started - no action needed
+    // Clock started - check for immediate switches
+    if (m_pendingQuantization == SwitchQuantization::IMMEDIATE && hasPendingSwitch())
+    {
+        executePendingSwitch();
+    }
 }
 
 void AsyncPatternEngine::onClockStop()

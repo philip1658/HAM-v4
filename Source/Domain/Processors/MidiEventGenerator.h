@@ -87,16 +87,6 @@ public:
         int samplesPerPulse,
         int channel);
     
-    // TODO: Implement velocity curves when Stage model is updated
-    // /**
-    //  * Apply velocity curve to events
-    //  * @param events Events to modify
-    //  * @param curve Velocity curve type
-    //  * @param amount Curve amount (0.0-1.0)
-    //  */
-    // void applyVelocityCurve(std::vector<MidiEvent>& events, 
-    //                        Stage::VelocityCurve curve,
-    //                        float amount);
     
     /**
      * Apply humanization to events
@@ -182,6 +172,9 @@ private:
     std::uniform_real_distribution<float> m_distribution{0.0f, 1.0f};
     std::normal_distribution<float> m_normalDistribution{0.0f, 1.0f};
     
+    // JUCE Random for thread-safe random number generation
+    juce::Random m_random;
+    
     //==============================================================================
     // Internal helpers
     
@@ -193,8 +186,6 @@ private:
     MidiEvent createCCEvent(int ccNumber, int value, int channel, int sampleOffset);
     MidiEvent createPitchBendEvent(int value, int channel, int sampleOffset);
     
-    // TODO: Implement when Stage::VelocityCurve is added
-    // float calculateVelocityCurve(float input, Stage::VelocityCurve curve, float amount);
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MidiEventGenerator)
 };

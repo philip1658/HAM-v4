@@ -104,10 +104,8 @@ void SequencerEngine::reset()
     
     initializeTrackStates();
     
-    if (m_masterClock)
-    {
-        m_masterClock->reset();
-    }
+    // Don't call m_masterClock->reset() here to avoid circular dependency
+    // The clock will handle its own reset independently
 }
 
 //==============================================================================
@@ -180,7 +178,7 @@ void SequencerEngine::onClockReset()
     reset();
 }
 
-void SequencerEngine::onTempoChanged(float newBPM)
+void SequencerEngine::onTempoChanged(float /*newBPM*/)
 {
     // Tempo changed - might need to recalculate some timing
 }
@@ -216,7 +214,7 @@ void SequencerEngine::processTrack(Track& track, int trackIndex, int pulseNumber
         return;  // Too many tracks
     
     int pulseCounter = m_trackPulseCounters[trackIndex].load();
-    int lastTrigger = m_trackLastTriggerPulse[trackIndex].load();
+    // int lastTrigger = m_trackLastTriggerPulse[trackIndex].load();  // Currently unused
     
     
     // CRITICAL: Voice mode determines advancement behavior
@@ -303,7 +301,7 @@ void SequencerEngine::processTrack(Track& track, int trackIndex, int pulseNumber
     m_stats.stagesProcessed++;
 }
 
-void SequencerEngine::advanceTrackStage(Track& track, int pulseNumber)
+void SequencerEngine::advanceTrackStage(Track& track, int /*pulseNumber*/)
 {
     int currentIndex = track.getCurrentStageIndex();
     int nextIndex = getNextStageIndex(track, currentIndex);
@@ -618,7 +616,7 @@ bool SequencerEngine::hasSoloedTracks() const
 //==============================================================================
 // MIDI Output
 
-void SequencerEngine::processBlock(double sampleRate, int numSamples)
+void SequencerEngine::processBlock(double /*sampleRate*/, int /*numSamples*/)
 {
     // Process timing for this block
     // The actual MIDI event generation happens in onClockPulse
@@ -693,7 +691,7 @@ void SequencerEngine::queueMidiEvent(const MidiEvent& event)
     // If both are 0, the FIFO is full - event is dropped
 }
 
-int SequencerEngine::calculateSampleOffset(int pulseNumber, int numSamples) const
+int SequencerEngine::calculateSampleOffset(int /*pulseNumber*/, int numSamples) const
 {
     if (!m_masterClock)
         return 0;

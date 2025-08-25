@@ -71,6 +71,41 @@ enum class SkipCondition
 
 //==============================================================================
 /**
+ * Velocity curve types for dynamic expression
+ */
+enum class VelocityCurveType
+{
+    LINEAR,         // Direct 1:1 mapping
+    EXPONENTIAL,    // Exponential curve (softer at low values)
+    LOGARITHMIC,    // Logarithmic curve (harder at low values)
+    S_CURVE,        // S-shaped curve (compressed at extremes)
+    INVERTED,       // Inverted linear (high becomes low)
+    FIXED,          // Always use fixed velocity
+    RANDOM,         // Random variation around base velocity
+    CUSTOM          // User-defined curve points
+};
+
+//==============================================================================
+/**
+ * Velocity curve configuration for a stage
+ */
+struct VelocityCurve
+{
+    VelocityCurveType type = VelocityCurveType::LINEAR;
+    float amount = 1.0f;           // Curve strength (0.0-1.0)
+    float randomization = 0.0f;    // Random variation amount (0.0-1.0)
+    int fixedVelocity = 100;       // For FIXED type
+    
+    // For CUSTOM type - up to 8 curve points
+    std::array<float, 8> customPoints{0.0f, 0.143f, 0.286f, 0.429f, 
+                                      0.571f, 0.714f, 0.857f, 1.0f};
+    
+    /** Apply curve to input velocity (0-127) */
+    int applyToVelocity(int inputVelocity, float randomValue = 0.0f) const;
+};
+
+//==============================================================================
+/**
  * Stage represents a single step in the sequencer pattern
  * Each stage contains pitch, velocity, gate, and timing information
  */
@@ -103,6 +138,17 @@ public:
     /** Sets the MIDI velocity (0-127) */
     void setVelocity(int velocity);
     int getVelocity() const { return m_velocity; }
+    
+    /** Set velocity curve configuration */
+    void setVelocityCurve(const VelocityCurve& curve) { m_velocityCurve = curve; }
+    const VelocityCurve& getVelocityCurve() const { return m_velocityCurve; }
+    VelocityCurve& getVelocityCurve() { return m_velocityCurve; }
+    
+    /** Apply velocity curve to current velocity */
+    int getProcessedVelocity(float randomValue = 0.0f) const 
+    { 
+        return m_velocityCurve.applyToVelocity(m_velocity, randomValue); 
+    }
     
     /** Sets the number of pulses for this stage (1-8) */
     void setPulseCount(int count);
@@ -230,6 +276,7 @@ private:
     int m_pitch = 60;                      // MIDI note number (C4)
     float m_gate = 0.5f;                   // Gate length (50%)
     int m_velocity = 100;                  // MIDI velocity
+    VelocityCurve m_velocityCurve;         // Velocity curve configuration
     int m_pulseCount = 1;                  // Number of pulses
     
     // Ratcheting (per pulse)

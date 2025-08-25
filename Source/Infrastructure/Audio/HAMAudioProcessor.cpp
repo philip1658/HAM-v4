@@ -9,6 +9,9 @@
 
 #include "HAMAudioProcessor.h"
 #include "../../Presentation/Views/MainEditor.h"
+#include "../../Domain/Models/Stage.h"
+#include "../../Domain/Models/Track.h"
+#include "../Plugins/PluginWindowManager.h"
 
 namespace HAM
 {
@@ -39,7 +42,7 @@ HAMAudioProcessor::HAMAudioProcessor()
     });
     
     // Create default pattern
-    m_currentPattern = std::make_unique<Pattern>();
+    m_currentPattern = std::make_shared<Pattern>();
     m_currentPattern->addTrack(); // Add one default track
     
     // Initialize per-track processors for default tracks
@@ -54,8 +57,34 @@ HAMAudioProcessor::HAMAudioProcessor()
     m_masterClock->addListener(m_sequencerEngine.get());
     
     // Initialize sequencer with pattern
-    m_sequencerEngine->setPattern(m_currentPattern.get());
+    m_sequencerEngine->setPattern(m_currentPattern);
     m_sequencerEngine->setVoiceManager(m_voiceManager.get());
+    
+    // Initialize plugin graph
+    m_pluginGraph = std::make_unique<juce::AudioProcessorGraph>();
+    
+    // Create I/O nodes - addNode returns Node::Ptr directly
+    m_audioInputNode = m_pluginGraph->addNode(
+        std::make_unique<juce::AudioProcessorGraph::AudioGraphIOProcessor>(
+            juce::AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode));
+    
+    m_audioOutputNode = m_pluginGraph->addNode(
+        std::make_unique<juce::AudioProcessorGraph::AudioGraphIOProcessor>(
+            juce::AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode));
+    
+    m_midiInputNode = m_pluginGraph->addNode(
+        std::make_unique<juce::AudioProcessorGraph::AudioGraphIOProcessor>(
+            juce::AudioProcessorGraph::AudioGraphIOProcessor::midiInputNode));
+    
+    m_midiOutputNode = m_pluginGraph->addNode(
+        std::make_unique<juce::AudioProcessorGraph::AudioGraphIOProcessor>(
+            juce::AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode));
+    
+    // Initialize track plugin chains (start with 8 tracks)
+    for (int i = 0; i < 8; ++i)
+    {
+        m_trackPluginChains.push_back(std::make_unique<TrackPluginChain>(i));
+    }
 }
 
 HAMAudioProcessor::~HAMAudioProcessor()
@@ -69,6 +98,15 @@ void HAMAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     m_currentSampleRate = sampleRate;
     m_currentBlockSize = samplesPerBlock;
+    
+    // Prepare plugin graph FIRST (before engines)
+    if (m_pluginGraph)
+    {
+        m_pluginGraph->setPlayConfigDetails(getTotalNumInputChannels(),
+                                           getTotalNumOutputChannels(),
+                                           sampleRate, samplesPerBlock);
+        m_pluginGraph->prepareToPlay(sampleRate, samplesPerBlock);
+    }
     
     // Prepare all engines
     m_masterClock->setSampleRate(sampleRate);
@@ -100,6 +138,12 @@ void HAMAudioProcessor::releaseResources()
     // Stop playback
     m_transport->stop();
     m_masterClock->stop();
+    
+    // Release plugin graph resources
+    if (m_pluginGraph)
+    {
+        m_pluginGraph->releaseResources();
+    }
     
     // Clear buffers
     m_incomingMidi.clear();
@@ -167,6 +211,20 @@ void HAMAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // Copy incoming MIDI for processing
     m_incomingMidi = midiMessages;
     
+    // ============================================================================
+    // CRITICAL FIX: Process plugins with the plugin graph!
+    // This was missing in the original implementation
+    // Without this, plugins are loaded but never actually process any audio/MIDI
+    // ============================================================================
+    if (m_pluginGraph)
+    {
+        // The plugin graph will:
+        // 1. Route MIDI to loaded instrument plugins
+        // 2. Process audio through the plugin chain
+        // 3. Mix plugin outputs to the main audio buffer
+        m_pluginGraph->processBlock(buffer, midiMessages);
+    }
+    
     // Performance monitoring
     static juce::PerformanceCounter perfCounter("HAM processBlock", 100);
     perfCounter.start();
@@ -195,34 +253,341 @@ void HAMAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 //==============================================================================
 void HAMAudioProcessor::processUIMessages()
 {
-    // Route UI messages into dispatcher and handle key toggles
+    // Process messages from UI queue
     int processed = 0;
     const int maxMessages = 32;
-    UIToEngineMessage msg;
-    while (processed < maxMessages && m_messageDispatcher->getNumPendingUIMessages() > 0)
+    
+    while (processed < maxMessages && m_messageQueue && m_messageQueue->getNumReady() > 0)
     {
-        // Pull from dispatcher's queue
-        m_messageDispatcher->processUIMessages(1);
-        processed++;
+        UIToEngineMessage msg;
+        if (m_messageQueue->pop(msg))
+        {
+            processUIMessage(msg);
+            processed++;
+        }
     }
 }
 
-// TODO: Implement when MessageTypes are defined
-/*
-void HAMAudioProcessor::handleParameterChange(const ParameterChangeMessage& msg)
+void HAMAudioProcessor::processUIMessage(const UIToEngineMessage& msg)
 {
-    // Route parameter changes to appropriate engine
-    // This is lock-free as all engines use atomic parameters
-}  
-*/
-
-// TODO: Implement when MessageTypes are defined
-/*
-void HAMAudioProcessor::handleTransportCommand(const TransportMessage& msg)
-{
-    // Handle transport commands from UI
+    switch (msg.type)
+    {
+        // Transport Control
+        case UIToEngineMessage::TRANSPORT_PLAY:
+            play();
+            break;
+            
+        case UIToEngineMessage::TRANSPORT_STOP:
+            stop();
+            break;
+            
+        case UIToEngineMessage::TRANSPORT_PAUSE:
+            pause();
+            break;
+            
+        case UIToEngineMessage::TRANSPORT_PANIC:
+            m_voiceManager->panic();
+            break;
+            
+        // Parameter Changes
+        case UIToEngineMessage::SET_BPM:
+            setBPM(msg.data.floatParam.value);
+            break;
+            
+        case UIToEngineMessage::SET_SWING:
+            if (m_masterClock)
+                // TODO: Swing should be applied per-track, not globally
+                // For now, store swing value but don't apply it
+                DBG("Swing set to: " << msg.data.floatParam.value);
+            break;
+            
+        case UIToEngineMessage::SET_MASTER_VOLUME:
+            // Store master volume for use in processBlock
+            m_masterVolume.store(msg.data.floatParam.value);
+            break;
+            
+        case UIToEngineMessage::SET_PATTERN_LENGTH:
+            if (m_currentPattern)
+            {
+                // TODO: Pattern length should be managed differently
+                // For now, log the requested length change
+                DBG("Pattern length set to: " << msg.data.intParam.value);
+                // Notify sequencer of pattern change
+                if (m_sequencerEngine)
+                    m_sequencerEngine->setPattern(m_currentPattern);
+            }
+            break;
+            
+        // Pattern Changes
+        case UIToEngineMessage::LOAD_PATTERN:
+            loadPattern(msg.data.patternParam.patternId);
+            break;
+            
+        case UIToEngineMessage::CLEAR_PATTERN:
+            // Reset the current pattern instead of clearing (Pattern has no clear method)
+            if (m_currentPattern)
+            {
+                m_currentPattern = std::make_shared<Pattern>();
+                m_currentPattern->addTrack();
+                m_sequencerEngine->setPattern(m_currentPattern);
+            }
+            break;
+            
+        // Track Control
+        case UIToEngineMessage::SET_TRACK_MUTE:
+            if (auto* track = getTrack(msg.data.trackParam.trackIndex))
+                track->setMuted(msg.data.trackParam.value != 0);
+            break;
+            
+        case UIToEngineMessage::SET_TRACK_SOLO:
+            if (auto* track = getTrack(msg.data.trackParam.trackIndex))
+                track->setSolo(msg.data.trackParam.value != 0);
+            break;
+            
+        case UIToEngineMessage::SET_TRACK_VOICE_MODE:
+            if (auto* track = getTrack(msg.data.trackParam.trackIndex))
+                track->setVoiceMode(static_cast<VoiceMode>(msg.data.trackParam.value));
+            break;
+            
+        case UIToEngineMessage::SET_TRACK_DIVISION:
+            if (auto* track = getTrack(msg.data.trackParam.trackIndex))
+                track->setDivision(msg.data.trackParam.value);
+            break;
+            
+        case UIToEngineMessage::SET_TRACK_CHANNEL:
+            if (auto* track = getTrack(msg.data.trackParam.trackIndex))
+                track->setMidiChannel(msg.data.trackParam.value);
+            break;
+            
+        case UIToEngineMessage::ADD_TRACK:
+            addTrack();
+            break;
+            
+        case UIToEngineMessage::REMOVE_TRACK:
+            removeTrack(msg.data.intParam.value);
+            break;
+            
+        // Stage Parameters
+        case UIToEngineMessage::SET_STAGE_PITCH:
+            if (auto* track = getTrack(msg.data.stageParam.trackIndex))
+            {
+                if (msg.data.stageParam.stageIndex >= 0 && msg.data.stageParam.stageIndex < 8)
+                {
+                    Stage& stage = track->getStage(msg.data.stageParam.stageIndex);
+                    stage.setPitch(static_cast<int>(msg.data.stageParam.value));
+                }
+            }
+            break;
+            
+        case UIToEngineMessage::SET_STAGE_VELOCITY:
+            if (auto* track = getTrack(msg.data.stageParam.trackIndex))
+            {
+                if (msg.data.stageParam.stageIndex >= 0 && msg.data.stageParam.stageIndex < 8)
+                {
+                    Stage& stage = track->getStage(msg.data.stageParam.stageIndex);
+                    stage.setVelocity(static_cast<int>(msg.data.stageParam.value));
+                }
+            }
+            break;
+            
+        case UIToEngineMessage::SET_STAGE_GATE:
+            if (auto* track = getTrack(msg.data.stageParam.trackIndex))
+            {
+                if (msg.data.stageParam.stageIndex >= 0 && msg.data.stageParam.stageIndex < 8)
+                {
+                    Stage& stage = track->getStage(msg.data.stageParam.stageIndex);
+                    stage.setGate(msg.data.stageParam.value);
+                }
+            }
+            break;
+            
+        case UIToEngineMessage::SET_STAGE_PULSE_COUNT:
+            if (auto* track = getTrack(msg.data.stageParam.trackIndex))
+            {
+                if (msg.data.stageParam.stageIndex >= 0 && msg.data.stageParam.stageIndex < 8)
+                {
+                    Stage& stage = track->getStage(msg.data.stageParam.stageIndex);
+                    stage.setPulseCount(static_cast<int>(msg.data.stageParam.value));
+                }
+            }
+            break;
+            
+        case UIToEngineMessage::SET_STAGE_RATCHETS:
+            if (auto* track = getTrack(msg.data.stageParam.trackIndex))
+            {
+                if (msg.data.stageParam.stageIndex >= 0 && msg.data.stageParam.stageIndex < 8)
+                {
+                    Stage& stage = track->getStage(msg.data.stageParam.stageIndex);
+                    // Copy ratchet pattern from extraData
+                    for (size_t i = 0; i < 8 && i < msg.extraData.size(); ++i)
+                        stage.setRatchetCount(static_cast<int>(i), static_cast<int>(msg.extraData[i]));
+                }
+            }
+            break;
+            
+        // Engine Configuration
+        case UIToEngineMessage::SET_SCALE:
+            // Set scale for the pitch engine of the specified track
+            if (msg.data.trackParam.trackIndex >= 0 && 
+                msg.data.trackParam.trackIndex < static_cast<int>(m_pitchEngines.size()))
+            {
+                if (auto& pitchEngine = m_pitchEngines[msg.data.trackParam.trackIndex])
+                {
+                    // TODO: Scale setting should use Scale object, not int value
+                    DBG("Scale set for track " << msg.data.trackParam.trackIndex << " to value: " << msg.data.trackParam.value);
+                }
+            }
+            break;
+            
+        case UIToEngineMessage::SET_ACCUMULATOR_MODE:
+            // Set accumulator mode for the specified track
+            if (msg.data.trackParam.trackIndex >= 0 && 
+                msg.data.trackParam.trackIndex < static_cast<int>(m_accumulatorEngines.size()))
+            {
+                if (auto& accEngine = m_accumulatorEngines[msg.data.trackParam.trackIndex])
+                {
+                    accEngine->setMode(static_cast<AccumulatorEngine::AccumulatorMode>(msg.data.trackParam.value));
+                }
+            }
+            break;
+            
+        case UIToEngineMessage::SET_GATE_TYPE:
+            // Set gate type for the specified track
+            // This will be used by the gate processor when implemented
+            if (auto* track = getTrack(msg.data.trackParam.trackIndex))
+            {
+                // TODO: GateType should be set per-stage, not per-track
+                // For now, set gate type on all stages of this track
+                for (int i = 0; i < 8; ++i) {
+                    track->getStage(i).setGateType(static_cast<GateType>(msg.data.trackParam.value));
+                }
+            }
+            break;
+            
+        case UIToEngineMessage::SET_VOICE_STEALING_MODE:
+            if (m_voiceManager)
+                m_voiceManager->setStealingMode(static_cast<VoiceManager::StealingMode>(msg.data.intParam.value));
+            break;
+            
+        // Morphing Control
+        case UIToEngineMessage::START_MORPH:
+            // Start morphing between two pattern snapshots
+            // Future implementation will use SnapshotManager
+            DBG("Morph started between slots " << msg.data.morphParam.sourceSlot 
+                << " and " << msg.data.morphParam.targetSlot);
+            break;
+            
+        case UIToEngineMessage::SET_MORPH_POSITION:
+            // Set morph position (0.0 = source, 1.0 = target)
+            // Future implementation will interpolate pattern parameters
+            DBG("Morph position set to " << msg.data.floatParam.value);
+            break;
+            
+        case UIToEngineMessage::SAVE_SNAPSHOT:
+            // Save current pattern state to snapshot slot
+            // Future implementation will use SnapshotManager
+            DBG("Pattern snapshot saved to slot " << msg.data.snapshotParam.snapshotSlot);
+            break;
+            
+        case UIToEngineMessage::LOAD_SNAPSHOT:
+            // Load pattern state from snapshot slot
+            // Future implementation will use SnapshotManager
+            DBG("Pattern snapshot loaded from slot " << msg.data.snapshotParam.snapshotSlot);
+            break;
+            
+        // System Control
+        case UIToEngineMessage::REQUEST_STATE_DUMP:
+            // Send comprehensive state information back to UI
+            {
+                EngineToUIMessage stateMsg;
+                stateMsg.type = EngineToUIMessage::TRANSPORT_STATUS;
+                stateMsg.data.transport.playing = m_transport->isPlaying();
+                stateMsg.data.transport.recording = false;
+                stateMsg.data.transport.bpm = m_masterClock->getBPM();
+                processEngineMessage(stateMsg);
+                
+                // Send voice count
+                if (m_voiceManager)
+                {
+                    EngineToUIMessage voiceMsg;
+                    voiceMsg.type = EngineToUIMessage::ACTIVE_VOICE_COUNT;
+                    voiceMsg.data.voices.count = m_voiceManager->getActiveVoiceCount();
+                    voiceMsg.data.voices.stolen = 0; // Will be updated when stats are available
+                    voiceMsg.data.voices.peak = m_voiceManager->getActiveVoiceCount();
+                    processEngineMessage(voiceMsg);
+                }
+            }
+            break;
+            
+        case UIToEngineMessage::RESET_STATISTICS:
+            // Reset performance statistics
+            m_cpuUsage.store(0.0f);
+            m_droppedMessages.store(0);
+            if (m_voiceManager)
+                m_voiceManager->resetStatistics();
+            DBG("Statistics reset");
+            break;
+            
+        case UIToEngineMessage::ENABLE_DEBUG_MODE:
+            // TODO: Implement debug mode when Transport class supports it
+            DBG("Debug mode enabled");
+            break;
+            
+        case UIToEngineMessage::DISABLE_DEBUG_MODE:
+            // TODO: Implement debug mode when Transport class supports it
+            DBG("Debug mode disabled");
+            break;
+            
+        default:
+            // Unknown message type
+            break;
+    }
 }
-*/
+
+void HAMAudioProcessor::processEngineMessage(const EngineToUIMessage& msg)
+{
+    // Forward engine messages to the UI through the message dispatcher
+    // These are typically status updates from the audio thread
+    if (m_messageDispatcher)
+    {
+        // Send to UI with appropriate priority based on message type
+        switch (msg.type)
+        {
+            case EngineToUIMessage::TRANSPORT_STATUS:
+            case EngineToUIMessage::ERROR_CPU_OVERLOAD:
+            case EngineToUIMessage::BUFFER_UNDERRUN:
+                // Critical messages get sent immediately
+                m_messageDispatcher->sendStatusToUI(msg);
+                break;
+                
+            case EngineToUIMessage::PLAYHEAD_POSITION:
+            case EngineToUIMessage::CURRENT_STAGE:
+            case EngineToUIMessage::ACTIVE_VOICE_COUNT:
+            case EngineToUIMessage::MIDI_NOTE_ON:
+            case EngineToUIMessage::MIDI_NOTE_OFF:
+            case EngineToUIMessage::CPU_USAGE:
+            case EngineToUIMessage::TIMING_DRIFT:
+                // Regular updates use normal priority
+                m_messageDispatcher->sendToUI(msg);
+                break;
+                
+            case EngineToUIMessage::DEBUG_TIMING_INFO:
+            case EngineToUIMessage::DEBUG_QUEUE_STATS:
+                // Debug messages only sent when debug mode is active
+                // TODO: Add debug mode check when Transport supports it
+                if (true) // Temporary - always send debug messages
+                {
+                    m_messageDispatcher->sendToUI(msg);
+                }
+                break;
+                
+            default:
+                // Forward any other messages with normal priority
+                m_messageDispatcher->sendToUI(msg);
+                break;
+        }
+    }
+}
 
 //==============================================================================
 void HAMAudioProcessor::play()
@@ -254,16 +619,37 @@ void HAMAudioProcessor::setBPM(float bpm)
 //==============================================================================
 void HAMAudioProcessor::loadPattern(int patternIndex)
 {
-    // TODO: Implement pattern loading from storage
-    // For now, just reset the current pattern
-    m_currentPattern = std::make_unique<Pattern>();
+    // Load pattern from internal storage (will be enhanced with file I/O later)
+    // For now, create a demo pattern
+    m_currentPattern = std::make_shared<Pattern>();
+    
+    // Add a default track with some interesting stages
     m_currentPattern->addTrack();
-    m_sequencerEngine->setPattern(m_currentPattern.get());
+    if (auto* track = m_currentPattern->getTrack(0))
+    {
+        // Set up a simple 8-stage pattern
+        for (int i = 0; i < 8; ++i)
+        {
+            Stage& stage = track->getStage(i);
+            stage.setPitch(60 + (i * 2));  // C major scale
+            stage.setVelocity(80 + (i * 5));  // Varying velocity
+            stage.setGate(0.8f);  // 80% gate length
+            stage.setPulseCount(1);
+        }
+    }
+    
+    m_sequencerEngine->setPattern(m_currentPattern);
 }
 
 void HAMAudioProcessor::savePattern(int patternIndex)
 {
-    // TODO: Implement pattern saving to storage
+    // Save pattern to internal storage (will be enhanced with file I/O later)
+    // For now, we just validate that we have a pattern to save
+    if (!m_currentPattern)
+        return;
+    
+    // Pattern saving will be implemented with the preset system
+    // This will involve serializing to ValueTree and then to JSON/binary
 }
 
 //==============================================================================
@@ -295,6 +681,205 @@ void HAMAudioProcessor::addTrack()
     // m_gateProcessors.push_back(std::make_unique<TrackGateProcessor>());
     m_pitchEngines.push_back(std::make_unique<PitchEngine>());
     m_accumulatorEngines.push_back(std::make_unique<AccumulatorEngine>());
+    
+    // Add plugin chain for new track
+    m_trackPluginChains.push_back(std::make_unique<TrackPluginChain>(
+        static_cast<int>(m_trackPluginChains.size())));
+}
+
+//==============================================================================
+// Plugin Management
+
+bool HAMAudioProcessor::loadPlugin(int trackIndex, const juce::PluginDescription& desc, bool isInstrument)
+{
+    if (trackIndex < 0 || trackIndex >= static_cast<int>(m_trackPluginChains.size()))
+        return false;
+    
+    auto& chain = m_trackPluginChains[trackIndex];
+    
+    // Create plugin instance
+    juce::String errorMessage;
+    juce::AudioPluginFormatManager formatManager;
+    formatManager.addDefaultFormats();
+    
+    auto pluginInstance = formatManager.createPluginInstance(
+        desc, 
+        m_currentSampleRate, 
+        m_currentBlockSize, 
+        errorMessage);
+    
+    if (!pluginInstance)
+    {
+        DBG("Failed to load plugin: " << errorMessage);
+        return false;
+    }
+    
+    // Add to graph - addNode returns Node::Ptr directly
+    auto node = m_pluginGraph->addNode(std::move(pluginInstance));
+    
+    if (!node)
+        return false;
+    
+    if (isInstrument)
+    {
+        // Replace existing instrument
+        if (chain->instrumentNode)
+        {
+            m_pluginGraph->removeNode(chain->instrumentNode.get());
+        }
+        chain->instrumentNode = node;
+        
+        // Connect MIDI input to instrument
+        m_pluginGraph->addConnection(
+            {{m_midiInputNode->nodeID, juce::AudioProcessorGraph::midiChannelIndex},
+             {node->nodeID, juce::AudioProcessorGraph::midiChannelIndex}});
+        
+        // Connect instrument audio to output
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            m_pluginGraph->addConnection(
+                {{node->nodeID, ch},
+                 {m_audioOutputNode->nodeID, ch}});
+        }
+    }
+    else
+    {
+        // Add as effect
+        chain->effectNodes.push_back(node);
+        
+        // Rebuild the entire effect chain connections
+        rebuildEffectChain(trackIndex);
+    }
+    
+    return true;
+}
+
+bool HAMAudioProcessor::removePlugin(int trackIndex, int pluginIndex)
+{
+    if (trackIndex < 0 || trackIndex >= static_cast<int>(m_trackPluginChains.size()))
+        return false;
+    
+    auto& chain = m_trackPluginChains[trackIndex];
+    
+    if (pluginIndex == -1)  // Remove instrument
+    {
+        if (chain->instrumentNode)
+        {
+            m_pluginGraph->removeNode(chain->instrumentNode.get());
+            chain->instrumentNode = nullptr;
+            return true;
+        }
+    }
+    else if (pluginIndex >= 0 && pluginIndex < static_cast<int>(chain->effectNodes.size()))
+    {
+        m_pluginGraph->removeNode(chain->effectNodes[pluginIndex].get());
+        chain->effectNodes.erase(chain->effectNodes.begin() + pluginIndex);
+        
+        // Rebuild the effect chain after removing the effect
+        rebuildEffectChain(trackIndex);
+        return true;
+    }
+    
+    return false;
+}
+
+void HAMAudioProcessor::showPluginEditor(int trackIndex, int pluginIndex)
+{
+    if (trackIndex < 0 || trackIndex >= static_cast<int>(m_trackPluginChains.size()))
+        return;
+    
+    auto& chain = m_trackPluginChains[trackIndex];
+    juce::AudioProcessorGraph::Node::Ptr node;
+    juce::AudioPluginInstance* pluginInstance = nullptr;
+    
+    if (pluginIndex == -1 && chain->instrumentNode)
+    {
+        node = chain->instrumentNode;
+    }
+    else if (pluginIndex >= 0 && pluginIndex < static_cast<int>(chain->effectNodes.size()))
+    {
+        node = chain->effectNodes[pluginIndex];
+    }
+    
+    if (node && node->getProcessor())
+    {
+        // Cast to AudioPluginInstance to access plugin-specific features
+        pluginInstance = dynamic_cast<juce::AudioPluginInstance*>(node->getProcessor());
+        
+        if (pluginInstance)
+        {
+            // Use PluginWindowManager for proper window lifecycle management
+            juce::String pluginName = pluginInstance->getName();
+            PluginWindowManager::getInstance().openPluginWindow(trackIndex, pluginIndex, 
+                                                                pluginInstance, pluginName);
+        }
+    }
+}
+
+void HAMAudioProcessor::rebuildEffectChain(int trackIndex)
+{
+    if (trackIndex < 0 || trackIndex >= static_cast<int>(m_trackPluginChains.size()))
+        return;
+    
+    auto& chain = m_trackPluginChains[trackIndex];
+    
+    // First, disconnect all existing connections for this track's plugins
+    // This is a simplified version - in production you'd track connections more carefully
+    
+    // Determine the starting point of the chain
+    juce::AudioProcessorGraph::NodeID sourceNode;
+    bool hasInstrument = chain->instrumentNode != nullptr;
+    
+    if (hasInstrument)
+    {
+        sourceNode = chain->instrumentNode->nodeID;
+    }
+    else
+    {
+        // No instrument, start from audio input
+        sourceNode = m_audioInputNode->nodeID;
+    }
+    
+    // Connect through all effects in sequence
+    juce::AudioProcessorGraph::NodeID lastNode = sourceNode;
+    
+    for (auto& effectNode : chain->effectNodes)
+    {
+        // Connect previous node to this effect
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            // Remove any existing connection to this effect
+            m_pluginGraph->removeConnection(
+                {{lastNode, ch},
+                 {effectNode->nodeID, ch}});
+            
+            // Add new connection
+            m_pluginGraph->addConnection(
+                {{lastNode, ch},
+                 {effectNode->nodeID, ch}});
+        }
+        
+        // MIDI routing for effects that need it
+        m_pluginGraph->addConnection(
+            {{m_midiInputNode->nodeID, juce::AudioProcessorGraph::midiChannelIndex},
+             {effectNode->nodeID, juce::AudioProcessorGraph::midiChannelIndex}});
+        
+        lastNode = effectNode->nodeID;
+    }
+    
+    // Finally connect to audio output
+    for (int ch = 0; ch < 2; ++ch)
+    {
+        // Remove any existing connection from last node to output
+        m_pluginGraph->removeConnection(
+            {{lastNode, ch},
+             {m_audioOutputNode->nodeID, ch}});
+        
+        // Add new connection to output
+        m_pluginGraph->addConnection(
+            {{lastNode, ch},
+             {m_audioOutputNode->nodeID, ch}});
+    }
 }
 
 void HAMAudioProcessor::removeTrack(int index)
@@ -377,20 +962,269 @@ size_t HAMAudioProcessor::getMemoryUsage() const
 //==============================================================================
 juce::AudioProcessorEditor* HAMAudioProcessor::createEditor()
 {
-    // TODO: Create and return MainEditor
-    return nullptr;
+    // Create the main editor UI for the processor
+    // MainEditor handles all UI components and communication with the processor
+    return new MainEditor(*this);
 }
 
 //==============================================================================
 void HAMAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
-    // TODO: Serialize state to memory block
-    // This would include current pattern, settings, etc.
+    // Create a ValueTree to store the state
+    juce::ValueTree state("HAMState");
+    
+    // Store version for backwards compatibility
+    state.setProperty("version", "1.0.0", nullptr);
+    
+    // Store transport settings
+    state.setProperty("bpm", m_masterClock->getBPM(), nullptr);
+    state.setProperty("isPlaying", m_transport->isPlaying(), nullptr);
+    
+    // Store pattern data
+    if (m_currentPattern)
+    {
+        juce::ValueTree patternTree("Pattern");
+        patternTree.setProperty("trackCount", m_currentPattern->getTrackCount(), nullptr);
+        
+        // Store each track
+        for (int t = 0; t < m_currentPattern->getTrackCount(); ++t)
+        {
+            if (auto* track = m_currentPattern->getTrack(t))
+            {
+                juce::ValueTree trackTree("Track");
+                trackTree.setProperty("index", t, nullptr);
+                trackTree.setProperty("midiChannel", track->getMidiChannel(), nullptr);
+                trackTree.setProperty("voiceMode", static_cast<int>(track->getVoiceMode()), nullptr);
+                trackTree.setProperty("muted", track->isMuted(), nullptr);
+                trackTree.setProperty("solo", track->isSolo(), nullptr);
+                // TODO: Add volume and pan when Track supports them
+                // trackTree.setProperty("volume", track->getVolume(), nullptr);
+                // trackTree.setProperty("pan", track->getPan(), nullptr);
+                trackTree.setProperty("division", track->getDivision(), nullptr);
+                trackTree.setProperty("length", track->getLength(), nullptr);
+                
+                // Store stages
+                for (int s = 0; s < 8; ++s)
+                {
+                    const Stage& stage = track->getStage(s);
+                    juce::ValueTree stageTree("Stage");
+                    stageTree.setProperty("index", s, nullptr);
+                    stageTree.setProperty("pitch", stage.getPitch(), nullptr);
+                    stageTree.setProperty("velocity", stage.getVelocity(), nullptr);
+                    stageTree.setProperty("gate", stage.getGate(), nullptr);
+                    stageTree.setProperty("pulseCount", stage.getPulseCount(), nullptr);
+                    stageTree.setProperty("gateType", stage.getGateTypeAsInt(), nullptr);
+                    
+                    // Store ratchets
+                    const auto& ratchets = stage.getRatchets();
+                    for (int r = 0; r < 8; ++r)
+                    {
+                        stageTree.setProperty("ratchet" + juce::String(r), ratchets[r], nullptr);
+                    }
+                    
+                    trackTree.addChild(stageTree, -1, nullptr);
+                }
+                
+                patternTree.addChild(trackTree, -1, nullptr);
+            }
+        }
+        
+        state.addChild(patternTree, -1, nullptr);
+    }
+    
+    // Store plugin states
+    juce::ValueTree pluginsTree("Plugins");
+    
+    // Store plugin graph state (includes all plugin connections and states)
+    if (m_pluginGraph)
+    {
+        juce::MemoryBlock graphData;
+        m_pluginGraph->getStateInformation(graphData);
+        
+        // Convert to base64 for storage in ValueTree
+        pluginsTree.setProperty("graphState", graphData.toBase64Encoding(), nullptr);
+    }
+    
+    // Store per-track plugin information
+    for (size_t t = 0; t < m_trackPluginChains.size(); ++t)
+    {
+        juce::ValueTree trackPluginsTree("TrackPlugins");
+        trackPluginsTree.setProperty("trackIndex", static_cast<int>(t), nullptr);
+        
+        const auto& chain = m_trackPluginChains[t];
+        
+        // Store instrument plugin info if present
+        if (chain->instrumentNode && chain->instrumentNode->getProcessor())
+        {
+            if (auto* plugin = dynamic_cast<juce::AudioPluginInstance*>(chain->instrumentNode->getProcessor()))
+            {
+                juce::ValueTree instrumentTree("Instrument");
+                
+                // Store plugin description
+                const auto& desc = plugin->getPluginDescription();
+                instrumentTree.setProperty("name", desc.name, nullptr);
+                instrumentTree.setProperty("manufacturer", desc.manufacturerName, nullptr);
+                instrumentTree.setProperty("fileOrId", desc.fileOrIdentifier, nullptr);
+                instrumentTree.setProperty("uniqueId", desc.uniqueId, nullptr);
+                
+                // Store plugin state
+                juce::MemoryBlock pluginData;
+                plugin->getStateInformation(pluginData);
+                instrumentTree.setProperty("state", pluginData.toBase64Encoding(), nullptr);
+                
+                trackPluginsTree.addChild(instrumentTree, -1, nullptr);
+            }
+        }
+        
+        // Store effect plugins
+        juce::ValueTree effectsTree("Effects");
+        for (size_t e = 0; e < chain->effectNodes.size(); ++e)
+        {
+            if (chain->effectNodes[e] && chain->effectNodes[e]->getProcessor())
+            {
+                if (auto* plugin = dynamic_cast<juce::AudioPluginInstance*>(chain->effectNodes[e]->getProcessor()))
+                {
+                    juce::ValueTree effectTree("Effect");
+                    effectTree.setProperty("index", static_cast<int>(e), nullptr);
+                    
+                    // Store plugin description
+                    const auto& desc = plugin->getPluginDescription();
+                    effectTree.setProperty("name", desc.name, nullptr);
+                    effectTree.setProperty("manufacturer", desc.manufacturerName, nullptr);
+                    effectTree.setProperty("fileOrId", desc.fileOrIdentifier, nullptr);
+                    effectTree.setProperty("uniqueId", desc.uniqueId, nullptr);
+                    
+                    // Store plugin state
+                    juce::MemoryBlock pluginData;
+                    plugin->getStateInformation(pluginData);
+                    effectTree.setProperty("state", pluginData.toBase64Encoding(), nullptr);
+                    
+                    effectsTree.addChild(effectTree, -1, nullptr);
+                }
+            }
+        }
+        
+        if (effectsTree.getNumChildren() > 0)
+            trackPluginsTree.addChild(effectsTree, -1, nullptr);
+        
+        pluginsTree.addChild(trackPluginsTree, -1, nullptr);
+    }
+    
+    state.addChild(pluginsTree, -1, nullptr);
+    
+    // Convert ValueTree to binary
+    juce::MemoryOutputStream stream(destData, true);
+    state.writeToStream(stream);
 }
 
 void HAMAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
-    // TODO: Deserialize state from memory block
+    // Parse the saved state
+    juce::ValueTree state = juce::ValueTree::readFromData(data, static_cast<size_t>(sizeInBytes));
+    
+    if (!state.isValid() || state.getType() != juce::Identifier("HAMState"))
+        return;
+    
+    // Check version for compatibility
+    juce::String version = state.getProperty("version", "1.0.0");
+    
+    // Restore transport settings
+    float bpm = state.getProperty("bpm", 120.0f);
+    m_masterClock->setBPM(bpm);
+    
+    // Restore pattern data
+    juce::ValueTree patternTree = state.getChildWithName("Pattern");
+    if (patternTree.isValid())
+    {
+        m_currentPattern = std::make_shared<Pattern>();
+        int trackCount = patternTree.getProperty("trackCount", 1);
+        
+        // Restore each track
+        for (int t = 0; t < trackCount; ++t)
+        {
+            m_currentPattern->addTrack();
+            juce::ValueTree trackTree = patternTree.getChild(t);
+            
+            if (trackTree.isValid() && trackTree.getType() == juce::Identifier("Track"))
+            {
+                if (auto* track = m_currentPattern->getTrack(t))
+                {
+                    track->setMidiChannel(trackTree.getProperty("midiChannel", 1));
+                    track->setVoiceMode(static_cast<VoiceMode>(int(trackTree.getProperty("voiceMode", 0))));
+                    track->setMuted(trackTree.getProperty("muted", false));
+                    track->setSolo(trackTree.getProperty("solo", false));
+                    // TODO: Restore volume and pan when Track supports them
+                    // track->setVolume(trackTree.getProperty("volume", 1.0f));
+                    // track->setPan(trackTree.getProperty("pan", 0.0f));
+                    track->setDivision(trackTree.getProperty("division", 4));
+                    track->setLength(trackTree.getProperty("length", 8));
+                    
+                    // Restore stages
+                    for (int s = 0; s < trackTree.getNumChildren(); ++s)
+                    {
+                        juce::ValueTree stageTree = trackTree.getChild(s);
+                        if (stageTree.isValid() && stageTree.getType() == juce::Identifier("Stage"))
+                        {
+                            int stageIndex = stageTree.getProperty("index", s);
+                            if (stageIndex >= 0 && stageIndex < 8)
+                            {
+                                Stage& stage = track->getStage(stageIndex);
+                                stage.setPitch(stageTree.getProperty("pitch", 60));
+                                stage.setVelocity(stageTree.getProperty("velocity", 100));
+                                stage.setGate(stageTree.getProperty("gate", 0.8f));
+                                stage.setPulseCount(stageTree.getProperty("pulseCount", 1));
+                                stage.setGateType(int(stageTree.getProperty("gateType", 0)));
+                                
+                                // Restore ratchets
+                                for (int r = 0; r < 8; ++r)
+                                {
+                                    int ratchetCount = stageTree.getProperty("ratchet" + juce::String(r), 1);
+                                    stage.setRatchetCount(r, ratchetCount);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Update sequencer with loaded pattern
+        m_sequencerEngine->setPattern(m_currentPattern);
+    }
+    
+    // Restore plugin states
+    juce::ValueTree pluginsTree = state.getChildWithName("Plugins");
+    if (pluginsTree.isValid())
+    {
+        // Restore plugin graph state first
+        juce::String graphStateBase64 = pluginsTree.getProperty("graphState", "");
+        if (graphStateBase64.isNotEmpty() && m_pluginGraph)
+        {
+            juce::MemoryBlock graphData;
+            graphData.fromBase64Encoding(graphStateBase64);
+            m_pluginGraph->setStateInformation(graphData.getData(), static_cast<int>(graphData.getSize()));
+        }
+        
+        // Note: Individual plugin loading would require re-instantiating plugins
+        // This is complex as it requires:
+        // 1. Plugin format manager
+        // 2. Re-creating plugin instances from descriptions
+        // 3. Restoring their states
+        // For now, the graph state should handle most of the restoration
+        
+        // TODO: Implement full plugin restoration if graph state is insufficient
+        // This would involve:
+        // - Loading plugin descriptions from the saved data
+        // - Using loadPlugin() to recreate each plugin
+        // - Restoring each plugin's individual state
+    }
+    
+    // Restore playing state if it was playing
+    bool wasPlaying = state.getProperty("isPlaying", false);
+    if (wasPlaying)
+    {
+        play();
+    }
 }
 
 } // namespace HAM

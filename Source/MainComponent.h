@@ -41,6 +41,9 @@ public:
     void resized() override;
     
     bool keyPressed(const juce::KeyPress& key) override;
+    
+    // Access to internal components
+    HAM::UI::UICoordinator* getUICoordinator() { return m_uiCoordinator.get(); }
 
 private:
     //==============================================================================

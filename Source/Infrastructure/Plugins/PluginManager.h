@@ -15,6 +15,8 @@
 #include <vector>
 #include <unordered_map>
 #include <mutex>
+#include <thread>
+#include <atomic>
 
 namespace HAM
 {
@@ -28,7 +30,7 @@ namespace HAM
  * - Support for instrument and effect plugins per track
  * - Bridge process lifecycle management
  */
-class PluginManager
+class PluginManager : private juce::Timer
 {
 public:
     //==============================================================================
@@ -163,10 +165,21 @@ public:
         juce::String current;
     };
     
-    void initialise() { /* TODO: Initialize plugin scanning */ }
-    void startSandboxedScan(bool async) { /* TODO: Implement sandboxed scanning */ }
-    bool isScanning() const { return false; /* TODO: Return actual scanning state */ }
-    ScanProgress getProgress() const { return ScanProgress{100, 100, "Complete"}; /* TODO: Return actual progress */ }
+    /** Initialize plugin scanning system */
+    void initialise();
+    
+    /** Start sandboxed plugin scan */
+    void startSandboxedScan(bool async);
+    
+    /** Check if currently scanning */
+    bool isScanning() const;
+    
+    /** Get scan progress */
+    ScanProgress getProgress() const;
+    
+    /** Get known plugins list */
+    juce::KnownPluginList& getKnownPluginList() { return m_knownPluginList; }
+    const juce::KnownPluginList& getKnownPluginList() const { return m_knownPluginList; }
     
     //==============================================================================
     // Plugin Management
@@ -296,10 +309,38 @@ private:
     // Plugin format manager (shared)
     juce::AudioPluginFormatManager m_formatManager;
     
+    // Known plugins list
+    juce::KnownPluginList m_knownPluginList;
+    
+    // Scanning state
+    std::atomic<bool> m_isScanning{false};
+    std::atomic<int> m_scanTotal{0};
+    std::atomic<int> m_scanProgress{0};
+    juce::String m_currentPlugin;
+    
+    // Plugin scanner (for async scanning)
+    std::unique_ptr<juce::PluginDirectoryScanner> m_scanner;
+    std::unique_ptr<std::thread> m_scanThread;
+    
+    // Cached paths for thread safety
+    struct CachedPaths
+    {
+        juce::File appDataDir;
+        juce::File pluginListFile;
+        juce::FileSearchPath searchPaths;
+        bool isValid{false};
+    };
+    CachedPaths m_cachedPaths;
+    
     //==============================================================================
     // Helper Methods
     
     static juce::File findPluginHostBridge();
+    void savePluginList();
+    void cacheDirectoryPaths();  // Cache paths in main thread
+    
+    // Timer callback for safe scanning on message thread
+    void timerCallback() override;
     
     // Note: Non-copyable is enforced by deleted constructors above
 };

@@ -117,16 +117,10 @@ public:
     /** Get and clear MIDI events */
     void getAndClearMidiEvents(std::vector<MidiEvent>& events);
     
-    /** Set current pattern (deprecated: use setActivePattern instead) */
-    void setPattern(Pattern* pattern) { 
-        // Don't copy - just store a non-owning reference
-        // TODO: This is unsafe! Pattern lifetime must be managed elsewhere.
-        // Consider removing this method entirely in favor of setActivePattern
-        if (pattern) {
-            // For now, we'll just reset to nullptr to avoid crashes
-            // The proper fix is to change HAMAudioProcessor to use setActivePattern
-            m_activePattern = nullptr;  
-        }
+    /** Set current pattern - safe wrapper for legacy code */
+    void setPattern(std::shared_ptr<Pattern> pattern) { 
+        // Safe delegation to setActivePattern
+        setActivePattern(pattern);
     }
     
     //==========================================================================

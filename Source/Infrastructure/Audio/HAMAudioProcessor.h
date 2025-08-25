@@ -121,6 +121,21 @@ public:
     Pattern* getCurrentPattern() { return m_currentPattern.get(); }
     
     //==============================================================================
+    // Plugin Management
+    
+    /** Load a plugin for a track */
+    bool loadPlugin(int trackIndex, const juce::PluginDescription& desc, bool isInstrument);
+    
+    /** Remove a plugin from a track */
+    bool removePlugin(int trackIndex, int pluginIndex);
+    
+    /** Show plugin editor window */
+    void showPluginEditor(int trackIndex, int pluginIndex);
+    
+    /** Rebuild effect chain connections for a track */
+    void rebuildEffectChain(int trackIndex);
+    
+    //==============================================================================
     // Performance monitoring
     
     float getCpuUsage() const { return m_cpuUsage.load(); }
@@ -156,12 +171,11 @@ private:
     /** Render events from engines to MIDI buffer */
     void renderMidiEvents(juce::MidiBuffer& midiMessages, int numSamples);
     
-    // TODO: Implement when MessageTypes are defined
-    // /** Handle parameter changes from UI */
-    // void handleParameterChange(const ParameterChangeMessage& msg);
-    // 
-    // /** Handle transport commands from UI */
-    // void handleTransportCommand(const TransportMessage& msg);
+    /** Process a single UI message */
+    void processUIMessage(const UIToEngineMessage& msg);
+    
+    /** Process a single engine message */
+    void processEngineMessage(const EngineToUIMessage& msg);
     
     //==============================================================================
     // Core components (Domain layer)
@@ -172,6 +186,24 @@ private:
     std::unique_ptr<VoiceManager> m_voiceManager;
     std::unique_ptr<MidiRouter> m_midiRouter;
     std::unique_ptr<ChannelManager> m_channelManager;
+    
+    // Plugin hosting
+    std::unique_ptr<juce::AudioProcessorGraph> m_pluginGraph;
+    juce::AudioProcessorGraph::Node::Ptr m_audioInputNode;
+    juce::AudioProcessorGraph::Node::Ptr m_audioOutputNode;
+    juce::AudioProcessorGraph::Node::Ptr m_midiInputNode;
+    juce::AudioProcessorGraph::Node::Ptr m_midiOutputNode;
+    
+    // Track plugin chains
+    struct TrackPluginChain
+    {
+        juce::AudioProcessorGraph::Node::Ptr instrumentNode;
+        std::vector<juce::AudioProcessorGraph::Node::Ptr> effectNodes;
+        int trackIndex;
+        
+        TrackPluginChain(int index) : trackIndex(index) {}
+    };
+    std::vector<std::unique_ptr<TrackPluginChain>> m_trackPluginChains;
     
     // Per-track processors
     // TODO: Re-enable when TrackGateProcessor is implemented
@@ -188,7 +220,7 @@ private:
     //==============================================================================
     // State
     
-    std::unique_ptr<Pattern> m_currentPattern;
+    std::shared_ptr<Pattern> m_currentPattern;
     std::atomic<bool> m_isProcessing{false};
     
     // Audio parameters
@@ -198,6 +230,9 @@ private:
     // Performance monitoring
     std::atomic<float> m_cpuUsage{0.0f};
     std::atomic<int> m_droppedMessages{0};
+    
+    // Audio parameters
+    std::atomic<float> m_masterVolume{1.0f};
     
     //==============================================================================
     // MIDI buffers for lock-free processing

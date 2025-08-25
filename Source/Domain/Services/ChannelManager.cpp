@@ -45,6 +45,9 @@ bool ChannelManager::assignTrackBuffer(int trackIndex, TrackPriority priority)
     if (m_trackAssignments[trackIndex].bufferIndex >= 0)
         return true;
     
+    // Update timing to ensure current time is valid
+    updateTiming();
+    
     // Find free buffer slot
     int bufferIndex = findFreeBufferSlot();
     
@@ -497,6 +500,7 @@ void ChannelManager::performEmergencyCleanup()
     updateTiming();
     
     // Release all inactive buffers
+    // In emergency situations, be more aggressive about cleanup
     for (int i = 0; i < MAX_TRACKS; ++i)
     {
         auto& assignment = m_trackAssignments[i];
@@ -504,9 +508,9 @@ void ChannelManager::performEmergencyCleanup()
         {
             auto& slot = m_bufferPool[assignment.bufferIndex];
             
-            // Check if truly inactive
-            if (slot.eventCount.load() == 0 && 
-                m_currentTime - slot.lastAccessTime > 1000)
+            // Check if truly inactive (no events)
+            // In emergency cleanup, we don't wait for time threshold
+            if (slot.eventCount.load() == 0)
             {
                 releaseTrackBuffer(i);
             }

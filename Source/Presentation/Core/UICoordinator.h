@@ -14,6 +14,10 @@
 #include "Presentation/Core/ComponentBase.h"
 
 namespace HAM {
+
+// Forward declare HAMAudioProcessor
+class HAMAudioProcessor;
+
 namespace UI {
 
 // Forward declarations
@@ -36,6 +40,9 @@ public:
     //==============================================================================
     UICoordinator(AppController& controller);
     ~UICoordinator() override;
+    
+    // Set the audio processor (needed for MixerView)
+    void setAudioProcessor(HAMAudioProcessor* processor);
 
     //==============================================================================
     // View switching
@@ -101,6 +108,7 @@ private:
     
     // Mixer view components
     std::unique_ptr<MixerView> m_mixerView;
+    std::unique_ptr<juce::Component> m_mixerPlaceholder; // Placeholder when no AudioProcessor
     
     // Plugin browser (overlay)
     std::unique_ptr<PluginBrowser> m_pluginBrowser;

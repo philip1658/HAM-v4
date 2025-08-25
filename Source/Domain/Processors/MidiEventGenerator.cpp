@@ -40,6 +40,11 @@ std::vector<MidiEventGenerator::MidiEvent> MidiEventGenerator::generateStageEven
     int channel = track->getMidiChannel();
     if (channel < 1 || channel > 16) return events;
     
+    // Set track swing on the gate engine
+    // Convert from track's 50-75 range to -0.25 to +0.25 range for the engine
+    float trackSwing = (track->getSwing() - 50.0f) / 100.0f;  // Convert to 0-0.25 range
+    m_gateEngine->setGlobalSwing(trackSwing);
+    
     // Process gate events
     auto gateEvents = m_gateEngine->processStageGate(stage, pulseIndex, sampleRate, samplesPerPulse);
     
@@ -72,7 +77,14 @@ std::vector<MidiEventGenerator::MidiEvent> MidiEventGenerator::generateStageEven
         
         if (gateEvent.isNoteOn)
         {
-            int velocity = static_cast<int>(gateEvent.velocity * 127.0f * m_globalVelocity.load());
+            // Apply velocity curve to stage velocity
+            float randomValue = m_random.nextFloat(); // Random value for curve processing
+            int baseVelocity = stage.getProcessedVelocity(randomValue);
+            
+            // Apply global velocity scaling
+            int velocity = static_cast<int>(baseVelocity * m_globalVelocity.load());
+            
+            // Apply additional randomization if enabled
             velocity = applyVelocityRandomization(velocity);
             velocity = std::clamp(velocity, 1, 127);
             
@@ -145,32 +157,6 @@ std::vector<MidiEventGenerator::MidiEvent> MidiEventGenerator::generateRatcheted
     return events;
 }
 
-// TODO: Implement when Stage::VelocityCurve is added
-// //==============================================================================
-// void MidiEventGenerator::applyVelocityCurve(std::vector<MidiEvent>& events, 
-//                                            Stage::VelocityCurve curve,
-//                                            float amount)
-// {
-//     for (auto& event : events)
-//     {
-//         if (event.message.isNoteOn())
-//         {
-//             float velocity = event.message.getVelocity() / 127.0f;
-//             velocity = calculateVelocityCurve(velocity, curve, amount);
-//             
-//             int newVelocity = static_cast<int>(velocity * 127.0f);
-//             newVelocity = std::clamp(newVelocity, 1, 127);
-//             
-//             event.message = juce::MidiMessage::noteOn(
-//                 event.message.getChannel(),
-//                 event.message.getNoteNumber(),
-//                 (uint8)newVelocity
-//             );
-//             
-//             event.velocity = newVelocity / 127.0f;
-//         }
-//     }
-// }
 
 //==============================================================================
 void MidiEventGenerator::applyHumanization(std::vector<MidiEvent>& events,
@@ -278,6 +264,9 @@ MidiEventGenerator::MidiEvent MidiEventGenerator::createNoteOnEvent(
     event.sampleOffset = sampleOffset;
     event.channel = channel;
     event.velocity = velocity / 127.0f;
+    event.trackIndex = 0;    // Initialize to default
+    event.stageIndex = 0;    // Initialize to default
+    event.ratchetIndex = 0;  // Initialize to default
     return event;
 }
 
@@ -289,6 +278,9 @@ MidiEventGenerator::MidiEvent MidiEventGenerator::createNoteOffEvent(
     event.sampleOffset = sampleOffset;
     event.channel = channel;
     event.velocity = 0.0f;
+    event.trackIndex = 0;    // Initialize to default
+    event.stageIndex = 0;    // Initialize to default
+    event.ratchetIndex = 0;  // Initialize to default
     return event;
 }
 
@@ -300,6 +292,9 @@ MidiEventGenerator::MidiEvent MidiEventGenerator::createCCEvent(
     event.sampleOffset = sampleOffset;
     event.channel = channel;
     event.velocity = 0.0f;
+    event.trackIndex = 0;    // Initialize to default
+    event.stageIndex = 0;    // Initialize to default
+    event.ratchetIndex = 0;  // Initialize to default
     return event;
 }
 
@@ -311,40 +306,11 @@ MidiEventGenerator::MidiEvent MidiEventGenerator::createPitchBendEvent(
     event.sampleOffset = sampleOffset;
     event.channel = channel;
     event.velocity = 0.0f;
+    event.trackIndex = 0;    // Initialize to default
+    event.stageIndex = 0;    // Initialize to default
+    event.ratchetIndex = 0;  // Initialize to default
     return event;
 }
 
-// TODO: Implement when Stage::VelocityCurve is added
-// float MidiEventGenerator::calculateVelocityCurve(float input, Stage::VelocityCurve curve, float amount)
-// {
-//     float output = input;
-//     
-//     switch (curve)
-//     {
-//         case Stage::VelocityCurve::LINEAR:
-//             // No change
-//             break;
-//             
-//         case Stage::VelocityCurve::EXPONENTIAL:
-//             output = std::pow(input, 2.0f - amount);
-//             break;
-//             
-//         case Stage::VelocityCurve::LOGARITHMIC:
-//             output = std::log(1.0f + input * 9.0f) / std::log(10.0f);
-//             break;
-//             
-//         case Stage::VelocityCurve::S_CURVE:
-//             // Smooth S-curve
-//             output = input * input * (3.0f - 2.0f * input);
-//             break;
-//             
-//         case Stage::VelocityCurve::INVERSE:
-//             output = 1.0f - input;
-//             break;
-//     }
-//     
-//     // Blend with original based on amount
-//     return input * (1.0f - amount) + output * amount;
-// }
 
 } // namespace HAM

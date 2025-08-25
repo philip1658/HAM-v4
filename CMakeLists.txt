@@ -20,6 +20,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # Options
 option(HAM_BUILD_TESTS "Build unit tests" ON)
 option(DEBUG_MIDI_MONITOR "Enable MIDI debug monitor on channel 16" OFF)
+option(HAM_ENABLE_COVERAGE "Enable code coverage" OFF)
 
 # Download JUCE if not found
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/JUCE")
@@ -97,6 +98,10 @@ target_sources(HAM PRIVATE
     # Services - Channel Manager
     Source/Domain/Services/ChannelManager.h
     Source/Domain/Services/ChannelManager.cpp
+    
+    # Services - Preset Manager
+    Source/Domain/Services/PresetManager.h
+    Source/Domain/Services/PresetManager.cpp
     
     # Engines - Gate Engine
     Source/Domain/Engines/GateEngine.h
@@ -180,6 +185,37 @@ target_compile_definitions(HAM PRIVATE
     JUCE_PLUGINHOST_AU=1
     $<$<BOOL:${DEBUG_MIDI_MONITOR}>:DEBUG_MIDI_MONITOR=1>
 )
+
+# Code coverage configuration
+if(HAM_ENABLE_COVERAGE)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+        target_compile_options(HAM PRIVATE --coverage -fprofile-arcs -ftest-coverage)
+        target_link_options(HAM PRIVATE --coverage)
+        
+        # Add custom target for coverage report
+        find_program(LCOV lcov)
+        find_program(GENHTML genhtml)
+        
+        if(LCOV AND GENHTML)
+            add_custom_target(coverage
+                COMMAND ${LCOV} --directory . --capture --output-file coverage.info
+                COMMAND ${LCOV} --remove coverage.info '/usr/*' '*/JUCE/*' '*/Tests/*' --output-file coverage.info
+                COMMAND ${GENHTML} coverage.info --output-directory coverage-report
+                WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+                COMMENT "Generating code coverage report..."
+            )
+            
+            add_custom_target(coverage-clean
+                COMMAND ${LCOV} --directory . --zerocounters
+                COMMAND rm -rf coverage.info coverage-report
+                WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+                COMMENT "Cleaning coverage data..."
+            )
+        else()
+            message(WARNING "lcov/genhtml not found. Coverage report generation will not be available.")
+        endif()
+    endif()
+endif()
 
 # Include directories
 target_include_directories(HAM PRIVATE
@@ -357,3 +393,11 @@ message(STATUS "  Architectures: ${CMAKE_OSX_ARCHITECTURES}")
 message(STATUS "  MIDI Monitor: ${DEBUG_MIDI_MONITOR}")
 message(STATUS "  Build Tests: ${HAM_BUILD_TESTS}")
 message(STATUS "")
+# Plugin System Components (if not already added)
+set(PLUGIN_SOURCES
+    Source/Infrastructure/Plugins/PluginWindowManager.h
+    Source/Presentation/Views/MixerView.h
+)
+
+# Add to target sources
+target_sources(HAM PRIVATE ${PLUGIN_SOURCES})

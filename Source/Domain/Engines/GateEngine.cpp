@@ -61,9 +61,18 @@ std::vector<GateEngine::GateEvent> GateEngine::processStageGate(
             // Generate gate for each ratchet
             for (int i = 0; i < ratchetCount; ++i)
             {
-                float probability = stage.getProbability();
-                if (!shouldTrigger(probability))
+                // First check stage probability
+                float stageProbability = stage.getProbability() / 100.0f;  // Convert from percentage
+                if (!shouldTrigger(stageProbability))
                     continue;
+                
+                // Then check ratchet probability (only for ratchets after the first)
+                if (i > 0)  // First ratchet always plays if stage probability passes
+                {
+                    float ratchetProbability = stage.getRatchetProbability();
+                    if (!shouldTrigger(ratchetProbability))
+                        continue;
+                }
                 
                 int offset = ratchetOffsets[i];
                 bool isEvenBeat = (i % 2) == 0;
@@ -91,7 +100,7 @@ std::vector<GateEngine::GateEvent> GateEngine::processStageGate(
         case GateType::HOLD:
         {
             // Single gate spanning all ratchets
-            float probability = stage.getProbability();
+            float probability = stage.getProbability() / 100.0f;  // Convert from percentage
             if (shouldTrigger(probability))
             {
                 // Note on at first ratchet
@@ -116,7 +125,7 @@ std::vector<GateEngine::GateEvent> GateEngine::processStageGate(
         case GateType::SINGLE:
         {
             // Gate only on first ratchet
-            float probability = stage.getProbability();
+            float probability = stage.getProbability() / 100.0f;  // Convert from percentage
             if (shouldTrigger(probability))
             {
                 int offset = ratchetOffsets[0];
