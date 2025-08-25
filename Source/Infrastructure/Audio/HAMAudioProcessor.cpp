@@ -173,6 +173,18 @@ void HAMAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         return;
     }
     
+    // Debug: Log every 1000th call to verify processing is happening (reduced frequency)
+    static int processCounter = 0;
+    if (++processCounter % 1000 == 0)
+    {
+        DBG("HAMAudioProcessor::processBlock called " << processCounter << " times, playing: " 
+            << (m_transport->isPlaying() ? "YES" : "NO") 
+            << ", BPM: " << m_masterClock->getBPM()
+            << ", Position: " << m_masterClock->getCurrentBar() << ":" 
+            << m_masterClock->getCurrentBeat() << ":" 
+            << m_masterClock->getCurrentPulse());
+    }
+    
     // Clear output buffer (we don't generate audio, only MIDI)
     buffer.clear();
     
@@ -592,9 +604,11 @@ void HAMAudioProcessor::processEngineMessage(const EngineToUIMessage& msg)
 //==============================================================================
 void HAMAudioProcessor::play()
 {
+    DBG("HAMAudioProcessor::play() - Starting playback");
     m_transport->play();
     m_masterClock->start();
     m_sequencerEngine->start();
+    DBG("HAMAudioProcessor::play() - All components started");
 }
 
 void HAMAudioProcessor::stop()

@@ -113,6 +113,9 @@ public:
     void setBPM(float bpm);
     float getBPM() const { return m_masterClock->getBPM(); }
     
+    // Access to master clock for position display
+    MasterClock* getMasterClock() const { return m_masterClock.get(); }
+    
     //==============================================================================
     // Pattern management
     

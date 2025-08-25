@@ -40,8 +40,13 @@ void AppController::initializeAudio()
     if (m_audioInitialized)
         return;
     
-    // Initialize audio engine and messaging bridge
-    m_processor = std::make_unique<HAMAudioProcessor>();
+    // Check if we already have a processor (e.g., from MainWindow)
+    if (!m_processor)
+    {
+        // Only create processor if we don't have one
+        m_processor = std::make_unique<HAMAudioProcessor>();
+    }
+    
     m_messageDispatcher = &m_processor->getMessageDispatcher();
     setupMessageHandlers();
     
@@ -71,25 +76,37 @@ void AppController::initializePlugins()
 {
     try
     {
-        DBG("AppController: Initializing plugin system...");
+        DBG("AppController: Checking plugin system status...");
         
-        // Initialize plugin manager and load saved plugin list
+        // Plugin manager is already initialized in Main.cpp during splash screen
+        // We just need to check if it's ready and get a reference
         auto& pluginManager = PluginManager::instance();
-        pluginManager.initialise();
         
-        // Start asynchronous plugin scanning in background
-        // Now with proper thread safety and cached paths!
-        DBG("AppController: Starting plugin scan with thread-safe implementation");
-        pluginManager.startSandboxedScan(true);
+        // Don't re-initialize or restart scan - it's already running from Main.cpp
+        if (pluginManager.isScanning())
+        {
+            DBG("AppController: Plugin scan already in progress");
+        }
+        else
+        {
+            DBG("AppController: Plugin scan complete or not started");
+            // If for some reason the scan wasn't started in Main.cpp, start it now
+            if (pluginManager.getKnownPluginList().getNumTypes() == 0)
+            {
+                DBG("AppController: No plugins found, attempting to scan...");
+                pluginManager.initialise();
+                pluginManager.startSandboxedScan(true);
+            }
+        }
     }
     catch (const std::exception& e)
     {
-        DBG("AppController: Plugin initialization failed: " << e.what());
+        DBG("AppController: Plugin system check failed: " << e.what());
         // Continue without plugin support
     }
     catch (...)
     {
-        DBG("AppController: Plugin initialization failed with unknown error");
+        DBG("AppController: Plugin system check failed with unknown error");
         // Continue without plugin support
     }
 }

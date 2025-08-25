@@ -135,6 +135,21 @@ void UICoordinator::setupEventHandlers()
         m_controller.setMidiMonitorEnabled(enabled);
     };
     
+    // Position update callback - get clock position from audio processor
+    m_transportBar->onRequestPosition = [this](int& bar, int& beat, int& pulse)
+    {
+        if (auto* processor = m_controller.getAudioProcessor())
+        {
+            // Get the master clock from processor
+            if (auto* clock = processor->getMasterClock())
+            {
+                bar = clock->getCurrentBar() + 1;    // Add 1 for display (1-based)
+                beat = clock->getCurrentBeat() + 1;  // Add 1 for display (1-based)
+                pulse = clock->getCurrentPulse();    // 0-based is fine for pulse
+            }
+        }
+    };
+    
     // View switching
     m_sequencerTabButton->onClick = [this]()
     {
@@ -478,18 +493,25 @@ void UICoordinator::layoutSequencerView()
 
 void UICoordinator::layoutMixerView()
 {
+    if (!m_contentContainer)
+        return;
+        
+    auto bounds = m_contentContainer->getLocalBounds();
+    
     if (m_mixerView)
     {
-        m_mixerView->setBounds(m_contentContainer->getLocalBounds());
+        m_mixerView->setBounds(bounds);
+        m_mixerView->setVisible(true);  // Ensure it's visible
     }
     else if (m_mixerPlaceholder)
     {
-        m_mixerPlaceholder->setBounds(m_contentContainer->getLocalBounds());
+        m_mixerPlaceholder->setBounds(bounds);
+        m_mixerPlaceholder->setVisible(true);  // Ensure it's visible
         
         // Position the label
-        if (auto* label = m_mixerPlaceholder->findChildWithID("placeholder"))
+        if (m_mixerPlaceholder->getNumChildComponents() > 0)
         {
-            label->setBounds(m_mixerPlaceholder->getLocalBounds());
+            m_mixerPlaceholder->getChildComponent(0)->setBounds(bounds);
         }
     }
 }

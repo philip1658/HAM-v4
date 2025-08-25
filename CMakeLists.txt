@@ -47,9 +47,15 @@ juce_add_gui_app(HAM
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT TRUE
-    PLUGINHOST_AU TRUE
+    PLUGINHOST_AU TRUE        # Enable AudioUnit hosting on macOS
+    PLUGINHOST_VST3 TRUE       # Enable VST3 hosting
+    PLUGINHOST_VST FALSE       # VST2 is deprecated
+    PLUGINHOST_LV2 FALSE       # LV2 not needed for now
+    PLUGINHOST_ARA FALSE       # ARA not needed
     MICROPHONE_PERMISSION_ENABLED FALSE
     CAMERA_PERMISSION_ENABLED FALSE
+    HARDENED_RUNTIME_ENABLED TRUE
+    HARDENED_RUNTIME_OPTIONS "com.apple.security.device.audio-input"
 )
 
 # Generate JUCE header
@@ -141,6 +147,7 @@ target_sources(HAM PRIVATE
     Source/Presentation/Views/MainEditor.h
     Source/Presentation/Views/PluginBrowser.h
     Source/Presentation/Views/MixerView.h
+    Source/Presentation/Views/MixerView.cpp
     
     # UI Components - New Modular Architecture
     Source/UI/ComponentBase.h

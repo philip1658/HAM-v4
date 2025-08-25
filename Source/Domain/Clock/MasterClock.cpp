@@ -42,7 +42,12 @@ void MasterClock::start()
     bool expected = false;
     if (m_isRunning.compare_exchange_strong(expected, true))
     {
+        DBG("MasterClock::start() - Clock started successfully!");
         notifyClockStart();
+    }
+    else
+    {
+        DBG("MasterClock::start() - Clock was already running");
     }
 }
 
@@ -120,7 +125,18 @@ void MasterClock::processBlock(double sampleRate, int numSamples)
     if (isTestContext)
         callStart = std::chrono::high_resolution_clock::now();
     if (!m_isRunning.load())
+    {
+        // Clock not running - this is normal when stopped
         return;
+    }
+    
+    // Log first processBlock after start
+    static bool firstProcess = true;
+    if (firstProcess)
+    {
+        DBG("MasterClock::processBlock() - First process block, clock is running!");
+        firstProcess = false;
+    }
     
     // Update sample rate if changed
     if (std::abs(sampleRate - m_lastSampleRate) > 0.01)

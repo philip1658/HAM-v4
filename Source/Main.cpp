@@ -10,6 +10,7 @@
 #include <JuceHeader.h>
 #include "MainComponent.h"
 #include "Infrastructure/Plugins/PluginManager.h"
+#include "Infrastructure/Audio/HAMAudioProcessor.h"
 
 //==============================================================================
 class HAMApplication : public juce::JUCEApplication
@@ -45,7 +46,22 @@ public:
 
     void shutdown() override
     {
-        mainWindow = nullptr;
+        // Proper cleanup sequence
+        if (splashWindow)
+            splashWindow = nullptr;
+        
+        if (mainWindow)
+        {
+            // Stop audio processing before destroying the window
+            if (auto* mainComp = dynamic_cast<MainComponent*>(mainWindow->getContentComponent()))
+            {
+                // MainComponent destructor will handle cleanup
+            }
+            mainWindow = nullptr;
+        }
+        
+        // Plugin manager will be cleaned up via its destructor
+        // No explicit shutdown needed as it's a singleton
     }
 
     //==============================================================================
@@ -71,6 +87,9 @@ public:
                            DocumentWindow::allButtons)
         {
             setUsingNativeTitleBar(true);
+            
+            // Create MainComponent which handles everything
+            // The AppController inside will create the HAMAudioProcessor
             setContentOwned(new MainComponent(), true);
 
            #if JUCE_IOS || JUCE_ANDROID
@@ -89,6 +108,11 @@ public:
 
         void closeButtonPressed() override
         {
+            // Check if user wants to save before quitting
+            if (auto* mainComp = dynamic_cast<MainComponent*>(getContentComponent()))
+            {
+                // For now, just quit - TODO: Add save prompt
+            }
             JUCEApplication::getInstance()->systemRequestedQuit();
         }
 
@@ -104,7 +128,8 @@ public:
 
         PluginScanSplash()
         {
-            startTimerHz(20);
+            // Reduced timer frequency to 10Hz to avoid rate-limiting errors
+            startTimerHz(10);
         }
 
         void setOnFinished(FinishedCallback cb) { onFinished = std::move(cb); }

@@ -14,7 +14,8 @@ namespace HAM::UI {
 // ==========================================
 // Transport Bar - Main playback controls
 // ==========================================
-class TransportBar : public BaseComponent {
+class TransportBar : public BaseComponent, 
+                     private juce::Timer {
 public:
     TransportBar() {
         // Create play button using HAM library
@@ -100,9 +101,14 @@ public:
         
         // Set default size
         setSize(1200, 80);
+        
+        // Start timer for position updates (30 Hz for smooth updates)
+        startTimerHz(30);
     }
     
-    ~TransportBar() override = default;
+    ~TransportBar() override {
+        stopTimer();
+    }
     
     // Paint override
     void paint(juce::Graphics& g) override {
@@ -222,9 +228,35 @@ public:
     std::function<void(float swing)> onSwingChanged;
     std::function<void(bool enabled)> onMidiMonitorToggled;
     
+    // Callback to get current position from the audio processor
+    std::function<void(int& bar, int& beat, int& pulse)> onRequestPosition;
+    
     bool isPlaying() const { return m_isPlaying; }
     
 private:
+    // Timer callback for updating position display
+    void timerCallback() override {
+        if (onRequestPosition) {
+            int bar = 1, beat = 1, pulse = 0;
+            onRequestPosition(bar, beat, pulse);
+            
+            // Update position display with visual feedback when playing
+            if (m_isPlaying) {
+                // Add a pulsing animation on the beat
+                if (pulse == 0) {
+                    // Flash on the beat
+                    m_positionLabel->setColour(juce::Label::textColourId, 
+                                              juce::Colour(DesignTokens::Colors::ACCENT_CYAN));
+                } else {
+                    m_positionLabel->setColour(juce::Label::textColourId, 
+                                              juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
+                }
+            }
+            
+            setPosition(bar, beat, pulse);
+        }
+    }
+    
     // Transport controls from HAM component library
     std::unique_ptr<PlayButton> m_playButton;
     std::unique_ptr<StopButton> m_stopButton;

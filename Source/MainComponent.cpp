@@ -23,6 +23,12 @@ MainComponent::MainComponent()
     m_uiCoordinator = std::make_unique<HAM::UI::UICoordinator>(*m_appController);
     m_mainWindow = std::make_unique<HAM::UI::MainWindow>();
     
+    // Connect the AudioProcessor from AppController to UICoordinator
+    if (m_appController->getAudioProcessor())
+    {
+        m_uiCoordinator->setAudioProcessor(m_appController->getAudioProcessor());
+    }
+    
     // Add UI coordinator as the main content
     addAndMakeVisible(m_uiCoordinator.get());
     

@@ -67,8 +67,15 @@ public:
         // Load cached plugin list if available
         loadPluginList();
         
+        // If no plugins found, start a scan automatically
+        if (m_allPlugins.isEmpty())
+        {
+            DBG("No cached plugins found, starting initial scan...");
+            scanForPlugins();
+        }
+        
         // Start timer to update plugin list during scan
-        startTimer(500); // Update every 500ms
+        startTimer(100); // Update every 100ms for faster UI updates
     }
     
     ~PluginBrowser() override = default;
@@ -115,7 +122,16 @@ public:
     
     void paint(juce::Graphics& g) override
     {
+        // Background
         g.fillAll(juce::Colour(0xff1e1e1e));
+        
+        // Draw border frame
+        g.setColour(juce::Colour(0xff3a3a3a));
+        g.drawRect(getLocalBounds(), 2);
+        
+        // Draw inner highlight
+        g.setColour(juce::Colour(0xff4a4a4a));
+        g.drawRect(getLocalBounds().reduced(1), 1);
     }
     
     void resized() override
