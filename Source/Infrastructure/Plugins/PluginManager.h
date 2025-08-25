@@ -182,6 +182,34 @@ public:
     const juce::KnownPluginList& getKnownPluginList() const { return m_knownPluginList; }
     
     //==============================================================================
+    // Plugin Instantiation
+    
+    /**
+     * Create a plugin instance synchronously
+     * @param description The plugin description
+     * @param sampleRate The sample rate
+     * @param blockSize The audio block size
+     * @return The created plugin instance (or nullptr on failure)
+     */
+    std::unique_ptr<juce::AudioPluginInstance> createPluginInstance(
+        const juce::PluginDescription& description,
+        double sampleRate,
+        int blockSize);
+    
+    /**
+     * Create a plugin instance asynchronously (required for AudioUnit v3)
+     * @param description The plugin description
+     * @param sampleRate The sample rate
+     * @param blockSize The audio block size
+     * @param callback Callback with instance and error message
+     */
+    void createPluginInstanceAsync(
+        const juce::PluginDescription& description,
+        double sampleRate,
+        int blockSize,
+        std::function<void(std::unique_ptr<juce::AudioPluginInstance>, const juce::String&)> callback);
+    
+    //==============================================================================
     // Plugin Management
     
     /**
@@ -321,23 +349,22 @@ private:
     // Plugin scanner (for async scanning)
     std::unique_ptr<juce::PluginDirectoryScanner> m_scanner;
     std::unique_ptr<std::thread> m_scanThread;
+    int m_currentFormatIndex{0};  // Track which format we're scanning
     
-    // Cached paths for thread safety
-    struct CachedPaths
-    {
-        juce::File appDataDir;
-        juce::File pluginListFile;
-        juce::FileSearchPath searchPaths;
-        bool isValid{false};
-    };
-    CachedPaths m_cachedPaths;
+    // Plugin list file location
+    juce::File m_pluginListFile;
+    
+    // Audio processor graph for plugin chains
+    std::unique_ptr<juce::AudioProcessorGraph> m_processorGraph;
     
     //==============================================================================
     // Helper Methods
     
     static juce::File findPluginHostBridge();
+    juce::File findPluginScanner();
     void savePluginList();
-    void cacheDirectoryPaths();  // Cache paths in main thread
+    void performInternalScan();
+    void loadPluginList();
     
     // Timer callback for safe scanning on message thread
     void timerCallback() override;
