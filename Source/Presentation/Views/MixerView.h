@@ -13,6 +13,7 @@
 #include <JuceHeader.h>
 #include "../../Infrastructure/Audio/HAMAudioProcessor.h"
 #include "../../Infrastructure/Plugins/PluginManager.h"
+#include "../../Domain/Services/TrackManager.h"
 #include <memory>
 #include <vector>
 
@@ -27,7 +28,8 @@ class LightweightPluginBrowser;
  * Based on PulseProject's successful implementation
  */
 class MixerView : public juce::Component,
-                   public juce::Timer
+                   public juce::Timer,
+                   public TrackManager::Listener
 {
 public:
     explicit MixerView(HAMAudioProcessor& processor);
@@ -36,6 +38,12 @@ public:
     void paint(juce::Graphics& g) override;
     void resized() override;
     void timerCallback() override;
+    
+    // TrackManager::Listener overrides
+    void trackAdded(int trackIndex) override;
+    void trackRemoved(int trackIndex) override;
+    void trackParametersChanged(int trackIndex) override;
+    void trackPluginChanged(int trackIndex) override;
     
 private:
     /**

@@ -24,6 +24,7 @@
 #include "../ViewModels/TrackViewModel.h"
 #include "../../UI/Components/HAMComponentLibrary.h"
 #include "../../UI/Components/HAMComponentLibraryExtended.h"
+#include "../../Domain/Services/TrackManager.h"
 #include <vector>
 #include <functional>
 
@@ -60,7 +61,8 @@ public:
     std::function<void(int trackIndex, int division)> onDivisionChanged;
     std::function<void(int trackIndex, float swing)> onSwingChanged;
     std::function<void(int trackIndex, int octave)> onOctaveChanged;
-    std::function<void(int trackIndex)> onPluginButtonClicked;
+    std::function<void(int trackIndex)> onPluginButtonClicked;  // For opening browser
+    std::function<void(int trackIndex)> onPluginEditorRequested;  // For opening editor
     std::function<void(int trackIndex)> onAccumulatorButtonClicked;
     
 private:
@@ -112,6 +114,7 @@ private:
  * Track sidebar containing list of track controls
  */
 class TrackSidebar : public ResizableComponent,
+                     public TrackManager::Listener,
                      private juce::Timer
 {
 public:
@@ -120,6 +123,12 @@ public:
     
     void paint(juce::Graphics& g) override;
     void resized() override;
+    
+    // TrackManager::Listener overrides
+    void trackAdded(int trackIndex) override;
+    void trackRemoved(int trackIndex) override;
+    void trackParametersChanged(int trackIndex) override;
+    void trackPluginChanged(int trackIndex) override;
     
     // Track management
     void setTrackCount(int count);
@@ -132,6 +141,8 @@ public:
     std::function<void(int trackIndex, const juce::String& param, float value)> onTrackParameterChanged;
     std::function<void()> onAddTrack;
     std::function<void(int trackIndex)> onRemoveTrack;
+    std::function<void(int trackIndex)> onPluginBrowserRequested;  // For opening plugin browser
+    std::function<void(int trackIndex)> onPluginEditorRequested;  // For opening plugin editor
     
 private:
     void timerCallback() override;

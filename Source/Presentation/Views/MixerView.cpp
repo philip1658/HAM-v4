@@ -8,6 +8,8 @@
 */
 
 #include "MixerView.h"
+#include "../../Infrastructure/Plugins/PluginWindowManager.h"
+#include "../../Domain/Services/TrackManager.h"
 #include <iostream>
 
 namespace HAM::UI
@@ -20,6 +22,10 @@ namespace HAM::UI
 MixerView::MixerView(HAMAudioProcessor& processor)
     : m_processor(processor)
 {
+    // Register as TrackManager listener
+    auto& trackManager = TrackManager::getInstance();
+    trackManager.addListener(this);
+    
     // Create channel strips
     createChannelStrips();
     
@@ -47,6 +53,10 @@ MixerView::MixerView(HAMAudioProcessor& processor)
 
 MixerView::~MixerView()
 {
+    // Unregister from TrackManager
+    auto& trackManager = TrackManager::getInstance();
+    trackManager.removeListener(this);
+    
     stopTimer();
 }
 
@@ -82,11 +92,13 @@ void MixerView::timerCallback()
 
 void MixerView::createChannelStrips()
 {
-    int numTracks = 8; // Default to 8 tracks
+    // Get tracks from TrackManager
+    auto& trackManager = TrackManager::getInstance();
+    const auto& tracks = trackManager.getAllTracks();
     
-    for (int i = 0; i < numTracks; ++i)
+    for (size_t i = 0; i < tracks.size(); ++i)
     {
-        auto strip = std::make_unique<ChannelStrip>(i, m_processor, this);
+        auto strip = std::make_unique<ChannelStrip>(static_cast<int>(i), m_processor, this);
         m_channelContainer.addAndMakeVisible(strip.get());
         m_channelStrips.push_back(std::move(strip));
     }
@@ -116,6 +128,17 @@ void MixerView::onPluginSelected(int channelIndex, const juce::PluginDescription
     
     if (success)
     {
+        // Update TrackManager state
+        auto& trackManager = TrackManager::getInstance();
+        TrackManager::PluginState pluginState;
+        pluginState.hasPlugin = true;
+        pluginState.pluginName = desc.name;
+        pluginState.description = desc;
+        pluginState.isInstrument = desc.isInstrument;
+        pluginState.editorOpen = false;
+        
+        trackManager.setPluginState(channelIndex, pluginState, true);
+        
         // Update channel strip display
         if (channelIndex >= 0 && channelIndex < m_channelStrips.size())
         {
@@ -169,6 +192,68 @@ bool MixerView::loadPluginDirect(int channelIndex, const juce::PluginDescription
     }
     
     return success;
+}
+
+//==============================================================================
+// TrackManager Listener Implementation
+//==============================================================================
+
+void MixerView::trackAdded(int trackIndex)
+{
+    // Add a new channel strip
+    auto strip = std::make_unique<ChannelStrip>(trackIndex, m_processor, this);
+    m_channelContainer.addAndMakeVisible(strip.get());
+    m_channelStrips.insert(m_channelStrips.begin() + trackIndex, std::move(strip));
+    
+    // Re-layout
+    layoutChannels();
+}
+
+void MixerView::trackRemoved(int trackIndex)
+{
+    // Remove the channel strip
+    if (trackIndex >= 0 && trackIndex < static_cast<int>(m_channelStrips.size()))
+    {
+        m_channelStrips.erase(m_channelStrips.begin() + trackIndex);
+        
+        // Update indices for remaining strips
+        for (size_t i = trackIndex; i < m_channelStrips.size(); ++i)
+        {
+            // Note: ChannelStrip might need a setTrackIndex method for this
+        }
+        
+        layoutChannels();
+    }
+}
+
+void MixerView::trackParametersChanged(int trackIndex)
+{
+    // Update the channel strip display if needed
+    if (trackIndex >= 0 && trackIndex < static_cast<int>(m_channelStrips.size()))
+    {
+        // Channel strip will update itself based on track state
+        m_channelStrips[trackIndex]->repaint();
+    }
+}
+
+void MixerView::trackPluginChanged(int trackIndex)
+{
+    // Update the channel strip plugin display
+    if (trackIndex >= 0 && trackIndex < static_cast<int>(m_channelStrips.size()))
+    {
+        auto& trackManager = TrackManager::getInstance();
+        auto* pluginState = trackManager.getPluginState(trackIndex, true);
+        
+        if (pluginState && pluginState->hasPlugin)
+        {
+            m_channelStrips[trackIndex]->updatePluginDisplay(pluginState->pluginName);
+        }
+        else
+        {
+            // Clear plugin display
+            m_channelStrips[trackIndex]->updatePluginDisplay("");
+        }
+    }
 }
 
 //==============================================================================
@@ -287,14 +372,33 @@ void MixerView::ChannelStrip::buttonClicked(juce::Button* button)
     {
         DBG("ChannelStrip: Plugin slot clicked for channel " << m_channelIndex);
         
-        if (m_hasPlugin)
+        // Check current plugin state from TrackManager
+        auto& trackManager = TrackManager::getInstance();
+        auto* pluginState = trackManager.getPluginState(m_channelIndex, true);
+        
+        if (pluginState && pluginState->hasPlugin)
         {
-            // Show plugin editor if already loaded
-            showPluginEditor();
+            // Plugin is loaded - check if window is already open
+            auto& windowManager = PluginWindowManager::getInstance();
+            
+            if (windowManager.isWindowOpen(m_channelIndex, -1))
+            {
+                // Window is open - just bring it to front
+                DBG("Plugin window already open, bringing to front");
+                // The PluginWindowManager handles focus automatically
+                showPluginEditor();
+            }
+            else
+            {
+                // Window is not open - open the plugin editor
+                DBG("Opening plugin editor for: " << pluginState->pluginName);
+                showPluginEditor();
+            }
         }
         else
         {
-            // Show plugin browser - CRITICAL PART
+            // No plugin loaded - show browser
+            DBG("No plugin loaded, opening browser");
             auto* browserWindow = m_parent->m_browserManager.createBrowserWindow();
             
             if (auto* browser = m_parent->m_browserManager.getBrowser())
@@ -311,6 +415,14 @@ void MixerView::ChannelStrip::buttonClicked(juce::Button* button)
         // Remove plugin
         auto& pluginManager = PluginManager::instance();
         pluginManager.removeInstrumentPlugin(m_channelIndex);
+        
+        // Clear from TrackManager
+        auto& trackManager = TrackManager::getInstance();
+        trackManager.clearPlugin(m_channelIndex, true);
+        
+        // Close any open plugin window
+        auto& windowManager = PluginWindowManager::getInstance();
+        windowManager.closePluginWindow(m_channelIndex, -1);
         
         m_hasPlugin = false;
         m_pluginSlot.setButtonText("< No Plugin >");

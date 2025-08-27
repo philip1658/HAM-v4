@@ -260,6 +260,28 @@ void UICoordinator::setupEventHandlers()
             // m_controller.removeTrack(trackIndex);
             DBG("Remove track " << trackIndex << " requested");
         };
+        
+        // Connect plugin-specific callbacks - these are direct aliases to mixer's plugin buttons
+        m_trackSidebar->onPluginBrowserRequested = [this](int trackIndex)
+        {
+            DBG("Plugin browser requested from sidebar for track " << trackIndex);
+            showPluginBrowser(trackIndex, false);
+            
+            // Update TrackManager to indicate we're looking for a plugin
+            auto& trackManager = TrackManager::getInstance();
+            // Browser opened - no plugin yet
+        };
+        
+        m_trackSidebar->onPluginEditorRequested = [this](int trackIndex)
+        {
+            DBG("Plugin editor requested from sidebar for track " << trackIndex);
+            
+            // Open the plugin editor if available
+            if (auto* processor = m_controller.getAudioProcessor())
+            {
+                processor->showPluginEditor(trackIndex, -1); // -1 for instrument slot
+            }
+        };
     }
     
 }

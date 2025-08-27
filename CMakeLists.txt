@@ -105,6 +105,10 @@ target_sources(HAM PRIVATE
     Source/Domain/Services/ChannelManager.h
     Source/Domain/Services/ChannelManager.cpp
     
+    # Services - Track Manager
+    Source/Domain/Services/TrackManager.h
+    Source/Domain/Services/TrackManager.cpp
+    
     # Services - Preset Manager
     Source/Domain/Services/PresetManager.h
     Source/Domain/Services/PresetManager.cpp

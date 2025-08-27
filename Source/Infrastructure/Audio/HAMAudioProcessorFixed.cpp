@@ -11,6 +11,7 @@
 
 #include "HAMAudioProcessor.h"
 #include "../../Presentation/Views/MainEditor.h"
+#include "../Plugins/PluginWindowManager.h"
 #include <chrono>
 
 namespace HAM
@@ -107,6 +108,9 @@ HAMAudioProcessor::HAMAudioProcessor()
 
 HAMAudioProcessor::~HAMAudioProcessor()
 {
+    // Close all plugin windows first to avoid crashes during shutdown
+    PluginWindowManager::getInstance().closeAllWindows();
+    
     // Unregister from clock
     if (m_masterClock)
         m_masterClock->removeListener(this);
@@ -399,6 +403,7 @@ void HAMAudioProcessor::showPluginEditor(int trackIndex, int pluginIndex)
         return;
     
     juce::AudioProcessorGraph::Node::Ptr nodeToEdit;
+    juce::String pluginName;
     
     if (pluginIndex == -1 && chain->instrumentNode)
     {
@@ -413,25 +418,15 @@ void HAMAudioProcessor::showPluginEditor(int trackIndex, int pluginIndex)
     {
         // Get the plugin instance
         auto* plugin = dynamic_cast<juce::AudioPluginInstance*>(nodeToEdit->getProcessor());
-        if (plugin && plugin->hasEditor())
+        if (plugin)
         {
-            // Create editor window (this would be managed by PluginWindowManager)
-            auto* editor = plugin->createEditorIfNeeded();
-            if (editor)
-            {
-                // For now, just show in a basic window
-                // In production, use PluginWindowManager for proper lifecycle
-                auto* window = new juce::DocumentWindow(plugin->getName(),
-                                                       juce::Colours::darkgrey,
-                                                       juce::DocumentWindow::allButtons);
-                window->setContentOwned(editor, true);
-                window->setResizable(true, false);
-                window->setVisible(true);
-                window->centreWithSize(editor->getWidth(), editor->getHeight());
-                
-                // Store window reference for cleanup (in production code)
-                // m_pluginWindows[std::make_pair(trackIndex, pluginIndex)] = window;
-            }
+            pluginName = plugin->getName();
+            
+            // Use PluginWindowManager singleton to manage the window
+            auto& windowManager = PluginWindowManager::getInstance();
+            
+            // Open or focus the plugin editor window
+            windowManager.openPluginWindow(trackIndex, pluginIndex, plugin, pluginName);
         }
     }
 }

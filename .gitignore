@@ -62,3 +62,6 @@ plugin_states/*.bin
 # Performance traces
 Instruments/
 *.memgraph
+# Build directories
+build-coverage/
+build-release/

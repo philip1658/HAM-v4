@@ -11,6 +11,8 @@
 #include "TrackSidebar.h"
 #include "../../Infrastructure/Messaging/MessageDispatcher.h"
 #include "../../Infrastructure/Messaging/MessageTypes.h"
+#include "../../Infrastructure/Plugins/PluginWindowManager.h"
+#include "../../Domain/Services/TrackManager.h"
 #include "../ViewModels/TrackViewModel.h"
 
 namespace HAM::UI {
@@ -149,7 +151,39 @@ void TrackControlStrip::setupControls()
     m_pluginButton->setColor(m_trackColor);  // Use track color
     m_pluginButton->onClick = [this]() {
         DBG("Plugin button clicked for track " << m_trackIndex);
-        if (onPluginButtonClicked) onPluginButtonClicked(m_trackIndex);
+        
+        // Check if a plugin is already loaded
+        auto& trackManager = TrackManager::getInstance();
+        auto* pluginState = trackManager.getPluginState(m_trackIndex, true);
+        
+        if (pluginState && pluginState->hasPlugin)
+        {
+            // Plugin is loaded - check if window is open
+            auto& windowManager = PluginWindowManager::getInstance();
+            
+            if (windowManager.isWindowOpen(m_trackIndex, -1))
+            {
+                // Window is open - just bring it to front
+                DBG("Plugin window already open, bringing to front");
+                // The PluginWindowManager will handle focus
+                if (onPluginEditorRequested)
+                    onPluginEditorRequested(m_trackIndex);
+            }
+            else
+            {
+                // Window is not open - open the plugin editor
+                DBG("Opening plugin editor for loaded plugin: " << pluginState->pluginName);
+                if (onPluginEditorRequested)
+                    onPluginEditorRequested(m_trackIndex);
+            }
+        }
+        else
+        {
+            // No plugin loaded - open the browser
+            DBG("No plugin loaded, opening browser");
+            if (onPluginButtonClicked) 
+                onPluginButtonClicked(m_trackIndex);
+        }
     };
     addAndMakeVisible(m_pluginButton.get());
     
@@ -340,8 +374,13 @@ TrackSidebar::TrackSidebar()
     m_trackContainer = std::make_unique<juce::Component>();
     addAndMakeVisible(m_trackContainer.get());
     
-    // Initialize with default tracks
-    setTrackCount(1); // Start with 1 track at 440px height
+    // Register as TrackManager listener
+    auto& trackManager = TrackManager::getInstance();
+    trackManager.addListener(this);
+    
+    // Initialize with tracks from TrackManager
+    const auto& tracks = trackManager.getAllTracks();
+    setTrackCount(static_cast<int>(tracks.size()));
     
     // Start timer for periodic updates
     startTimerHz(10);
@@ -349,6 +388,10 @@ TrackSidebar::TrackSidebar()
 
 TrackSidebar::~TrackSidebar()
 {
+    // Unregister from TrackManager
+    auto& trackManager = TrackManager::getInstance();
+    trackManager.removeListener(this);
+    
     stopTimer();
 }
 
@@ -423,6 +466,17 @@ void TrackSidebar::setTrackCount(int count)
         strip->onPluginButtonClicked = [this](int index) {
             handleTrackParameter(index, "openPlugin", 1.0f);
             DBG("Plugin button clicked for track " << index);
+            
+            // Notify that plugin browser is needed
+            if (onPluginBrowserRequested)
+                onPluginBrowserRequested(index);
+        };
+        
+        strip->onPluginEditorRequested = [this](int index) {
+            DBG("Plugin editor requested for track " << index);
+            // Notify that plugin editor should open
+            if (onPluginEditorRequested)
+                onPluginEditorRequested(index);
         };
         
         strip->onAccumulatorButtonClicked = [this](int index) {
@@ -510,6 +564,56 @@ void TrackSidebar::handleTrackParameter(int trackIndex, const juce::String& para
     }
     
     DBG("Track " << trackIndex << " " << param << " changed to: " << value);
+}
+
+//==============================================================================
+// TrackManager::Listener Implementation
+//==============================================================================
+
+void TrackSidebar::trackAdded(int trackIndex)
+{
+    // Refresh all tracks
+    auto& trackManager = TrackManager::getInstance();
+    const auto& tracks = trackManager.getAllTracks();
+    setTrackCount(static_cast<int>(tracks.size()));
+}
+
+void TrackSidebar::trackRemoved(int trackIndex)
+{
+    // Refresh all tracks
+    auto& trackManager = TrackManager::getInstance();
+    const auto& tracks = trackManager.getAllTracks();
+    setTrackCount(static_cast<int>(tracks.size()));
+}
+
+void TrackSidebar::trackParametersChanged(int trackIndex)
+{
+    // Update specific track display if needed
+    if (trackIndex >= 0 && trackIndex < static_cast<int>(m_trackStrips.size()))
+    {
+        m_trackStrips[trackIndex]->repaint();
+    }
+}
+
+void TrackSidebar::trackPluginChanged(int trackIndex)
+{
+    // Update plugin button state
+    if (trackIndex >= 0 && trackIndex < static_cast<int>(m_trackStrips.size()))
+    {
+        auto& trackManager = TrackManager::getInstance();
+        auto* pluginState = trackManager.getPluginState(trackIndex, true);
+        
+        if (pluginState && pluginState->hasPlugin)
+        {
+            // Update button to show plugin is loaded
+            // Note: We'll add updatePluginState method to TrackControlStrip
+            m_trackStrips[trackIndex]->repaint();
+        }
+        else
+        {
+            m_trackStrips[trackIndex]->repaint();
+        }
+    }
 }
 
 } // namespace HAM::UI

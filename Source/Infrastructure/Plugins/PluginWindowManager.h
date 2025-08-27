@@ -54,13 +54,17 @@ public:
     
     ~PluginWindow() override
     {
-        clearContentComponent();
+        // Don't call clearContentComponent() here during destruction
+        // JUCE will handle cleanup properly
     }
     
     void closeButtonPressed() override
     {
         // Save window position
         saveWindowPosition();
+        
+        // Clear content before notifying to avoid crashes
+        clearContentComponent();
         
         // Notify manager
         if (m_onClose)
@@ -284,13 +288,28 @@ public:
      */
     void closeAllWindows()
     {
-        for (auto& [id, window] : m_windows)
+        // Create a copy of window IDs to avoid iterator invalidation
+        std::vector<WindowID> windowIds;
+        windowIds.reserve(m_windows.size());
+        
+        for (const auto& [id, window] : m_windows)
         {
-            if (window)
+            windowIds.push_back(id);
+        }
+        
+        // Close each window safely
+        for (const auto& id : windowIds)
+        {
+            auto it = m_windows.find(id);
+            if (it != m_windows.end() && it->second)
             {
-                window->closeButtonPressed();
+                // Clear content first to avoid Cocoa crashes
+                it->second->clearContentComponent();
+                it->second->setVisible(false);
             }
         }
+        
+        // Clear the map after all windows are closed
         m_windows.clear();
     }
     
@@ -356,7 +375,9 @@ private:
     
     ~PluginWindowManager()
     {
-        closeAllWindows();
+        // During shutdown, just clear the window map
+        // Don't try to interact with windows as they may be partially destroyed
+        m_windows.clear();
     }
     
     //==============================================================================
@@ -365,7 +386,12 @@ private:
     void onWindowClosed(WindowID windowId)
     {
         // Window is closing, remove from map
-        m_windows.erase(windowId);
+        // Use iterator to safely erase during iteration
+        auto it = m_windows.find(windowId);
+        if (it != m_windows.end())
+        {
+            m_windows.erase(it);
+        }
     }
     
     //==============================================================================
