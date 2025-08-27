@@ -112,9 +112,9 @@ void TrackControlStrip::setupControls()
     };
     addAndMakeVisible(m_maxPulseLengthSlider.get());
     
-    // Swing slider
+    // Swing slider - consistent with other sliders in track sidebar
     m_swingLabel = createLabel("Swing");
-    m_swingSlider = std::make_unique<ModernSlider>(false); // Horizontal
+    m_swingSlider = std::make_unique<ModernSlider>(false); // Horizontal slider
     m_swingSlider->setValue(0.5f); // Default 50% (no swing)
     m_swingSlider->setTrackColor(m_trackColor);
     m_swingSlider->onValueChange = [this](float value) {
@@ -278,7 +278,7 @@ void TrackControlStrip::resized()
     // Max Pulse Length
     layoutControl(m_maxPulseLengthLabel.get(), m_maxPulseLengthSlider.get(), 26);
     
-    // Swing
+    // Swing - now using slider same size as pulse length
     layoutControl(m_swingLabel.get(), m_swingSlider.get(), 26);
     
     // Division - make more compact

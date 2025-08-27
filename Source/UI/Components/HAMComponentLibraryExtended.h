@@ -1214,4 +1214,247 @@ private:
     bool m_isPressed = false;
 };
 
+// ==========================================
+// Pattern Management Buttons
+// ==========================================
+
+class PatternManagementButton : public ResizableComponent {
+public:
+    enum class ButtonType {
+        Save, Load, Copy, Paste, New, Delete
+    };
+    
+    PatternManagementButton(ButtonType type) : m_type(type) {
+        setInterceptsMouseClicks(true, false);
+    }
+    
+    void paint(juce::Graphics& g) override {
+        auto bounds = getLocalBounds().toFloat().reduced(scaled(1));
+        
+        // Different colors for different operations
+        juce::Colour bgColor, textColor;
+        switch (m_type) {
+            case ButtonType::Save:
+            case ButtonType::Load:
+                bgColor = m_isHovered ? juce::Colour(DesignTokens::Colors::ACCENT_BLUE).brighter(0.2f) 
+                                      : juce::Colour(DesignTokens::Colors::BG_RAISED);
+                textColor = m_isHovered ? juce::Colours::white 
+                                        : juce::Colour(DesignTokens::Colors::ACCENT_BLUE);
+                break;
+            case ButtonType::Copy:
+            case ButtonType::Paste:
+                bgColor = m_isHovered ? juce::Colour(DesignTokens::Colors::ACCENT_CYAN).brighter(0.2f)
+                                      : juce::Colour(DesignTokens::Colors::BG_RAISED);
+                textColor = m_isHovered ? juce::Colours::black
+                                        : juce::Colour(DesignTokens::Colors::ACCENT_CYAN);
+                break;
+            case ButtonType::New:
+                bgColor = m_isHovered ? juce::Colour(DesignTokens::Colors::ACCENT_GREEN).brighter(0.2f)
+                                      : juce::Colour(DesignTokens::Colors::BG_RAISED);
+                textColor = m_isHovered ? juce::Colours::black
+                                        : juce::Colour(DesignTokens::Colors::ACCENT_GREEN);
+                break;
+            case ButtonType::Delete:
+                bgColor = m_isHovered ? juce::Colour(DesignTokens::Colors::ACCENT_RED).brighter(0.2f)
+                                      : juce::Colour(DesignTokens::Colors::BG_RAISED);
+                textColor = m_isHovered ? juce::Colours::white
+                                        : juce::Colour(DesignTokens::Colors::ACCENT_RED);
+                break;
+        }
+        
+        // Button background
+        g.setColour(bgColor);
+        g.fillRoundedRectangle(bounds, scaled(3));
+        
+        // Border
+        g.setColour(textColor.withAlpha(0.5f));
+        g.drawRoundedRectangle(bounds, scaled(3), scaled(0.5f));
+        
+        // Icon or text
+        g.setColour(textColor);
+        g.setFont(juce::Font(juce::FontOptions(scaled(10))));
+        
+        juce::String label;
+        switch (m_type) {
+            case ButtonType::Save:   label = "SAVE"; break;
+            case ButtonType::Load:   label = "LOAD"; break;
+            case ButtonType::Copy:   label = "COPY"; break;
+            case ButtonType::Paste:  label = "PASTE"; break;
+            case ButtonType::New:    label = "NEW"; break;
+            case ButtonType::Delete: label = "DEL"; break;
+        }
+        
+        g.drawText(label, bounds, juce::Justification::centred);
+    }
+    
+    void mouseEnter(const juce::MouseEvent&) override {
+        m_isHovered = true;
+        repaint();
+    }
+    
+    void mouseExit(const juce::MouseEvent&) override {
+        m_isHovered = false;
+        repaint();
+    }
+    
+    void mouseUp(const juce::MouseEvent&) override {
+        if (onClick) onClick();
+    }
+    
+    std::function<void()> onClick;
+    
+private:
+    ButtonType m_type;
+    bool m_isHovered = false;
+};
+
+// Enhanced transport buttons with visual hierarchy
+class LargeTransportButton : public ResizableComponent, private juce::Timer {
+public:
+    enum class ButtonType {
+        Play, Stop, Record
+    };
+    
+    LargeTransportButton(ButtonType type) : m_type(type) {
+        setInterceptsMouseClicks(true, false);
+        if (type == ButtonType::Play || type == ButtonType::Record) {
+            startTimerHz(30);
+        }
+    }
+    
+    void paint(juce::Graphics& g) override {
+        auto bounds = getLocalBounds().toFloat().reduced(scaled(4));
+        auto center = bounds.getCentre();
+        
+        // Larger size for primary controls
+        float scale = (m_type == ButtonType::Stop) ? 1.0f : 1.2f;
+        bounds = bounds.withSizeKeepingCentre(bounds.getWidth() * scale, bounds.getHeight() * scale);
+        
+        // Glow effect for active states
+        if ((m_type == ButtonType::Play && m_isPlaying) || 
+            (m_type == ButtonType::Record && m_isRecording)) {
+            float pulse = 0.5f + 0.5f * std::sin(m_animPhase);
+            juce::Colour glowColor = (m_type == ButtonType::Play) 
+                ? juce::Colour(DesignTokens::Colors::ACCENT_GREEN)
+                : juce::Colour(DesignTokens::Colors::ACCENT_RED);
+            g.setColour(glowColor.withAlpha(pulse * 0.3f));
+            g.fillEllipse(bounds.expanded(scaled(6)));
+        }
+        
+        // Button background with color coding
+        juce::Colour bgColor;
+        switch (m_type) {
+            case ButtonType::Play:
+                bgColor = m_isPlaying ? juce::Colour(DesignTokens::Colors::ACCENT_GREEN)
+                                      : juce::Colour(DesignTokens::Colors::BG_RAISED);
+                break;
+            case ButtonType::Stop:
+                bgColor = juce::Colour(DesignTokens::Colors::BG_RAISED);
+                break;
+            case ButtonType::Record:
+                bgColor = m_isRecording ? juce::Colour(DesignTokens::Colors::ACCENT_RED)
+                                        : juce::Colour(DesignTokens::Colors::BG_RAISED);
+                break;
+        }
+        
+        g.setColour(bgColor);
+        g.fillEllipse(bounds);
+        
+        // Stronger border for visual prominence
+        g.setColour(juce::Colour(DesignTokens::Colors::BORDER));
+        g.drawEllipse(bounds, scaled(2));
+        
+        // Larger icons
+        g.setColour(m_isPlaying || m_isRecording ? juce::Colours::black
+                                                  : juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
+        
+        switch (m_type) {
+            case ButtonType::Play:
+                if (m_isPlaying) {
+                    // Pause icon (larger)
+                    float w = scaled(6);
+                    float h = scaled(16);
+                    float gap = scaled(4);
+                    g.fillRect(center.x - gap - w, center.y - h/2, w, h);
+                    g.fillRect(center.x + gap, center.y - h/2, w, h);
+                } else {
+                    // Play triangle (larger)
+                    juce::Path triangle;
+                    float size = scaled(14);
+                    triangle.addTriangle(center.x - size/2, center.y - size,
+                                       center.x - size/2, center.y + size,
+                                       center.x + size, center.y);
+                    g.fillPath(triangle);
+                }
+                break;
+                
+            case ButtonType::Stop:
+                {
+                    // Stop square (larger)
+                    auto squareSize = scaled(16);
+                    auto square = juce::Rectangle<float>(squareSize, squareSize)
+                                       .withCentre(bounds.getCentre());
+                    g.fillRect(square);
+                }
+                break;
+                
+            case ButtonType::Record:
+                {
+                    // Record circle (larger with animation)
+                    auto innerCircle = bounds.reduced(bounds.getWidth() * 0.25f);
+                    if (m_isRecording) {
+                        float pulse = 0.7f + 0.3f * std::sin(m_animPhase * 2);
+                        g.setColour(juce::Colours::white.withAlpha(pulse));
+                    }
+                    g.fillEllipse(innerCircle);
+                }
+                break;
+        }
+    }
+    
+    void mouseUp(const juce::MouseEvent&) override {
+        switch (m_type) {
+            case ButtonType::Play:
+                m_isPlaying = !m_isPlaying;
+                if (onPlayStateChanged) onPlayStateChanged(m_isPlaying);
+                break;
+            case ButtonType::Stop:
+                if (onStop) onStop();
+                break;
+            case ButtonType::Record:
+                m_isRecording = !m_isRecording;
+                if (onRecordStateChanged) onRecordStateChanged(m_isRecording);
+                break;
+        }
+        repaint();
+    }
+    
+    void timerCallback() override {
+        if (m_isPlaying || m_isRecording) {
+            m_animPhase += 0.1f;
+            repaint();
+        }
+    }
+    
+    void setPlaying(bool playing) {
+        m_isPlaying = playing;
+        repaint();
+    }
+    
+    void setRecording(bool recording) {
+        m_isRecording = recording;
+        repaint();
+    }
+    
+    std::function<void(bool)> onPlayStateChanged;
+    std::function<void()> onStop;
+    std::function<void(bool)> onRecordStateChanged;
+    
+private:
+    ButtonType m_type;
+    bool m_isPlaying = false;
+    bool m_isRecording = false;
+    float m_animPhase = 0;
+};
+
 } // namespace HAM::UI

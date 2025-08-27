@@ -14,12 +14,11 @@ namespace HAM::UI {
 // ==========================================
 // Transport Bar - Main playback controls
 // ==========================================
-class TransportBar : public BaseComponent, 
-                     private juce::Timer {
+class TransportBar : public BaseComponent {
 public:
     TransportBar() {
-        // Create play button using HAM library
-        m_playButton = std::make_unique<PlayButton>();
+        // Create large transport buttons for visual hierarchy
+        m_playButton = std::make_unique<LargeTransportButton>(LargeTransportButton::ButtonType::Play);
         m_playButton->onPlayStateChanged = [this](bool playing) {
             m_isPlaying = playing;
             if (onPlayStateChanged) {
@@ -29,7 +28,7 @@ public:
         addAndMakeVisible(m_playButton.get());
         
         // Create stop button
-        m_stopButton = std::make_unique<StopButton>();
+        m_stopButton = std::make_unique<LargeTransportButton>(LargeTransportButton::ButtonType::Stop);
         m_stopButton->onStop = [this]() {
             m_playButton->setPlaying(false);
             m_isPlaying = false;
@@ -42,8 +41,8 @@ public:
         };
         addAndMakeVisible(m_stopButton.get());
         
-        // Create record button
-        m_recordButton = std::make_unique<RecordButton>();
+        // Create record button  
+        m_recordButton = std::make_unique<LargeTransportButton>(LargeTransportButton::ButtonType::Record);
         m_recordButton->onRecordStateChanged = [this](bool recording) {
             m_isRecording = recording;
             if (onRecordStateChanged) {
@@ -52,8 +51,8 @@ public:
         };
         addAndMakeVisible(m_recordButton.get());
         
-        // Create pattern buttons (4 quick access patterns)
-        for (int i = 0; i < 4; ++i) {
+        // Create pattern buttons (8 quick access patterns - more slots!)
+        for (int i = 0; i < 8; ++i) {
             auto patternButton = std::make_unique<PatternButton>(i + 1);
             patternButton->onPatternSelected = [this, i](int pattern) {
                 selectPattern(i);
@@ -97,42 +96,27 @@ public:
         };
         addAndMakeVisible(m_tempoArrows.get());
         
-        // Create compact swing knob
-        m_swingKnob = std::make_unique<CompactSwingKnob>();
-        m_swingKnob->setValue(0.5f); // 50% = no swing
-        m_swingKnob->onValueChange = [this](float value) {
-            if (onSwingChanged) {
-                onSwingChanged(value);
-            }
+        // Create only save and load buttons for pattern management
+        m_saveButton = std::make_unique<PatternManagementButton>(PatternManagementButton::ButtonType::Save);
+        m_saveButton->onClick = [this]() {
+            if (onPatternSave) onPatternSave();
         };
-        addAndMakeVisible(m_swingKnob.get());
+        addAndMakeVisible(m_saveButton.get());
         
-        // Create pattern length display
-        m_patternLengthLabel = std::make_unique<juce::Label>();
-        m_patternLengthLabel->setText("16", juce::dontSendNotification);
-        m_patternLengthLabel->setColour(juce::Label::textColourId, 
-                                       juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
-        m_patternLengthLabel->setFont(juce::Font(juce::FontOptions(12.0f)));
-        m_patternLengthLabel->setJustificationType(juce::Justification::centred);
-        addAndMakeVisible(m_patternLengthLabel.get());
+        m_loadButton = std::make_unique<PatternManagementButton>(PatternManagementButton::ButtonType::Load);
+        m_loadButton->onClick = [this]() {
+            if (onPatternLoad) onPatternLoad();
+        };
+        addAndMakeVisible(m_loadButton.get());
         
-        // Pattern length label
-        m_lengthLabel = std::make_unique<juce::Label>();
-        m_lengthLabel->setText("LEN", juce::dontSendNotification);
-        m_lengthLabel->setColour(juce::Label::textColourId, 
-                                juce::Colour(DesignTokens::Colors::TEXT_MUTED));
-        m_lengthLabel->setFont(juce::Font(juce::FontOptions(10.0f)));
-        m_lengthLabel->setJustificationType(juce::Justification::centred);
-        addAndMakeVisible(m_lengthLabel.get());
-        
-        // Create CPU meter (simple text display for now)
-        m_cpuLabel = std::make_unique<juce::Label>();
-        m_cpuLabel->setText("CPU: 2%", juce::dontSendNotification);
-        m_cpuLabel->setColour(juce::Label::textColourId, 
-                             juce::Colour(DesignTokens::Colors::TEXT_MUTED));
-        m_cpuLabel->setFont(juce::Font(juce::FontOptions(10.0f)));
-        m_cpuLabel->setJustificationType(juce::Justification::centred);
-        addAndMakeVisible(m_cpuLabel.get());
+        // Create pattern name label
+        m_patternNameLabel = std::make_unique<juce::Label>();
+        m_patternNameLabel->setText("Pattern 1", juce::dontSendNotification);
+        m_patternNameLabel->setColour(juce::Label::textColourId, 
+                                     juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
+        m_patternNameLabel->setFont(juce::Font(juce::FontOptions(12.0f)).withStyle(juce::Font::bold));
+        m_patternNameLabel->setJustificationType(juce::Justification::centred);
+        addAndMakeVisible(m_patternNameLabel.get());
         
         // Create MIDI activity LED
         m_midiActivityLED = std::make_unique<LED>(juce::Colour(DesignTokens::Colors::ACCENT_GREEN));
@@ -149,14 +133,9 @@ public:
         
         // Set default size
         setSize(1200, 80);
-        
-        // Start timer for CPU updates (10 Hz)
-        startTimerHz(10);
     }
     
-    ~TransportBar() override {
-        stopTimer();
-    }
+    ~TransportBar() override = default;
     
     // Paint override
     void paint(juce::Graphics& g) override {
@@ -173,20 +152,20 @@ public:
         // Section dividers
         g.setColour(juce::Colour(DesignTokens::Colors::HAIRLINE));
         
-        // After transport buttons
-        float dividerX = scaled(200);
+        // After transport buttons (smaller now at 160px)
+        float dividerX = scaled(160);
         g.drawLine(dividerX, scaled(10), dividerX, bounds.getBottom() - scaled(10), scaled(0.5f));
         
-        // After pattern buttons
-        dividerX = scaled(530);
+        // After tempo (now comes second at 330px)
+        dividerX = scaled(330);
         g.drawLine(dividerX, scaled(10), dividerX, bounds.getBottom() - scaled(10), scaled(0.5f));
         
-        // After tempo
-        dividerX = scaled(690);
+        // After pattern section (now at 1050px with more buttons)
+        dividerX = scaled(1050);
         g.drawLine(dividerX, scaled(10), dividerX, bounds.getBottom() - scaled(10), scaled(0.5f));
         
-        // Before status section
-        dividerX = getWidth() - scaled(200);
+        // Before status section (smaller now without CPU)
+        dividerX = getWidth() - scaled(100);
         g.drawLine(dividerX, scaled(10), dividerX, bounds.getBottom() - scaled(10), scaled(0.5f));
     }
     
@@ -194,96 +173,98 @@ public:
     void resized() override {
         auto bounds = getLocalBounds().reduced(scaled(10));
         
-        // Left Section: Transport buttons (180px)
-        auto transportSection = bounds.removeFromLeft(scaled(180));
+        // Left Section: Transport buttons (160px) - More reasonable sizes
+        auto transportSection = bounds.removeFromLeft(scaled(160));
         
-        // Play button
+        // Play button (45px - still prominent but not oversized)
         m_playButton->setBounds(transportSection.removeFromLeft(scaled(50))
                                               .withSizeKeepingCentre(scaled(45), scaled(45)));
         transportSection.removeFromLeft(scaled(5));
         
-        // Stop button
+        // Stop button (45px)
         m_stopButton->setBounds(transportSection.removeFromLeft(scaled(50))
                                               .withSizeKeepingCentre(scaled(45), scaled(45)));
         transportSection.removeFromLeft(scaled(5));
         
-        // Record button
-        m_recordButton->setBounds(transportSection.removeFromLeft(scaled(50))
-                                                .withSizeKeepingCentre(scaled(45), scaled(45)));
+        // Record button (40px - slightly smaller)
+        m_recordButton->setBounds(transportSection.removeFromLeft(scaled(45))
+                                                .withSizeKeepingCentre(scaled(40), scaled(40)));
         
-        bounds.removeFromLeft(scaled(15));
+        bounds.removeFromLeft(scaled(15)); // Visual separator
         
-        // Pattern buttons section (320px)
-        auto patternSection = bounds.removeFromLeft(scaled(320));
-        float patternButtonWidth = scaled(75);
-        float patternButtonHeight = scaled(40);
-        float patternGap = scaled(5);
+        // Tempo Section FIRST (150px) - More logical placement before patterns
+        auto tempoSection = bounds.removeFromLeft(scaled(150));
         
-        for (size_t i = 0; i < m_patternButtons.size(); ++i) {
-            auto buttonBounds = patternSection.removeFromLeft(patternButtonWidth)
-                                             .withSizeKeepingCentre(patternButtonWidth, patternButtonHeight);
-            m_patternButtons[i]->setBounds(buttonBounds);
-            patternSection.removeFromLeft(patternGap);
-        }
-        
-        bounds.removeFromLeft(scaled(15));
-        
-        // Tempo section (140px total)
-        auto tempoSection = bounds.removeFromLeft(scaled(140));
-        
-        // Tempo display (smaller)
-        auto tempoDisplayBounds = tempoSection.removeFromLeft(scaled(90))
-                                              .withSizeKeepingCentre(scaled(85), scaled(45));
+        // Tempo display (medium size)
+        auto tempoDisplayBounds = tempoSection.removeFromLeft(scaled(100))
+                                              .withSizeKeepingCentre(scaled(95), scaled(45));
         m_tempoDisplay->setBounds(tempoDisplayBounds);
         
         tempoSection.removeFromLeft(scaled(5));
         
-        // Tempo arrows
+        // Tempo arrows (smaller)
         auto arrowBounds = tempoSection.removeFromLeft(scaled(40))
-                                      .withSizeKeepingCentre(scaled(35), scaled(40));
+                                      .withSizeKeepingCentre(scaled(35), scaled(35));
         m_tempoArrows->setBounds(arrowBounds);
         
-        bounds.removeFromLeft(scaled(15));
+        bounds.removeFromLeft(scaled(20)); // Visual separator
         
-        // Additional controls section (200px)
-        auto controlsSection = bounds.removeFromLeft(scaled(200));
+        // Pattern Section (700px) - More space for 8 pattern buttons
+        auto patternSection = bounds.removeFromLeft(scaled(700));
         
-        // Swing knob
-        auto swingBounds = controlsSection.removeFromLeft(scaled(45))
-                                         .withSizeKeepingCentre(scaled(40), scaled(40));
-        m_swingKnob->setBounds(swingBounds);
+        // Pattern name label at top
+        auto patternNameBounds = patternSection.removeFromTop(scaled(20));
+        m_patternNameLabel->setBounds(patternNameBounds.removeFromLeft(scaled(150)));
         
-        controlsSection.removeFromLeft(scaled(10));
+        // Pattern selection buttons - now 8 buttons arranged in two rows
+        auto patternTopRow = patternSection.removeFromTop(scaled(32));
+        auto patternBottomRow = patternSection.removeFromTop(scaled(32));
         
-        // Pattern length
-        auto lengthSection = controlsSection.removeFromLeft(scaled(60));
-        m_lengthLabel->setBounds(lengthSection.removeFromTop(scaled(15)));
-        m_patternLengthLabel->setBounds(lengthSection.withSizeKeepingCentre(scaled(50), scaled(25)));
+        float patternButtonWidth = scaled(65);
+        float patternGap = scaled(5);
         
-        // Spacer to push status section to the right
-        bounds.removeFromLeft(scaled(20));
+        // First row - patterns 1-4
+        for (size_t i = 0; i < 4 && i < m_patternButtons.size(); ++i) {
+            auto buttonBounds = patternTopRow.removeFromLeft(patternButtonWidth)
+                                            .withSizeKeepingCentre(patternButtonWidth, scaled(28));
+            m_patternButtons[i]->setBounds(buttonBounds);
+            patternTopRow.removeFromLeft(patternGap);
+        }
+        
+        // Second row - patterns 5-8
+        for (size_t i = 4; i < 8 && i < m_patternButtons.size(); ++i) {
+            auto buttonBounds = patternBottomRow.removeFromLeft(patternButtonWidth)
+                                               .withSizeKeepingCentre(patternButtonWidth, scaled(28));
+            m_patternButtons[i]->setBounds(buttonBounds);
+            patternBottomRow.removeFromLeft(patternGap);
+        }
+        
+        // Gap before save/load buttons
+        patternTopRow.removeFromLeft(scaled(20));
+        
+        // Save/Load buttons aligned with pattern buttons
+        auto saveLoadWidth = scaled(55);
+        m_saveButton->setBounds(patternTopRow.removeFromLeft(saveLoadWidth)
+                                            .withSizeKeepingCentre(saveLoadWidth, scaled(28)));
+        patternTopRow.removeFromLeft(scaled(5));
+        
+        m_loadButton->setBounds(patternTopRow.removeFromLeft(saveLoadWidth)
+                                            .withSizeKeepingCentre(saveLoadWidth, scaled(28)));
         
         // Right Section: Status & Monitoring (remaining space)
-        auto statusSection = bounds;
+        auto statusSection = bounds.removeFromRight(scaled(100));
         
-        // CPU meter
-        auto cpuBounds = statusSection.removeFromLeft(scaled(60))
-                                     .withSizeKeepingCentre(scaled(55), scaled(30));
-        m_cpuLabel->setBounds(cpuBounds);
+        // Panic button (rightmost)
+        auto panicBounds = statusSection.removeFromRight(scaled(55))
+                                       .withSizeKeepingCentre(scaled(50), scaled(25));
+        m_panicButton->setBounds(panicBounds);
         
-        statusSection.removeFromLeft(scaled(5));
+        statusSection.removeFromRight(scaled(10));
         
         // MIDI LED
-        auto ledBounds = statusSection.removeFromLeft(scaled(30))
-                                     .withSizeKeepingCentre(scaled(25), scaled(25));
+        auto ledBounds = statusSection.removeFromRight(scaled(25))
+                                     .withSizeKeepingCentre(scaled(20), scaled(20));
         m_midiActivityLED->setBounds(ledBounds);
-        
-        statusSection.removeFromLeft(scaled(10));
-        
-        // Panic button
-        auto panicBounds = statusSection.removeFromLeft(scaled(60))
-                                       .withSizeKeepingCentre(scaled(55), scaled(30));
-        m_panicButton->setBounds(panicBounds);
     }
     
     // Public methods
@@ -307,15 +288,9 @@ public:
         }
     }
     
-    void setSwing(float swing) {
-        if (m_swingKnob) {
-            m_swingKnob->setValue(swing);
-        }
-    }
-    
-    void setPatternLength(int length) {
-        if (m_patternLengthLabel) {
-            m_patternLengthLabel->setText(juce::String(length), juce::dontSendNotification);
+    void setPatternName(const juce::String& name) {
+        if (m_patternNameLabel) {
+            m_patternNameLabel->setText(name, juce::dontSendNotification);
         }
     }
     
@@ -324,13 +299,11 @@ public:
     std::function<void()> onStopClicked;
     std::function<void(bool recording)> onRecordStateChanged;
     std::function<void(float bpm)> onBPMChanged;
-    std::function<void(float swing)> onSwingChanged;
     std::function<void(int pattern)> onPatternSelected;
     std::function<void(int pattern, bool chain)> onPatternChain;
+    std::function<void()> onPatternSave;
+    std::function<void()> onPatternLoad;
     std::function<void()> onPanicClicked;
-    
-    // Callback to get current CPU usage
-    std::function<float()> onRequestCPUUsage;
     
     bool isPlaying() const { return m_isPlaying; }
     
@@ -353,39 +326,22 @@ public:
     }
     
 private:
-    // Timer callback for updating CPU and other periodic displays
-    void timerCallback() override {
-        // Update CPU usage
-        if (onRequestCPUUsage) {
-            float cpuUsage = onRequestCPUUsage();
-            juce::String cpuText = juce::String::formatted("CPU: %.1f%%", cpuUsage);
-            m_cpuLabel->setText(cpuText, juce::dontSendNotification);
-            
-            // Color code based on CPU usage
-            if (cpuUsage > 80.0f) {
-                m_cpuLabel->setColour(juce::Label::textColourId, 
-                                     juce::Colour(DesignTokens::Colors::ACCENT_RED));
-            } else if (cpuUsage > 50.0f) {
-                m_cpuLabel->setColour(juce::Label::textColourId, 
-                                     juce::Colour(DesignTokens::Colors::ACCENT_AMBER));
-            } else {
-                m_cpuLabel->setColour(juce::Label::textColourId, 
-                                     juce::Colour(DesignTokens::Colors::TEXT_MUTED));
-            }
-        }
-    }
+    // Transport controls - VISUAL HIERARCHY PRIMARY
+    std::unique_ptr<LargeTransportButton> m_playButton;
+    std::unique_ptr<LargeTransportButton> m_stopButton;
+    std::unique_ptr<LargeTransportButton> m_recordButton;
     
-    // Transport controls from HAM component library
-    std::unique_ptr<PlayButton> m_playButton;
-    std::unique_ptr<StopButton> m_stopButton;
-    std::unique_ptr<RecordButton> m_recordButton;
+    // Pattern controls - VISUAL HIERARCHY SECONDARY  
     std::vector<std::unique_ptr<PatternButton>> m_patternButtons;
+    std::unique_ptr<PatternManagementButton> m_saveButton;
+    std::unique_ptr<PatternManagementButton> m_loadButton;
+    std::unique_ptr<juce::Label> m_patternNameLabel;
+    
+    // Tempo controls - VISUAL HIERARCHY TERTIARY
     std::unique_ptr<TempoDisplay> m_tempoDisplay;
     std::unique_ptr<TempoArrows> m_tempoArrows;
-    std::unique_ptr<CompactSwingKnob> m_swingKnob;
-    std::unique_ptr<juce::Label> m_patternLengthLabel;
-    std::unique_ptr<juce::Label> m_lengthLabel;
-    std::unique_ptr<juce::Label> m_cpuLabel;
+    
+    // Status displays - VISUAL HIERARCHY MINIMAL
     std::unique_ptr<LED> m_midiActivityLED;
     std::unique_ptr<PanicButton> m_panicButton;
     

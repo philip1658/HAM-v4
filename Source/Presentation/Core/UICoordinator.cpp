@@ -260,16 +260,6 @@ void UICoordinator::setupEventHandlers()
         }
     };
     
-    // CPU usage callback
-    m_transportBar->onRequestCPUUsage = [this]() -> float
-    {
-        if (auto* processor = m_controller.getAudioProcessor())
-        {
-            return processor->getCpuUsage();
-        }
-        return 0.0f;
-    };
-    
     // Track management button handlers
     m_addTrackButton->onClick = [this]()
     {
@@ -627,6 +617,19 @@ void UICoordinator::paint(juce::Graphics& g)
 {
     // Dark background matching Pulse aesthetic
     g.fillAll(juce::Colour(0xFF0A0A0A));
+    
+    // Draw visual separator between track management and view tabs
+    if (m_removeTrackButton && m_sequencerTabButton)
+    {
+        // Get positions from the buttons
+        int separatorX = m_removeTrackButton->getRight() + 5;
+        int separatorY = m_removeTrackButton->getY() + 4;
+        int separatorHeight = m_removeTrackButton->getHeight() - 8;
+        
+        // Draw vertical divider line
+        g.setColour(juce::Colour(0xFF2A2A2A)); // Subtle divider color
+        g.fillRect(separatorX, separatorY, 1, separatorHeight);
+    }
 }
 
 void UICoordinator::resized()
@@ -657,10 +660,10 @@ void UICoordinator::resized()
     if (m_removeTrackButton)
     {
         m_removeTrackButton->setBounds(leftX, buttonY, iconButtonSize, iconButtonSize);
-        leftX += iconButtonSize + 10;  // Space before navigation
+        leftX += iconButtonSize + 20;  // Increased space before navigation for visual hierarchy
     }
     
-    // Navigation icons
+    // Navigation icons (view modes)
     if (m_sequencerTabButton)
     {
         m_sequencerTabButton->setBounds(leftX, buttonY, iconButtonSize, iconButtonSize);
