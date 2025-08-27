@@ -109,15 +109,6 @@ public:
         };
         addAndMakeVisible(m_loadButton.get());
         
-        // Create pattern name label
-        m_patternNameLabel = std::make_unique<juce::Label>();
-        m_patternNameLabel->setText("Pattern 1", juce::dontSendNotification);
-        m_patternNameLabel->setColour(juce::Label::textColourId, 
-                                     juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
-        m_patternNameLabel->setFont(juce::Font(juce::FontOptions(12.0f)).withStyle(juce::Font::bold));
-        m_patternNameLabel->setJustificationType(juce::Justification::centred);
-        addAndMakeVisible(m_patternNameLabel.get());
-        
         // Create MIDI activity LED
         m_midiActivityLED = std::make_unique<LED>(juce::Colour(DesignTokens::Colors::ACCENT_GREEN));
         addAndMakeVisible(m_midiActivityLED.get());
@@ -212,11 +203,8 @@ public:
         // Pattern Section (700px) - More space for 8 pattern buttons
         auto patternSection = bounds.removeFromLeft(scaled(700));
         
-        // Pattern name label at top
-        auto patternNameBounds = patternSection.removeFromTop(scaled(20));
-        m_patternNameLabel->setBounds(patternNameBounds.removeFromLeft(scaled(150)));
-        
         // Pattern selection buttons - now 8 buttons arranged in two rows
+        // No pattern name label - cleaner interface
         auto patternTopRow = patternSection.removeFromTop(scaled(32));
         auto patternBottomRow = patternSection.removeFromTop(scaled(32));
         
@@ -288,11 +276,6 @@ public:
         }
     }
     
-    void setPatternName(const juce::String& name) {
-        if (m_patternNameLabel) {
-            m_patternNameLabel->setText(name, juce::dontSendNotification);
-        }
-    }
     
     // Callbacks
     std::function<void(bool playing)> onPlayStateChanged;
@@ -335,7 +318,6 @@ private:
     std::vector<std::unique_ptr<PatternButton>> m_patternButtons;
     std::unique_ptr<PatternManagementButton> m_saveButton;
     std::unique_ptr<PatternManagementButton> m_loadButton;
-    std::unique_ptr<juce::Label> m_patternNameLabel;
     
     // Tempo controls - VISUAL HIERARCHY TERTIARY
     std::unique_ptr<TempoDisplay> m_tempoDisplay;
