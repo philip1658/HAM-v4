@@ -41,6 +41,7 @@ public:
     std::function<void()> onExportMidi;
     std::function<void()> onShowSettings;
     std::function<void()> onShowAbout;
+    std::function<void()> onTogglePlayStop;
     
     // Keyboard shortcuts
     bool handleKeyPress(const juce::KeyPress& key);

@@ -39,6 +39,12 @@ void UICoordinator::setAudioProcessor(HAMAudioProcessor* processor)
     if (!processor)
         return;
     
+    // Connect the stage grid to the processor for playhead tracking
+    if (m_stageGrid)
+    {
+        m_stageGrid->setAudioProcessor(processor);
+    }
+    
     // Create the mixer view now that we have a processor
     if (!m_mixerView)
     {

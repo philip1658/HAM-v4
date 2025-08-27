@@ -78,7 +78,7 @@ void TransportControl::setAudioProcessor(HAMAudioProcessor* processor)
     if (m_processor)
     {
         // Get initial BPM
-        updateBPM(m_processor->getCurrentBPM());
+        updateBPM(m_processor->getBPM());
     }
 }
 
@@ -169,7 +169,7 @@ void TransportControl::updatePositionDisplay()
     if (!m_processor)
         return;
     
-    // Get position from processor
+    // Get position directly from processor
     int bar = m_processor->getCurrentBar();
     int beat = m_processor->getCurrentBeat();
     int pulse = m_processor->getCurrentPulse();

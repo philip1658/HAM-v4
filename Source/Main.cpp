@@ -26,6 +26,13 @@ public:
     //==============================================================================
     void initialise(const juce::String& commandLine) override
     {
+        // Log startup to Console
+        juce::Logger::writeToLog("========================================");
+        juce::Logger::writeToLog("HAM - Happy Accident Machine Starting");
+        juce::Logger::writeToLog("Version: " + juce::String(ProjectInfo::versionString));
+        juce::Logger::writeToLog("Build: Debug with diagnostics");
+        juce::Logger::writeToLog("========================================");
+        
         // Handle command line arguments for testing
         if (commandLine.contains("--version"))
         {

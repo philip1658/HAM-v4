@@ -114,17 +114,28 @@ void AppController::initializePlugins()
 //==============================================================================
 void AppController::play()
 {
+    juce::Logger::writeToLog("AppController::play() called");
+    
     if (!m_audioInitialized)
+    {
+        juce::Logger::writeToLog("AppController::play() - Audio not initialized!");
         return;
+    }
     
     m_isPlaying = true;
     
     if (m_messageDispatcher)
     {
+        juce::Logger::writeToLog("AppController::play() - Sending TRANSPORT_PLAY message");
         UIToEngineMessage msg;
         msg.type = UIToEngineMessage::TRANSPORT_PLAY;
         msg.data.floatParam.value = m_currentBPM.load();
         m_messageDispatcher->sendToEngine(msg);
+        juce::Logger::writeToLog("AppController::play() - Message sent successfully");
+    }
+    else
+    {
+        juce::Logger::writeToLog("AppController::play() - ERROR: No MessageDispatcher!");
     }
 }
 

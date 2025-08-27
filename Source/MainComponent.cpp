@@ -119,6 +119,22 @@ MainComponent::MainComponent()
         );
     };
     
+    // Connect keyboard shortcuts
+    m_mainWindow->onTogglePlayStop = [this]()
+    {
+        juce::Logger::writeToLog("MainComponent: Toggle play/stop triggered via keyboard");
+        if (m_appController->isPlaying())
+        {
+            juce::Logger::writeToLog("MainComponent: Stopping playback");
+            m_appController->stop();
+        }
+        else
+        {
+            juce::Logger::writeToLog("MainComponent: Starting playback");
+            m_appController->play();
+        }
+    };
+    
     // Set initial window properties
     setSize(1600, 1000);
     m_mainWindow->setWindowTitle("HAM - Happy Accident Machine");

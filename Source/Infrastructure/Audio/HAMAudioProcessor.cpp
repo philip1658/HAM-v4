@@ -33,7 +33,28 @@ HAMAudioProcessor::HAMAudioProcessor()
     m_messageQueue = std::make_unique<LockFreeMessageQueue<UIToEngineMessage, 2048>>();
     m_messageDispatcher = std::make_unique<MessageDispatcher>();
 
-    // Register UI handlers for debug monitor toggle
+    // Register ALL UI message handlers
+    // Transport messages
+    m_messageDispatcher->registerUIHandler(UIToEngineMessage::TRANSPORT_PLAY, [this](const UIToEngineMessage& msg) {
+        juce::Logger::writeToLog("HAMAudioProcessor: Handler called for TRANSPORT_PLAY");
+        processUIMessage(msg);
+    });
+    m_messageDispatcher->registerUIHandler(UIToEngineMessage::TRANSPORT_STOP, [this](const UIToEngineMessage& msg) {
+        processUIMessage(msg);
+    });
+    m_messageDispatcher->registerUIHandler(UIToEngineMessage::TRANSPORT_PAUSE, [this](const UIToEngineMessage& msg) {
+        processUIMessage(msg);
+    });
+    m_messageDispatcher->registerUIHandler(UIToEngineMessage::TRANSPORT_PANIC, [this](const UIToEngineMessage& msg) {
+        processUIMessage(msg);
+    });
+    
+    // Parameter messages
+    m_messageDispatcher->registerUIHandler(UIToEngineMessage::SET_BPM, [this](const UIToEngineMessage& msg) {
+        processUIMessage(msg);
+    });
+    
+    // Debug mode handlers
     m_messageDispatcher->registerUIHandler(UIToEngineMessage::ENABLE_DEBUG_MODE, [this](const UIToEngineMessage&) {
         if (m_midiRouter) m_midiRouter->setDebugChannelEnabled(true);
     });
@@ -41,9 +62,31 @@ HAMAudioProcessor::HAMAudioProcessor()
         if (m_midiRouter) m_midiRouter->setDebugChannelEnabled(false);
     });
     
-    // Create default pattern
+    // Create default pattern with proper configuration
     m_currentPattern = std::make_shared<Pattern>();
     m_currentPattern->addTrack(); // Add one default track
+    
+    // Configure the default track properly for immediate playback
+    if (auto* track = m_currentPattern->getTrack(0))
+    {
+        track->setLength(8);  // Use all 8 stages
+        track->setDivision(4); // Quarter note division
+        track->setVoiceMode(VoiceMode::MONO); // Start with mono mode
+        track->setMidiChannel(1); // Use MIDI channel 1
+        
+        // Create a simple C major ascending pattern
+        for (int i = 0; i < 8; ++i)
+        {
+            Stage& stage = track->getStage(i);
+            stage.setPitch(60 + (i * 2));  // C major scale: C, D, E, F, G, A, B, C
+            stage.setVelocity(100);  // Good velocity for hearing notes
+            stage.setGate(0.9f);  // 90% gate length for clear notes
+            stage.setPulseCount(1);  // One pulse per stage for now
+            stage.setGateType(GateType::MULTIPLE);  // Standard gate type
+        }
+        
+        DBG("Default pattern created with " << track->getLength() << " stages");
+    }
     
     // Initialize per-track processors for default tracks
     for (int i = 0; i < 8; ++i)  // Start with 8 tracks
@@ -265,18 +308,13 @@ void HAMAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 //==============================================================================
 void HAMAudioProcessor::processUIMessages()
 {
-    // Process messages from UI queue
-    int processed = 0;
+    // Process messages from MessageDispatcher's queue
     const int maxMessages = 32;
     
-    while (processed < maxMessages && m_messageQueue && m_messageQueue->getNumReady() > 0)
+    // Use the MessageDispatcher's built-in processing
+    if (m_messageDispatcher)
     {
-        UIToEngineMessage msg;
-        if (m_messageQueue->pop(msg))
-        {
-            processUIMessage(msg);
-            processed++;
-        }
+        m_messageDispatcher->processUIMessages(maxMessages);
     }
 }
 
@@ -286,7 +324,9 @@ void HAMAudioProcessor::processUIMessage(const UIToEngineMessage& msg)
     {
         // Transport Control
         case UIToEngineMessage::TRANSPORT_PLAY:
+            juce::Logger::writeToLog("HAMAudioProcessor: Received TRANSPORT_PLAY message");
             play();
+            juce::Logger::writeToLog("HAMAudioProcessor: After play() - isPlaying: " + juce::String(m_transport->isPlaying() ? "true" : "false"));
             break;
             
         case UIToEngineMessage::TRANSPORT_STOP:
@@ -604,11 +644,84 @@ void HAMAudioProcessor::processEngineMessage(const EngineToUIMessage& msg)
 //==============================================================================
 void HAMAudioProcessor::play()
 {
-    DBG("HAMAudioProcessor::play() - Starting playback");
+    // Use Logger for Console output
+    juce::Logger::writeToLog("=== HAMAudioProcessor::play() - Starting playback ===");
+    juce::Logger::writeToLog("Initial State:");
+    juce::Logger::writeToLog(juce::String("  - Transport playing: ") + (m_transport->isPlaying() ? "YES" : "NO"));
+    juce::Logger::writeToLog(juce::String("  - Clock running: ") + (m_masterClock->isRunning() ? "YES" : "NO"));
+    juce::Logger::writeToLog(juce::String("  - Clock BPM: ") + juce::String(m_masterClock->getBPM()));
+    juce::Logger::writeToLog(juce::String("  - Clock Position: ") + juce::String(m_masterClock->getCurrentBar()) + ":" 
+        + juce::String(m_masterClock->getCurrentBeat()) + ":" + juce::String(m_masterClock->getCurrentPulse()));
+    
+    DBG("=== HAMAudioProcessor::play() - Starting playback ===");
+    DBG("Initial State:");
+    DBG(juce::String("  - Transport playing: ") + (m_transport->isPlaying() ? "YES" : "NO"));
+    DBG(juce::String("  - Clock running: ") + (m_masterClock->isRunning() ? "YES" : "NO"));
+    DBG(juce::String("  - Clock BPM: ") + juce::String(m_masterClock->getBPM()));
+    DBG(juce::String("  - Clock Position: ") + juce::String(m_masterClock->getCurrentBar()) + ":" 
+        + juce::String(m_masterClock->getCurrentBeat()) + ":" + juce::String(m_masterClock->getCurrentPulse()));
+    
+    // Don't force stop first - just call play which handles state transitions properly
     m_transport->play();
-    m_masterClock->start();
-    m_sequencerEngine->start();
-    DBG("HAMAudioProcessor::play() - All components started");
+    
+    // Only start sequencer if transport is actually playing
+    if (m_transport->isPlaying())
+    {
+        m_sequencerEngine->start();
+        juce::Logger::writeToLog("HAMAudioProcessor::play() - All components started successfully");
+        DBG("HAMAudioProcessor::play() - All components started successfully");
+    }
+    else
+    {
+        juce::Logger::writeToLog("HAMAudioProcessor::play() - WARNING: Transport failed to start!");
+        DBG("HAMAudioProcessor::play() - WARNING: Transport failed to start!");
+        // Try to recover by stopping then playing
+        m_transport->stop(false);  // Stop without return to zero
+        
+        // Add a small delay to ensure clean state transition
+        juce::Thread::sleep(10);
+        
+        m_transport->play();        // Try again
+        
+        if (m_transport->isPlaying())
+        {
+            m_sequencerEngine->start();
+            juce::Logger::writeToLog("HAMAudioProcessor::play() - Started on second attempt");
+            DBG("HAMAudioProcessor::play() - Started on second attempt");
+        }
+        else
+        {
+            juce::Logger::writeToLog("HAMAudioProcessor::play() - ERROR: Failed to start transport!");
+            DBG("HAMAudioProcessor::play() - ERROR: Failed to start transport!");
+            // One more attempt - completely reset everything
+            juce::Logger::writeToLog("HAMAudioProcessor::play() - Attempting full reset...");
+            DBG("HAMAudioProcessor::play() - Attempting full reset...");
+            m_masterClock->stop();
+            m_masterClock->reset();
+            m_transport->stop(true);  // Return to zero
+            juce::Thread::sleep(10);
+            
+            m_transport->play();
+            if (m_transport->isPlaying())
+            {
+                m_sequencerEngine->start();
+                juce::Logger::writeToLog("HAMAudioProcessor::play() - Started after full reset");
+                DBG("HAMAudioProcessor::play() - Started after full reset");
+            }
+        }
+    }
+    
+    juce::Logger::writeToLog("Final State:");
+    juce::Logger::writeToLog(juce::String("  - Transport playing: ") + (m_transport->isPlaying() ? "YES" : "NO"));
+    juce::Logger::writeToLog(juce::String("  - Clock running: ") + (m_masterClock->isRunning() ? "YES" : "NO"));
+    juce::Logger::writeToLog(juce::String("  - Sequencer state: ") + juce::String(static_cast<int>(m_sequencerEngine->getState())));
+    juce::Logger::writeToLog("=================================");
+    
+    DBG("Final State:");
+    DBG(juce::String("  - Transport playing: ") + (m_transport->isPlaying() ? "YES" : "NO"));
+    DBG(juce::String("  - Clock running: ") + (m_masterClock->isRunning() ? "YES" : "NO"));
+    DBG(juce::String("  - Sequencer state: ") + juce::String(static_cast<int>(m_sequencerEngine->getState())));
+    DBG("=================================");
 }
 
 void HAMAudioProcessor::stop()

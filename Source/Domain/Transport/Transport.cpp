@@ -36,30 +36,81 @@ Transport::~Transport()
 
 void Transport::play()
 {
+    State currentState = m_state.load();
+    juce::Logger::writeToLog("Transport::play() called - current state: " + juce::String(static_cast<int>(currentState)));
+    
+    // If already playing, ensure clock is also running (fix desync issues)
+    if (currentState == State::PLAYING)
+    {
+        juce::Logger::writeToLog("Transport: Already playing, checking clock state");
+        // Ensure clock is actually running
+        if (m_syncMode == SyncMode::INTERNAL && !m_clock.isRunning())
+        {
+            juce::Logger::writeToLog("Transport: WARNING - Transport playing but clock stopped! Restarting clock.");
+            m_clock.start();
+        }
+        return;
+    }
+    
+    // Try to transition from STOPPED to PLAYING
     State expected = State::STOPPED;
     if (m_state.compare_exchange_strong(expected, State::PLAYING))
     {
+        juce::Logger::writeToLog("Transport: State changed from STOPPED to PLAYING");
         // Start internal clock if using internal sync
         if (m_syncMode == SyncMode::INTERNAL)
         {
+            juce::Logger::writeToLog("Transport: Starting internal clock");
             m_clock.start();
+            
+            // Verify clock actually started
+            if (!m_clock.isRunning())
+            {
+                juce::Logger::writeToLog("Transport: ERROR - Clock failed to start! Retrying...");
+                m_clock.stop(); // Clear any bad state
+                m_clock.reset(); // Reset position
+                m_clock.start(); // Try again
+                
+                if (!m_clock.isRunning())
+                {
+                    juce::Logger::writeToLog("Transport: CRITICAL - Clock won't start! Reverting transport state.");
+                    m_state.store(State::STOPPED);
+                    return;
+                }
+            }
+            juce::Logger::writeToLog("Transport: Clock confirmed running");
         }
         
         notifyTransportStart();
         return;
     }
     
-    // Also handle resume from pause
+    // Try to resume from PAUSED
     expected = State::PAUSED;
     if (m_state.compare_exchange_strong(expected, State::PLAYING))
     {
+        juce::Logger::writeToLog("Transport: State changed from PAUSED to PLAYING");
         if (m_syncMode == SyncMode::INTERNAL)
         {
+            juce::Logger::writeToLog("Transport: Resuming internal clock");
             m_clock.start();
+            
+            // Verify clock actually started
+            if (!m_clock.isRunning())
+            {
+                juce::Logger::writeToLog("Transport: ERROR - Clock failed to resume! Retrying...");
+                m_clock.stop();
+                m_clock.start();
+            }
         }
         
         notifyTransportStart();
+        return;
     }
+    
+    // If we're in any other state, log it but don't fail silently
+    currentState = m_state.load();
+    juce::Logger::writeToLog("Transport: Cannot play from current state: " + juce::String(static_cast<int>(currentState)));
 }
 
 void Transport::stop(bool returnToZero)

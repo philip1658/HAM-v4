@@ -148,6 +148,7 @@ target_sources(HAM PRIVATE
     Source/Presentation/Views/TrackSidebar.h
     Source/Presentation/Views/TrackSidebar.cpp
     Source/Presentation/Views/StageGrid.h
+    Source/Presentation/Views/StageGrid.cpp
     Source/Presentation/Views/MainEditor.h
     Source/Presentation/Views/PluginBrowser.h
     Source/Presentation/Views/MixerView.h

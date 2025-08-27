@@ -43,11 +43,20 @@ void MasterClock::start()
     if (m_isRunning.compare_exchange_strong(expected, true))
     {
         DBG("MasterClock::start() - Clock started successfully!");
+        DBG(juce::String("  - BPM: ") + juce::String(m_bpm.load()));
+        DBG(juce::String("  - Sample Rate: ") + juce::String(m_sampleRate.load()));
+        DBG(juce::String("  - Samples Per Pulse: ") + juce::String(m_samplesPerPulse));
+        DBG(juce::String("  - Current Position: Bar ") + juce::String(m_currentBar.load()) + ":" + juce::String(m_currentBeat.load()) + ":" + juce::String(m_currentPulse.load()));
+        
+        // Reset sample counter to ensure immediate pulse generation
+        m_sampleCounter = 0.0;
+        
         notifyClockStart();
     }
     else
     {
         DBG("MasterClock::start() - Clock was already running");
+        DBG(juce::String("  - Current state: isRunning = ") + juce::String(m_isRunning.load() ? "true" : "false"));
     }
 }
 
@@ -124,9 +133,19 @@ void MasterClock::processBlock(double sampleRate, int numSamples)
     std::chrono::high_resolution_clock::time_point callStart;
     if (isTestContext)
         callStart = std::chrono::high_resolution_clock::now();
+    
+    // Add diagnostic for why clock might not be processing
     if (!m_isRunning.load())
     {
-        // Clock not running - this is normal when stopped
+        // Log first few times this happens to diagnose issues
+        static int notRunningCount = 0;
+        if (notRunningCount < 5)
+        {
+            DBG(juce::String("MasterClock::processBlock() - Clock not running (call ") + juce::String(++notRunningCount) + ")");
+            DBG(juce::String("  - isRunning: ") + juce::String(m_isRunning.load() ? "true" : "false"));
+            DBG(juce::String("  - BPM: ") + juce::String(m_bpm.load()));
+            DBG(juce::String("  - Position: ") + juce::String(m_currentBar.load()) + ":" + juce::String(m_currentBeat.load()) + ":" + juce::String(m_currentPulse.load()));
+        }
         return;
     }
     

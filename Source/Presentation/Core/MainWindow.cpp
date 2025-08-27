@@ -93,10 +93,15 @@ bool MainWindow::handleKeyPress(const juce::KeyPress& key)
         }
     }
     
-    // Space bar for play/pause (handled by transport)
+    // Space bar for play/pause
     if (key.getKeyCode() == juce::KeyPress::spaceKey)
     {
-        // This will be handled by the transport component
+        juce::Logger::writeToLog("MainWindow: Space key pressed - triggering play/stop");
+        if (onTogglePlayStop)
+        {
+            onTogglePlayStop();
+            return true;
+        }
         return false;
     }
     

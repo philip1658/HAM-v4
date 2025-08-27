@@ -112,6 +112,12 @@ public:
     
     void setBPM(float bpm);
     float getBPM() const { return m_masterClock->getBPM(); }
+    float getCurrentBPM() const { return getBPM(); }  // Alias for compatibility
+    
+    // Position accessors for UI
+    int getCurrentBar() const { return m_masterClock->getCurrentBar(); }
+    int getCurrentBeat() const { return m_masterClock->getCurrentBeat(); }
+    int getCurrentPulse() const { return m_masterClock->getCurrentPulse(); }
     
     // Access to master clock for position display
     MasterClock* getMasterClock() const { return m_masterClock.get(); }

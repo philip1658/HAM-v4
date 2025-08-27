@@ -52,8 +52,11 @@ public:
      */
     bool sendToEngine(const UIToEngineMessage& message)
     {
+        juce::Logger::writeToLog("MessageDispatcher::sendToEngine - Message type: " + juce::String(static_cast<int>(message.type)));
         auto priority = getPriorityForUIMessage(message.type);
-        return m_uiToEngineQueue.push(message, priority);
+        bool result = m_uiToEngineQueue.push(message, priority);
+        juce::Logger::writeToLog("MessageDispatcher::sendToEngine - Push result: " + juce::String(result ? "SUCCESS" : "FAILED"));
+        return result;
     }
     
     /**

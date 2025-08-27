@@ -9,19 +9,28 @@
 #include <functional>
 #include <vector>
 
+namespace HAM {
+    class HAMAudioProcessor;  // Forward declaration
+}
+
 namespace HAM::UI {
 
 // ==========================================
 // StageGrid - Container for 8 Stage Cards
 // ==========================================
-class StageGrid : public BaseComponent {
+class StageGrid : public BaseComponent, public juce::Timer {
 public:
     StageGrid() {
         // Start with 8 tracks to match TrackManager initialization
         setTrackCount(8);
+        
+        // Start timer for playhead updates (30 FPS)
+        startTimer(33);
     }
     
-    ~StageGrid() override = default;
+    ~StageGrid() override {
+        stopTimer();
+    }
     
     // Paint override
     void paint(juce::Graphics& g) override {
@@ -35,6 +44,20 @@ public:
                 int x = i * (getWidth() / 8);
                 g.drawVerticalLine(x, 0, getHeight());
             }
+        }
+        
+        // Draw playhead if playing
+        if (m_isPlaying && m_currentStageIndex >= 0 && m_currentStageIndex < 8) {
+            int cardWidth = getWidth() / 8;
+            int x = m_currentStageIndex * cardWidth;
+            
+            // Draw vertical playhead line
+            g.setColour(juce::Colour(0xFF00FFFF).withAlpha(0.8f)); // Cyan playhead
+            g.fillRect(x, 0, 2, getHeight()); // 2px wide playhead
+            
+            // Add glow effect
+            g.setColour(juce::Colour(0xFF00FFFF).withAlpha(0.3f));
+            g.fillRect(x - 2, 0, 6, getHeight()); // Glow around playhead
         }
     }
     
@@ -120,6 +143,14 @@ public:
         return nullptr;
     }
     
+    // Timer callback for playhead updates
+    void timerCallback() override;
+    
+    // Set the audio processor for position tracking
+    void setAudioProcessor(HAM::HAMAudioProcessor* proc) {
+        m_processor = proc;
+    }
+    
     // Callbacks
     std::function<void(int track, int stage, const juce::String& param, float value)> onStageParameterChanged;
     std::function<void(int stage)> onStageSelected;
@@ -130,6 +161,11 @@ private:
     int m_trackCount = 1;
     int m_activeStage = 0;
     bool m_showGridLines = false;
+    
+    // Playhead visualization
+    HAM::HAMAudioProcessor* m_processor = nullptr;
+    bool m_isPlaying = false;
+    int m_currentStageIndex = -1;
 };
 
 } // namespace HAM::UI
