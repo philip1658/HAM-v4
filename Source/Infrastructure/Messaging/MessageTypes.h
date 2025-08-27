@@ -69,6 +69,11 @@ struct UIToEngineMessage
         SET_GATE_TYPE,
         SET_VOICE_STEALING_MODE,
         
+        // MIDI Preview (HIGH priority)
+        PREVIEW_NOTE_ON,
+        PREVIEW_NOTE_OFF,
+        PREVIEW_SCALE,
+        
         // Morphing Control (NORMAL priority)
         START_MORPH,
         SET_MORPH_POSITION,
@@ -95,6 +100,7 @@ struct UIToEngineMessage
         struct { int patternId; } patternParam;
         struct { int snapshotSlot; } snapshotParam;
         struct { int sourceSlot; int targetSlot; float position; } morphParam;
+        struct { int note; float velocity; int channel; } previewParam;
     } data;
     
     // For complex data that doesn't fit in union

@@ -52,7 +52,30 @@ public:
         };
         addAndMakeVisible(m_recordButton.get());
         
-        // Create tempo display
+        // Create pattern buttons (4 quick access patterns)
+        for (int i = 0; i < 4; ++i) {
+            auto patternButton = std::make_unique<PatternButton>(i + 1);
+            patternButton->onPatternSelected = [this, i](int pattern) {
+                selectPattern(i);
+                if (onPatternSelected) {
+                    onPatternSelected(pattern);
+                }
+            };
+            patternButton->onPatternChain = [this](int pattern, bool chain) {
+                if (onPatternChain) {
+                    onPatternChain(pattern, chain);
+                }
+            };
+            addAndMakeVisible(patternButton.get());
+            m_patternButtons.push_back(std::move(patternButton));
+        }
+        
+        // Set first pattern as active by default
+        if (!m_patternButtons.empty()) {
+            m_patternButtons[0]->setActive(true);
+        }
+        
+        // Create tempo display (smaller)
         m_tempoDisplay = std::make_unique<TempoDisplay>();
         m_tempoDisplay->setBPM(120.0f);
         m_tempoDisplay->onBPMChanged = [this](float bpm) {
@@ -63,47 +86,72 @@ public:
         };
         addAndMakeVisible(m_tempoDisplay.get());
         
-        // Create position display label
-        m_positionLabel = std::make_unique<juce::Label>();
-        m_positionLabel->setText("001:01:00", juce::dontSendNotification);
-        m_positionLabel->setColour(juce::Label::textColourId, 
-                                  juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
-        m_positionLabel->setFont(juce::Font(juce::FontOptions(14.0f).withName("Menlo")));
-        m_positionLabel->setJustificationType(juce::Justification::centred);
-        addAndMakeVisible(m_positionLabel.get());
+        // Create tempo arrows
+        m_tempoArrows = std::make_unique<TempoArrows>();
+        m_tempoArrows->onTempoChange = [this](float increment) {
+            m_currentBPM = juce::jlimit(20.0f, 999.0f, m_currentBPM + increment);
+            m_tempoDisplay->setBPM(m_currentBPM);
+            if (onBPMChanged) {
+                onBPMChanged(m_currentBPM);
+            }
+        };
+        addAndMakeVisible(m_tempoArrows.get());
         
-        // Create swing control
-        m_swingSlider = std::make_unique<ModernSlider>(false); // Horizontal
-        m_swingSlider->setLabel("SWING");
-        m_swingSlider->setValue(0.5f); // 50% = no swing
-        m_swingSlider->setTrackColor(juce::Colour(DesignTokens::Colors::ACCENT_AMBER));
-        m_swingSlider->onValueChange = [this](float value) {
+        // Create compact swing knob
+        m_swingKnob = std::make_unique<CompactSwingKnob>();
+        m_swingKnob->setValue(0.5f); // 50% = no swing
+        m_swingKnob->onValueChange = [this](float value) {
             if (onSwingChanged) {
                 onSwingChanged(value);
             }
         };
-        addAndMakeVisible(m_swingSlider.get());
-
-        // MIDI Monitor toggle (Channel 16 debug)
-        m_midiMonitorToggle = std::make_unique<ModernToggle>();
-        m_midiMonitorToggle->setChecked(false);
-        m_midiMonitorToggle->onToggle = [this](bool enabled) {
-            if (onMidiMonitorToggled) {
-                onMidiMonitorToggled(enabled);
+        addAndMakeVisible(m_swingKnob.get());
+        
+        // Create pattern length display
+        m_patternLengthLabel = std::make_unique<juce::Label>();
+        m_patternLengthLabel->setText("16", juce::dontSendNotification);
+        m_patternLengthLabel->setColour(juce::Label::textColourId, 
+                                       juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
+        m_patternLengthLabel->setFont(juce::Font(juce::FontOptions(12.0f)));
+        m_patternLengthLabel->setJustificationType(juce::Justification::centred);
+        addAndMakeVisible(m_patternLengthLabel.get());
+        
+        // Pattern length label
+        m_lengthLabel = std::make_unique<juce::Label>();
+        m_lengthLabel->setText("LEN", juce::dontSendNotification);
+        m_lengthLabel->setColour(juce::Label::textColourId, 
+                                juce::Colour(DesignTokens::Colors::TEXT_MUTED));
+        m_lengthLabel->setFont(juce::Font(juce::FontOptions(10.0f)));
+        m_lengthLabel->setJustificationType(juce::Justification::centred);
+        addAndMakeVisible(m_lengthLabel.get());
+        
+        // Create CPU meter (simple text display for now)
+        m_cpuLabel = std::make_unique<juce::Label>();
+        m_cpuLabel->setText("CPU: 2%", juce::dontSendNotification);
+        m_cpuLabel->setColour(juce::Label::textColourId, 
+                             juce::Colour(DesignTokens::Colors::TEXT_MUTED));
+        m_cpuLabel->setFont(juce::Font(juce::FontOptions(10.0f)));
+        m_cpuLabel->setJustificationType(juce::Justification::centred);
+        addAndMakeVisible(m_cpuLabel.get());
+        
+        // Create MIDI activity LED
+        m_midiActivityLED = std::make_unique<LED>(juce::Colour(DesignTokens::Colors::ACCENT_GREEN));
+        addAndMakeVisible(m_midiActivityLED.get());
+        
+        // Create panic button
+        m_panicButton = std::make_unique<PanicButton>();
+        m_panicButton->onPanic = [this]() {
+            if (onPanicClicked) {
+                onPanicClicked();
             }
         };
-        addAndMakeVisible(m_midiMonitorToggle.get());
-
-        m_midiMonitorLabel = std::make_unique<juce::Label>("", "MON");
-        m_midiMonitorLabel->setJustificationType(juce::Justification::centred);
-        m_midiMonitorLabel->setColour(juce::Label::textColourId, juce::Colour(DesignTokens::Colors::TEXT_MUTED));
-        addAndMakeVisible(m_midiMonitorLabel.get());
+        addAndMakeVisible(m_panicButton.get());
         
         // Set default size
         setSize(1200, 80);
         
-        // Start timer for position updates (30 Hz for smooth updates)
-        startTimerHz(30);
+        // Start timer for CPU updates (10 Hz)
+        startTimerHz(10);
     }
     
     ~TransportBar() override {
@@ -118,7 +166,6 @@ public:
         g.setColour(juce::Colour(DesignTokens::Colors::BG_PANEL));
         g.fillRoundedRectangle(bounds, scaled(DesignTokens::Dimensions::CORNER_RADIUS));
         
-        
         // Bottom border
         g.setColour(juce::Colour(DesignTokens::Colors::BORDER));
         g.drawLine(0, bounds.getBottom() - 1, bounds.getRight(), bounds.getBottom() - 1, scaled(1));
@@ -127,11 +174,19 @@ public:
         g.setColour(juce::Colour(DesignTokens::Colors::HAIRLINE));
         
         // After transport buttons
-        float dividerX = scaled(260);
+        float dividerX = scaled(200);
+        g.drawLine(dividerX, scaled(10), dividerX, bounds.getBottom() - scaled(10), scaled(0.5f));
+        
+        // After pattern buttons
+        dividerX = scaled(530);
         g.drawLine(dividerX, scaled(10), dividerX, bounds.getBottom() - scaled(10), scaled(0.5f));
         
         // After tempo
-        dividerX = scaled(500);
+        dividerX = scaled(690);
+        g.drawLine(dividerX, scaled(10), dividerX, bounds.getBottom() - scaled(10), scaled(0.5f));
+        
+        // Before status section
+        dividerX = getWidth() - scaled(200);
         g.drawLine(dividerX, scaled(10), dividerX, bounds.getBottom() - scaled(10), scaled(0.5f));
     }
     
@@ -139,51 +194,96 @@ public:
     void resized() override {
         auto bounds = getLocalBounds().reduced(scaled(10));
         
-        // Transport buttons section (left)
-        auto transportSection = bounds.removeFromLeft(scaled(240));
+        // Left Section: Transport buttons (180px)
+        auto transportSection = bounds.removeFromLeft(scaled(180));
         
         // Play button
-        m_playButton->setBounds(transportSection.removeFromLeft(scaled(60))
-                                              .withSizeKeepingCentre(scaled(50), scaled(50)));
-        transportSection.removeFromLeft(scaled(10));
+        m_playButton->setBounds(transportSection.removeFromLeft(scaled(50))
+                                              .withSizeKeepingCentre(scaled(45), scaled(45)));
+        transportSection.removeFromLeft(scaled(5));
         
         // Stop button
-        m_stopButton->setBounds(transportSection.removeFromLeft(scaled(60))
-                                              .withSizeKeepingCentre(scaled(50), scaled(50)));
-        transportSection.removeFromLeft(scaled(10));
+        m_stopButton->setBounds(transportSection.removeFromLeft(scaled(50))
+                                              .withSizeKeepingCentre(scaled(45), scaled(45)));
+        transportSection.removeFromLeft(scaled(5));
         
         // Record button
-        m_recordButton->setBounds(transportSection.removeFromLeft(scaled(60))
-                                                .withSizeKeepingCentre(scaled(50), scaled(50)));
+        m_recordButton->setBounds(transportSection.removeFromLeft(scaled(50))
+                                                .withSizeKeepingCentre(scaled(45), scaled(45)));
         
-        bounds.removeFromLeft(scaled(20));
+        bounds.removeFromLeft(scaled(15));
         
-        // Tempo section
-        auto tempoSection = bounds.removeFromLeft(scaled(220));
-        m_tempoDisplay->setBounds(tempoSection.withSizeKeepingCentre(scaled(200), scaled(50)));
+        // Pattern buttons section (320px)
+        auto patternSection = bounds.removeFromLeft(scaled(320));
+        float patternButtonWidth = scaled(75);
+        float patternButtonHeight = scaled(40);
+        float patternGap = scaled(5);
         
-        bounds.removeFromLeft(scaled(20));
-        
-        // Position display
-        auto positionSection = bounds.removeFromLeft(scaled(120));
-        m_positionLabel->setBounds(positionSection.withSizeKeepingCentre(scaled(100), scaled(30)));
-        
-        bounds.removeFromLeft(scaled(20));
-        
-        // Swing control
-        auto swingSection = bounds.removeFromLeft(scaled(150));
-        m_swingSlider->setBounds(swingSection.withSizeKeepingCentre(scaled(140), scaled(40)));
-
-        // MIDI Monitor toggle section
-        bounds.removeFromLeft(scaled(10));
-        auto monitorSection = bounds.removeFromLeft(scaled(80));
-        if (m_midiMonitorToggle) {
-            auto toggleArea = monitorSection.removeFromLeft(monitorSection.getWidth() / 2);
-            m_midiMonitorToggle->setBounds(toggleArea.withSizeKeepingCentre(scaled(44), scaled(24)));
+        for (size_t i = 0; i < m_patternButtons.size(); ++i) {
+            auto buttonBounds = patternSection.removeFromLeft(patternButtonWidth)
+                                             .withSizeKeepingCentre(patternButtonWidth, patternButtonHeight);
+            m_patternButtons[i]->setBounds(buttonBounds);
+            patternSection.removeFromLeft(patternGap);
         }
-        if (m_midiMonitorLabel) {
-            m_midiMonitorLabel->setBounds(monitorSection);
-        }
+        
+        bounds.removeFromLeft(scaled(15));
+        
+        // Tempo section (140px total)
+        auto tempoSection = bounds.removeFromLeft(scaled(140));
+        
+        // Tempo display (smaller)
+        auto tempoDisplayBounds = tempoSection.removeFromLeft(scaled(90))
+                                              .withSizeKeepingCentre(scaled(85), scaled(45));
+        m_tempoDisplay->setBounds(tempoDisplayBounds);
+        
+        tempoSection.removeFromLeft(scaled(5));
+        
+        // Tempo arrows
+        auto arrowBounds = tempoSection.removeFromLeft(scaled(40))
+                                      .withSizeKeepingCentre(scaled(35), scaled(40));
+        m_tempoArrows->setBounds(arrowBounds);
+        
+        bounds.removeFromLeft(scaled(15));
+        
+        // Additional controls section (200px)
+        auto controlsSection = bounds.removeFromLeft(scaled(200));
+        
+        // Swing knob
+        auto swingBounds = controlsSection.removeFromLeft(scaled(45))
+                                         .withSizeKeepingCentre(scaled(40), scaled(40));
+        m_swingKnob->setBounds(swingBounds);
+        
+        controlsSection.removeFromLeft(scaled(10));
+        
+        // Pattern length
+        auto lengthSection = controlsSection.removeFromLeft(scaled(60));
+        m_lengthLabel->setBounds(lengthSection.removeFromTop(scaled(15)));
+        m_patternLengthLabel->setBounds(lengthSection.withSizeKeepingCentre(scaled(50), scaled(25)));
+        
+        // Spacer to push status section to the right
+        bounds.removeFromLeft(scaled(20));
+        
+        // Right Section: Status & Monitoring (remaining space)
+        auto statusSection = bounds;
+        
+        // CPU meter
+        auto cpuBounds = statusSection.removeFromLeft(scaled(60))
+                                     .withSizeKeepingCentre(scaled(55), scaled(30));
+        m_cpuLabel->setBounds(cpuBounds);
+        
+        statusSection.removeFromLeft(scaled(5));
+        
+        // MIDI LED
+        auto ledBounds = statusSection.removeFromLeft(scaled(30))
+                                     .withSizeKeepingCentre(scaled(25), scaled(25));
+        m_midiActivityLED->setBounds(ledBounds);
+        
+        statusSection.removeFromLeft(scaled(10));
+        
+        // Panic button
+        auto panicBounds = statusSection.removeFromLeft(scaled(60))
+                                       .withSizeKeepingCentre(scaled(55), scaled(30));
+        m_panicButton->setBounds(panicBounds);
     }
     
     // Public methods
@@ -207,16 +307,15 @@ public:
         }
     }
     
-    void setPosition(int bar, int beat, int pulse) {
-        juce::String posText = juce::String::formatted("%03d:%02d:%02d", bar, beat, pulse);
-        if (m_positionLabel) {
-            m_positionLabel->setText(posText, juce::dontSendNotification);
+    void setSwing(float swing) {
+        if (m_swingKnob) {
+            m_swingKnob->setValue(swing);
         }
     }
     
-    void setSwing(float swing) {
-        if (m_swingSlider) {
-            m_swingSlider->setValue(swing);
+    void setPatternLength(int length) {
+        if (m_patternLengthLabel) {
+            m_patternLengthLabel->setText(juce::String(length), juce::dontSendNotification);
         }
     }
     
@@ -226,34 +325,53 @@ public:
     std::function<void(bool recording)> onRecordStateChanged;
     std::function<void(float bpm)> onBPMChanged;
     std::function<void(float swing)> onSwingChanged;
-    std::function<void(bool enabled)> onMidiMonitorToggled;
+    std::function<void(int pattern)> onPatternSelected;
+    std::function<void(int pattern, bool chain)> onPatternChain;
+    std::function<void()> onPanicClicked;
     
-    // Callback to get current position from the audio processor
-    std::function<void(int& bar, int& beat, int& pulse)> onRequestPosition;
+    // Callback to get current CPU usage
+    std::function<float()> onRequestCPUUsage;
     
     bool isPlaying() const { return m_isPlaying; }
     
+    // Public methods for external control
+    void setMidiActivity(bool active) {
+        if (m_midiActivityLED) {
+            m_midiActivityLED->setOn(active);
+        }
+    }
+    
+    void selectPattern(int index) {
+        // Deactivate all patterns
+        for (auto& btn : m_patternButtons) {
+            btn->setActive(false);
+        }
+        // Activate selected pattern
+        if (index >= 0 && index < static_cast<int>(m_patternButtons.size())) {
+            m_patternButtons[index]->setActive(true);
+        }
+    }
+    
 private:
-    // Timer callback for updating position display
+    // Timer callback for updating CPU and other periodic displays
     void timerCallback() override {
-        if (onRequestPosition) {
-            int bar = 1, beat = 1, pulse = 0;
-            onRequestPosition(bar, beat, pulse);
+        // Update CPU usage
+        if (onRequestCPUUsage) {
+            float cpuUsage = onRequestCPUUsage();
+            juce::String cpuText = juce::String::formatted("CPU: %.1f%%", cpuUsage);
+            m_cpuLabel->setText(cpuText, juce::dontSendNotification);
             
-            // Update position display with visual feedback when playing
-            if (m_isPlaying) {
-                // Add a pulsing animation on the beat
-                if (pulse == 0) {
-                    // Flash on the beat
-                    m_positionLabel->setColour(juce::Label::textColourId, 
-                                              juce::Colour(DesignTokens::Colors::ACCENT_CYAN));
-                } else {
-                    m_positionLabel->setColour(juce::Label::textColourId, 
-                                              juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
-                }
+            // Color code based on CPU usage
+            if (cpuUsage > 80.0f) {
+                m_cpuLabel->setColour(juce::Label::textColourId, 
+                                     juce::Colour(DesignTokens::Colors::ACCENT_RED));
+            } else if (cpuUsage > 50.0f) {
+                m_cpuLabel->setColour(juce::Label::textColourId, 
+                                     juce::Colour(DesignTokens::Colors::ACCENT_AMBER));
+            } else {
+                m_cpuLabel->setColour(juce::Label::textColourId, 
+                                     juce::Colour(DesignTokens::Colors::TEXT_MUTED));
             }
-            
-            setPosition(bar, beat, pulse);
         }
     }
     
@@ -261,11 +379,15 @@ private:
     std::unique_ptr<PlayButton> m_playButton;
     std::unique_ptr<StopButton> m_stopButton;
     std::unique_ptr<RecordButton> m_recordButton;
+    std::vector<std::unique_ptr<PatternButton>> m_patternButtons;
     std::unique_ptr<TempoDisplay> m_tempoDisplay;
-    std::unique_ptr<juce::Label> m_positionLabel;
-    std::unique_ptr<ModernSlider> m_swingSlider;
-    std::unique_ptr<ModernToggle> m_midiMonitorToggle;
-    std::unique_ptr<juce::Label> m_midiMonitorLabel;
+    std::unique_ptr<TempoArrows> m_tempoArrows;
+    std::unique_ptr<CompactSwingKnob> m_swingKnob;
+    std::unique_ptr<juce::Label> m_patternLengthLabel;
+    std::unique_ptr<juce::Label> m_lengthLabel;
+    std::unique_ptr<juce::Label> m_cpuLabel;
+    std::unique_ptr<LED> m_midiActivityLED;
+    std::unique_ptr<PanicButton> m_panicButton;
     
     // State
     bool m_isPlaying = false;

@@ -54,8 +54,12 @@ public:
     
     ~PluginWindow() override
     {
-        // Don't call clearContentComponent() here during destruction
-        // JUCE will handle cleanup properly
+        // Safely handle window cleanup for AU plugins with Cocoa views
+        // Don't interact with content during destruction
+        // JUCE will handle the actual cleanup
+        
+        // Set plugin reference to null to prevent any further access
+        m_plugin = nullptr;
     }
     
     void closeButtonPressed() override
@@ -64,7 +68,15 @@ public:
         saveWindowPosition();
         
         // Clear content before notifying to avoid crashes
-        clearContentComponent();
+        // Use try-catch to handle any exceptions from plugin cleanup
+        try {
+            clearContentComponent();
+        } catch (...) {
+            DBG("Exception while clearing plugin editor content");
+        }
+        
+        // Clear plugin reference
+        m_plugin = nullptr;
         
         // Notify manager
         if (m_onClose)
@@ -304,6 +316,13 @@ public:
      */
     void closeAllWindows()
     {
+        // Check if we're on the message thread for safety
+        if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+        {
+            DBG("WARNING: closeAllWindows called from non-message thread");
+            return;
+        }
+        
         // Create a copy of window IDs to avoid iterator invalidation
         std::vector<WindowID> windowIds;
         windowIds.reserve(m_windows.size());
@@ -319,9 +338,14 @@ public:
             auto it = m_windows.find(id);
             if (it != m_windows.end() && it->second)
             {
-                // Clear content first to avoid Cocoa crashes
-                it->second->clearContentComponent();
-                it->second->setVisible(false);
+                try {
+                    // Clear content first to avoid Cocoa crashes
+                    it->second->clearContentComponent();
+                    it->second->setVisible(false);
+                } catch (...) {
+                    // Silently ignore any exceptions during shutdown
+                    DBG("Exception while closing plugin window during shutdown");
+                }
             }
         }
         
@@ -391,8 +415,11 @@ private:
     
     ~PluginWindowManager()
     {
-        // During shutdown, just clear the window map
-        // Don't try to interact with windows as they may be partially destroyed
+        // During shutdown, safely close all windows first
+        // This prevents crashes with Cocoa NSView components
+        closeAllWindows();
+        
+        // Then clear the window map
         m_windows.clear();
     }
     

@@ -577,6 +577,15 @@ public:
         repaint();
     }
     
+    // Set scale degree information for visual indicators
+    void setScaleDegree(int degree, bool isTonic = false, bool isDominant = false, bool isSubdominant = false) {
+        m_scaleDegree = degree;
+        m_isTonic = isTonic;
+        m_isDominant = isDominant;
+        m_isSubdominant = isSubdominant;
+        repaint();
+    }
+    
     // Get slider references for external control
     ModernSlider* getPitchSlider() { return m_pitchSlider.get(); }
     ModernSlider* getPulseSlider() { return m_pulseSlider.get(); }
@@ -595,6 +604,12 @@ private:
     int m_stageNumber = 1;
     bool m_isActive = false;
     juce::Colour m_trackColor = DesignTokens::Colors::getTrackColor(0);  // Default to track 0 color
+    
+    // Scale degree information
+    int m_scaleDegree = 0;  // 0 = not in scale, 1-7 = scale degree
+    bool m_isTonic = false;
+    bool m_isDominant = false;
+    bool m_isSubdominant = false;
 };
 
 // ==========================================

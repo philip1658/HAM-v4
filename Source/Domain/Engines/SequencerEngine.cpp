@@ -11,6 +11,7 @@
 
 #include "SequencerEngine.h"
 #include "../Models/Scale.h"
+#include "../Models/ScaleSlotManager.h"
 #include <algorithm>
 #include <random>
 #include <cmath>  // For std::round, std::abs
@@ -21,6 +22,13 @@ namespace HAM {
 SequencerEngine::SequencerEngine()
 {
     m_midiEventBuffer.resize(1024);
+    
+    // Initialize per-track MIDI buffers
+    for (size_t i = 0; i < MAX_TRACKS; ++i)
+    {
+        m_trackMidiFifos[i] = std::make_unique<juce::AbstractFifo>(256); // 256 events per track
+        m_trackMidiBuffers[i].resize(256);
+    }
 }
 
 SequencerEngine::~SequencerEngine()
@@ -137,6 +145,19 @@ void SequencerEngine::onClockPulse(int pulseNumber)
         return;
     
     m_lastProcessedPulse.store(pulseNumber);
+    
+    // Check for bar boundary (every 96 pulses = 1 bar at 24 PPQN)
+    bool isBarBoundary = (pulseNumber % 96 == 0);
+    
+    // Handle scale changes at bar boundaries
+    if (isBarBoundary)
+    {
+        auto& scaleManager = ScaleSlotManager::getInstance();
+        if (scaleManager.hasPendingChange())
+        {
+            handleScaleChange();
+        }
+    }
     
     // Process each track
     int trackIndex = 0;
@@ -654,6 +675,37 @@ void SequencerEngine::getAndClearMidiEvents(std::vector<MidiEvent>& events)
     events = getPendingMidiEvents();  // Just get all pending events
 }
 
+void SequencerEngine::getAndClearTrackMidiEvents(int trackIndex, std::vector<MidiEvent>& events)
+{
+    events.clear();
+    
+    if (trackIndex < 0 || trackIndex >= static_cast<int>(MAX_TRACKS))
+        return;
+    
+    // Check if FIFO exists for this track
+    if (!m_trackMidiFifos[trackIndex])
+        return;
+    
+    // Read events from this track's FIFO
+    auto& fifo = *m_trackMidiFifos[trackIndex];
+    auto& buffer = m_trackMidiBuffers[trackIndex];
+    
+    int start1, size1, start2, size2;
+    fifo.prepareToRead(fifo.getNumReady(), start1, size1, start2, size2);
+    
+    // Copy events to output vector
+    for (int i = 0; i < size1; ++i)
+    {
+        events.push_back(buffer[start1 + i]);
+    }
+    for (int i = 0; i < size2; ++i)
+    {
+        events.push_back(buffer[start2 + i]);
+    }
+    
+    fifo.finishedRead(size1 + size2);
+}
+
 //==============================================================================
 // Internal Methods
 
@@ -674,7 +726,7 @@ void SequencerEngine::initializeTrackStates()
 
 void SequencerEngine::queueMidiEvent(const MidiEvent& event)
 {
-    // Write to lock-free FIFO
+    // Queue to the global buffer for backward compatibility
     int start1, size1, start2, size2;
     m_midiEventFifo.prepareToWrite(1, start1, size1, start2, size2);
     
@@ -689,6 +741,31 @@ void SequencerEngine::queueMidiEvent(const MidiEvent& event)
         m_midiEventFifo.finishedWrite(1);
     }
     // If both are 0, the FIFO is full - event is dropped
+    
+    // ALSO queue to the track-specific buffer for proper isolation
+    if (event.trackIndex >= 0 && event.trackIndex < static_cast<int>(MAX_TRACKS))
+    {
+        if (m_trackMidiFifos[event.trackIndex])
+        {
+            auto& trackFifo = *m_trackMidiFifos[event.trackIndex];
+            auto& trackBuffer = m_trackMidiBuffers[event.trackIndex];
+            
+            int trackStart1, trackSize1, trackStart2, trackSize2;
+            trackFifo.prepareToWrite(1, trackStart1, trackSize1, trackStart2, trackSize2);
+            
+            if (trackSize1 > 0)
+            {
+                trackBuffer[trackStart1] = event;
+                trackFifo.finishedWrite(1);
+            }
+            else if (trackSize2 > 0)
+            {
+                trackBuffer[trackStart2] = event;
+                trackFifo.finishedWrite(1);
+            }
+            // If track FIFO is full, event is dropped for that track
+        }
+    }
 }
 
 int SequencerEngine::calculateSampleOffset(int /*pulseNumber*/, int numSamples) const
@@ -803,6 +880,101 @@ bool SequencerEngine::shouldSkipStage(const Stage& stage) const
     }
     
     return false;
+}
+
+void SequencerEngine::handleScaleChange()
+{
+    auto& scaleManager = ScaleSlotManager::getInstance();
+    
+    // Apply the pending scale change
+    scaleManager.applyPendingChange();
+    
+    // If we have a voice manager, retrigger all active notes with new pitches
+    if (m_voiceManager && m_activePattern)
+    {
+        // Get all currently active notes
+        VoiceManager::ActiveNote activeNotes[VoiceManager::MAX_VOICES];
+        int numActive = m_voiceManager->getActiveNotes(activeNotes, VoiceManager::MAX_VOICES);
+        
+        if (numActive > 0)
+        {
+            // Get the new active scale
+            const Scale& newScale = scaleManager.getActiveScale();
+            
+            // Calculate new pitches for all active notes
+            std::vector<int> newPitches;
+            newPitches.reserve(numActive);
+            
+            for (int i = 0; i < numActive; ++i)
+            {
+                // Find which track this note belongs to
+                int channel = activeNotes[i].channel;
+                int trackIndex = channel - 1; // Channels are 1-based
+                
+                if (trackIndex >= 0 && trackIndex < m_activePattern->getTrackCount())
+                {
+                    Track* track = m_activePattern->getTrack(trackIndex);
+                    if (track)
+                    {
+                        // Get the current stage's scale degree
+                        int stageIndex = track->getCurrentStageIndex();
+                        Stage& stage = track->getStage(stageIndex);
+                        
+                        // The stage pitch is already a scale degree
+                        int scaleDegree = stage.getPitch();
+                        
+                        // Get effective root for this track
+                        int effectiveRoot = scaleManager.getEffectiveRoot(track->getRootOffset());
+                        
+                        // Convert scale degree to MIDI note using the new scale
+                        int newPitch = ScaleDegreeMapper::degreeToMidiNote(
+                            scaleDegree, newScale, effectiveRoot, 5  // Base octave C4
+                        );
+                        
+                        // Apply track's octave offset
+                        newPitch += track->getOctaveOffset() * 12;
+                        
+                        // Clamp to valid MIDI range
+                        newPitch = juce::jlimit(0, 127, newPitch);
+                        
+                        newPitches.push_back(newPitch);
+                    }
+                }
+            }
+            
+            // Retrigger all notes with new pitches
+            if (!newPitches.empty())
+            {
+                m_voiceManager->retriggerAllNotes(newPitches.data(), 
+                                                  static_cast<int>(newPitches.size()));
+                
+                // Generate MIDI events for the retriggered notes
+                for (size_t i = 0; i < newPitches.size() && i < static_cast<size_t>(numActive); ++i)
+                {
+                    // Send Note Off for old pitch
+                    MidiEvent offEvent;
+                    offEvent.message = juce::MidiMessage::noteOff(
+                        activeNotes[i].channel,
+                        activeNotes[i].noteNumber
+                    );
+                    offEvent.sampleOffset = 0;
+                    offEvent.trackIndex = activeNotes[i].channel - 1;
+                    queueMidiEvent(offEvent);
+                    
+                    // Send Note On for new pitch
+                    MidiEvent onEvent;
+                    onEvent.message = juce::MidiMessage::noteOn(
+                        activeNotes[i].channel,
+                        newPitches[i],
+                        static_cast<juce::uint8>(activeNotes[i].velocity)
+                    );
+                    onEvent.sampleOffset = 0;
+                    onEvent.trackIndex = activeNotes[i].channel - 1;
+                    queueMidiEvent(onEvent);
+                }
+            }
+        }
+    }
 }
 
 } // namespace HAM

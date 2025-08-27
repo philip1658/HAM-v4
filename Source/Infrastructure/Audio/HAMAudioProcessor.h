@@ -27,6 +27,11 @@
 #include <memory>
 #include <atomic>
 
+// Debug timing analysis
+#ifdef DEBUG
+#include "../../Tests/MidiTimingAnalyzer.h"
+#endif
+
 namespace HAM
 {
 
@@ -127,7 +132,11 @@ public:
     
     void loadPattern(int patternIndex);
     void savePattern(int patternIndex);
-    Pattern* getCurrentPattern() { return m_currentPattern.get(); }
+    std::shared_ptr<Pattern> getCurrentPattern() { return m_currentPattern; }
+    
+    // Track management
+    void addProcessorsForTrack(int trackIndex);
+    void removeProcessorsForTrack(int trackIndex);
     
     //==============================================================================
     // Plugin Management
@@ -242,6 +251,12 @@ private:
     
     // Audio parameters
     std::atomic<float> m_masterVolume{1.0f};
+    
+    // Debug timing analyzer
+    #ifdef DEBUG
+    std::unique_ptr<MidiTimingAnalyzer> m_timingAnalyzer;
+    int m_timingAnalysisCounter{0};
+    #endif
     
     //==============================================================================
     // MIDI buffers for lock-free processing

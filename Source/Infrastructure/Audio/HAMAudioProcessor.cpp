@@ -89,7 +89,7 @@ HAMAudioProcessor::HAMAudioProcessor()
     }
     
     // Initialize per-track processors for default tracks
-    for (int i = 0; i < 8; ++i)  // Start with 8 tracks
+    for (int i = 0; i < 1; ++i)  // Start with 1 track
     {
         m_pitchEngines.push_back(std::make_unique<PitchEngine>());
         m_accumulatorEngines.push_back(std::make_unique<AccumulatorEngine>());
@@ -123,15 +123,24 @@ HAMAudioProcessor::HAMAudioProcessor()
         std::make_unique<juce::AudioProcessorGraph::AudioGraphIOProcessor>(
             juce::AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode));
     
-    // Initialize track plugin chains (start with 8 tracks)
-    for (int i = 0; i < 8; ++i)
+    // Initialize track plugin chains (start with 1 track)
+    for (int i = 0; i < 1; ++i)
     {
         m_trackPluginChains.push_back(std::make_unique<TrackPluginChain>(i));
     }
+    
+    // Initialize debug timing analyzer
+    #ifdef DEBUG
+    m_timingAnalyzer = std::make_unique<MidiTimingAnalyzer>(48000.0, 120.0);
+    #endif
 }
 
 HAMAudioProcessor::~HAMAudioProcessor()
 {
+    // Close all plugin windows before destroying the processor
+    // This prevents crashes during static destruction at app exit
+    PluginWindowManager::getInstance().closeAllWindows();
+    
     m_masterClock->removeListener(this);
     m_masterClock->removeListener(m_sequencerEngine.get());
 }
@@ -246,11 +255,58 @@ void HAMAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // Process sequencer events
         m_sequencerEngine->processBlock(m_currentSampleRate, numSamples);
         
-        // Get MIDI events from sequencer using pre-allocated buffer
+        // ============================================================================
+        // NEW PER-TRACK MIDI PROCESSING - Proper track isolation!
+        // Each track's MIDI goes ONLY to its assigned plugin
+        // ============================================================================
+        
+        // Clear the main MIDI buffer (we won't use it for plugin routing anymore)
+        midiMessages.clear();
+        
+        // Process each track's MIDI separately
+        for (size_t trackIndex = 0; trackIndex < m_trackPluginChains.size(); ++trackIndex)
+        {
+            // Get MIDI events for THIS track only
+            std::vector<SequencerEngine::MidiEvent> trackMidiEvents;
+            m_sequencerEngine->getAndClearTrackMidiEvents(static_cast<int>(trackIndex), trackMidiEvents);
+            
+            if (!trackMidiEvents.empty() && m_trackPluginChains[trackIndex])
+            {
+                // Create a MIDI buffer for this track
+                juce::MidiBuffer trackMidiBuffer;
+                
+                for (const auto& event : trackMidiEvents)
+                {
+                    if (event.sampleOffset < numSamples)
+                    {
+                        trackMidiBuffer.addEvent(event.message, event.sampleOffset);
+                        
+                        // Debug: Capture MIDI events for timing analysis
+                        #ifdef DEBUG
+                        if (m_timingAnalyzer)
+                        {
+                            m_timingAnalyzer->addEvent(event.message, event.sampleOffset, 
+                                                      event.trackIndex, event.stageIndex, 0);
+                        }
+                        #endif
+                    }
+                }
+                
+                // Process THIS track's plugin with THIS track's MIDI
+                auto& chain = m_trackPluginChains[trackIndex];
+                if (chain->instrumentNode && chain->instrumentNode->getProcessor())
+                {
+                    // Process the plugin directly with its track's MIDI
+                    chain->instrumentNode->getProcessor()->processBlock(buffer, trackMidiBuffer);
+                }
+            }
+        }
+        
+        // Get any remaining global MIDI events (for backward compatibility)
         m_midiEventBuffer.clear();
         m_sequencerEngine->getAndClearMidiEvents(m_midiEventBuffer);
         
-        // Render events to MIDI buffer
+        // Add global events to main buffer (if any)
         for (const auto& event : m_midiEventBuffer)
         {
             if (event.sampleOffset < numSamples)
@@ -259,25 +315,39 @@ void HAMAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             }
         }
         
-        // Route MIDI through channel manager
-        m_channelManager->processMidiBuffer(midiMessages, numSamples);
+        // Debug: Advance timing analyzer
+        #ifdef DEBUG
+        if (m_timingAnalyzer)
+        {
+            m_timingAnalyzer->advanceTime(numSamples);
+            
+            m_timingAnalysisCounter += numSamples;
+            if (m_timingAnalysisCounter >= m_currentSampleRate * 4)
+            {
+                int division = 1;
+                if (m_currentPattern && m_currentPattern->getTrack(0))
+                {
+                    division = m_currentPattern->getTrack(0)->getDivision();
+                }
+                
+                m_timingAnalyzer->printDetailedReport(division);
+                m_timingAnalyzer->reset();
+                m_timingAnalysisCounter = 0;
+            }
+        }
+        #endif
     }
     
     // Copy incoming MIDI for processing
     m_incomingMidi = midiMessages;
     
-    // ============================================================================
-    // CRITICAL FIX: Process plugins with the plugin graph!
-    // This was missing in the original implementation
-    // Without this, plugins are loaded but never actually process any audio/MIDI
-    // ============================================================================
+    // Process the audio graph for effects and mixing (but NOT for MIDI routing)
     if (m_pluginGraph)
     {
-        // The plugin graph will:
-        // 1. Route MIDI to loaded instrument plugins
-        // 2. Process audio through the plugin chain
-        // 3. Mix plugin outputs to the main audio buffer
-        m_pluginGraph->processBlock(buffer, midiMessages);
+        // Process effects chains and audio mixing only
+        // MIDI has already been processed per-track above
+        juce::MidiBuffer emptyMidi;
+        m_pluginGraph->processBlock(buffer, emptyMidi);
     }
     
     // Performance monitoring
@@ -744,6 +814,53 @@ void HAMAudioProcessor::setBPM(float bpm)
 }
 
 //==============================================================================
+void HAMAudioProcessor::addProcessorsForTrack(int trackIndex)
+{
+    // Add pitch engine for the new track
+    if (trackIndex >= m_pitchEngines.size())
+    {
+        m_pitchEngines.push_back(std::make_unique<PitchEngine>());
+    }
+    
+    // Add accumulator engine for the new track
+    if (trackIndex >= m_accumulatorEngines.size())
+    {
+        m_accumulatorEngines.push_back(std::make_unique<AccumulatorEngine>());
+    }
+    
+    // Add plugin chain for the new track
+    if (trackIndex >= m_trackPluginChains.size())
+    {
+        m_trackPluginChains.push_back(std::make_unique<TrackPluginChain>(trackIndex));
+    }
+    
+    DBG("Added processors for track " << trackIndex);
+}
+
+void HAMAudioProcessor::removeProcessorsForTrack(int trackIndex)
+{
+    // Remove pitch engine
+    if (trackIndex < m_pitchEngines.size())
+    {
+        m_pitchEngines.erase(m_pitchEngines.begin() + trackIndex);
+    }
+    
+    // Remove accumulator engine
+    if (trackIndex < m_accumulatorEngines.size())
+    {
+        m_accumulatorEngines.erase(m_accumulatorEngines.begin() + trackIndex);
+    }
+    
+    // Remove plugin chain
+    if (trackIndex < m_trackPluginChains.size())
+    {
+        m_trackPluginChains.erase(m_trackPluginChains.begin() + trackIndex);
+    }
+    
+    DBG("Removed processors for track " << trackIndex);
+}
+
+//==============================================================================
 void HAMAudioProcessor::loadPattern(int patternIndex)
 {
     // Load pattern from internal storage (will be enhanced with file I/O later)
@@ -856,12 +973,10 @@ bool HAMAudioProcessor::loadPlugin(int trackIndex, const juce::PluginDescription
         }
         chain->instrumentNode = node;
         
-        // Connect MIDI input to instrument
-        m_pluginGraph->addConnection(
-            {{m_midiInputNode->nodeID, juce::AudioProcessorGraph::midiChannelIndex},
-             {node->nodeID, juce::AudioProcessorGraph::midiChannelIndex}});
+        // DON'T connect MIDI input - we'll inject MIDI directly in processBlock
+        // This is the key fix: no shared MIDI routing!
         
-        // Connect instrument audio to output
+        // Only connect instrument audio output
         for (int ch = 0; ch < 2; ++ch)
         {
             m_pluginGraph->addConnection(
@@ -1017,10 +1132,7 @@ void HAMAudioProcessor::rebuildEffectChain(int trackIndex)
                  {effectNode->nodeID, ch}});
         }
         
-        // MIDI routing for effects that need it
-        m_pluginGraph->addConnection(
-            {{m_midiInputNode->nodeID, juce::AudioProcessorGraph::midiChannelIndex},
-             {effectNode->nodeID, juce::AudioProcessorGraph::midiChannelIndex}});
+        // No MIDI routing for effects - they'll get MIDI from the track if needed
         
         lastNode = effectNode->nodeID;
     }

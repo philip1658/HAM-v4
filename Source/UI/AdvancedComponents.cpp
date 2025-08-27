@@ -61,6 +61,53 @@ void StageCard::paint(juce::Graphics& g)
     {
         UIUtils::drawGlow(g, bounds, PulseColors::TRACK_CYAN, 0.5f);
     }
+    
+    // Draw scale degree indicator (if set)
+    if (m_scaleDegree > 0)
+    {
+        // Position in top-right corner of card
+        auto degreeBounds = getLocalBounds().removeFromTop(60).removeFromRight(60);
+        degreeBounds = degreeBounds.reduced(10);
+        
+        // Choose color based on scale function
+        juce::Colour degreeColor;
+        if (m_isTonic)
+            degreeColor = juce::Colour(0xFFFFAA00);  // Gold for tonic
+        else if (m_isDominant)
+            degreeColor = juce::Colour(0xFF00AAFF);  // Blue for dominant
+        else if (m_isSubdominant)
+            degreeColor = juce::Colour(0xFFFF00AA);  // Magenta for subdominant
+        else
+            degreeColor = juce::Colour(0xFF888888);  // Gray for other degrees
+        
+        // Draw circle background
+        g.setColour(degreeColor.withAlpha(0.2f));
+        g.fillEllipse(degreeBounds.toFloat());
+        
+        // Draw circle border
+        g.setColour(degreeColor.withAlpha(0.8f));
+        g.drawEllipse(degreeBounds.toFloat(), 1.5f);
+        
+        // Draw degree number
+        g.setFont(juce::Font(juce::FontOptions(16.0f).withName("Helvetica Neue")));
+        g.setColour(degreeColor);
+        
+        // Use Roman numerals for scale degrees
+        juce::String degreeText;
+        switch (m_scaleDegree)
+        {
+            case 1: degreeText = "I"; break;
+            case 2: degreeText = "II"; break;
+            case 3: degreeText = "III"; break;
+            case 4: degreeText = "IV"; break;
+            case 5: degreeText = "V"; break;
+            case 6: degreeText = "VI"; break;
+            case 7: degreeText = "VII"; break;
+            default: degreeText = juce::String(m_scaleDegree); break;
+        }
+        
+        g.drawText(degreeText, degreeBounds, juce::Justification::centred);
+    }
 }
 
 void StageCard::resized()

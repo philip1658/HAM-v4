@@ -14,6 +14,9 @@
 #include "Presentation/Views/TrackSidebar.h"
 #include "Presentation/Views/MixerView.h"
 #include "Presentation/Views/PluginBrowser.h"
+#include "Presentation/Views/ScaleSlotSelector.h"
+#include "Presentation/Views/ScaleBrowser.h"
+#include "Presentation/ViewModels/ScaleSlotViewModel.h"
 #include "../../UI/Components/HAMComponentLibrary.h"
 #include "Infrastructure/Audio/HAMAudioProcessor.h"
 #include "../../Domain/Services/TrackManager.h"
@@ -73,21 +76,97 @@ void UICoordinator::createUIComponents()
     m_transportBar = std::make_unique<TransportBar>();
     addAndMakeVisible(m_transportBar.get());
     
-    // Create view toggle buttons
-    m_sequencerTabButton = std::make_unique<ModernButton>(
-        "SEQUENCER", ModernButton::Style::Solid);
-    m_sequencerTabButton->setColor(juce::Colour(0xFF00CCFF));
+    // Create view toggle buttons with symbolic icons
+    m_sequencerTabButton = std::make_unique<IconButton>("Sequencer", IconButton::IconType::Sequencer);
+    m_sequencerTabButton->setTooltip("Sequencer View");
+    m_sequencerTabButton->setActive(true);  // Start with sequencer active
     addAndMakeVisible(m_sequencerTabButton.get());
     
-    m_mixerTabButton = std::make_unique<ModernButton>(
-        "MIXER", ModernButton::Style::Outline);
-    m_mixerTabButton->setColor(juce::Colour(0xFF00CCFF));
+    m_mixerTabButton = std::make_unique<IconButton>("Mixer", IconButton::IconType::Mixer);
+    m_mixerTabButton->setTooltip("Mixer View");
     addAndMakeVisible(m_mixerTabButton.get());
     
-    m_settingsTabButton = std::make_unique<ModernButton>(
-        "SETTINGS", ModernButton::Style::Outline);
-    m_settingsTabButton->setColor(juce::Colour(0xFF00CCFF));
+    m_settingsTabButton = std::make_unique<IconButton>("Settings", IconButton::IconType::Settings);
+    m_settingsTabButton->setTooltip("Settings");
     addAndMakeVisible(m_settingsTabButton.get());
+    
+    // Create track management buttons with icon style
+    m_addTrackButton = std::make_unique<IconButton>("Add Track", IconButton::IconType::AddTrack);
+    m_addTrackButton->setTooltip("Add Track");
+    m_addTrackButton->setActiveColor(juce::Colour(0xFF00FF88));  // Green
+    m_addTrackButton->onClick = [this]() {
+        m_controller.addTrack();
+        
+        // Update the track sidebar and stage grid to show the new track
+        auto& trackManager = TrackManager::getInstance();
+        int newTrackCount = trackManager.getTrackCount();
+        
+        if (m_trackSidebar) {
+            m_trackSidebar->setTrackCount(newTrackCount);
+        }
+        if (m_stageGrid) {
+            m_stageGrid->setTrackCount(newTrackCount);
+        }
+        
+        // Force the sequencer content to recalculate its size
+        if (m_sequencerContent) {
+            // Calculate new height based on track count
+            const int trackHeight = 480; // Height per track
+            const int trackGap = 8;
+            int newHeight = newTrackCount * (trackHeight + trackGap);
+            m_sequencerContent->setSize(m_sequencerContent->getWidth(), newHeight);
+        }
+        
+        // Refresh the viewport
+        if (m_sequencerViewport) {
+            m_sequencerViewport->resized();
+        }
+        
+        DBG("Track added - now have " << newTrackCount << " tracks");
+    };
+    addAndMakeVisible(m_addTrackButton.get());
+    
+    m_removeTrackButton = std::make_unique<IconButton>("Remove Track", IconButton::IconType::RemoveTrack);
+    m_removeTrackButton->setTooltip("Remove Track");
+    m_removeTrackButton->setActiveColor(juce::Colour(0xFFFF5555));  // Red
+    m_removeTrackButton->onClick = [this]() {
+        auto& trackManager = TrackManager::getInstance();
+        int trackCount = trackManager.getTrackCount();
+        
+        if (trackCount > 1) {
+            m_controller.removeTrack(trackCount - 1); // Remove last track
+            
+            // Get updated count after removal
+            int newTrackCount = trackManager.getTrackCount();
+            
+            // Update the track sidebar and stage grid
+            if (m_trackSidebar) {
+                m_trackSidebar->setTrackCount(newTrackCount);
+            }
+            if (m_stageGrid) {
+                m_stageGrid->setTrackCount(newTrackCount);
+            }
+            
+            // Force the sequencer content to recalculate its size
+            if (m_sequencerContent) {
+                // Calculate new height based on track count
+                const int trackHeight = 480; // Height per track
+                const int trackGap = 8;
+                int newHeight = newTrackCount * (trackHeight + trackGap);
+                m_sequencerContent->setSize(m_sequencerContent->getWidth(), newHeight);
+            }
+            
+            // Refresh the viewport
+            if (m_sequencerViewport) {
+                m_sequencerViewport->resized();
+            }
+            
+            DBG("Track removed - now have " << newTrackCount << " tracks");
+        } else {
+            DBG("Cannot remove last track");
+        }
+    };
+    addAndMakeVisible(m_removeTrackButton.get());
     
     // Create main content container
     m_contentContainer = std::make_unique<juce::Component>();
@@ -117,6 +196,19 @@ void UICoordinator::createUIComponents()
     m_sequencerViewport->setScrollBarThickness(10);
     m_sequencerPage->addAndMakeVisible(m_sequencerViewport.get());
     
+    // Create scale UI components
+    m_scaleSlotViewModel = std::make_unique<ScaleSlotViewModel>();
+    m_scaleSlotSelector = std::make_unique<ScaleSlotSelector>();
+    m_scaleSlotSelector->setViewModel(m_scaleSlotViewModel.get());
+    
+    // Setup scale browser callback
+    m_scaleSlotSelector->onScaleBrowserRequested = [this](int slotIndex) {
+        showScaleBrowser(slotIndex);
+    };
+    
+    // Scale slot selector is now added to the main coordinator, not the sequencer page
+    addAndMakeVisible(m_scaleSlotSelector.get());
+    
     // Mixer view will be created when we have processor available
     
     // Create plugin browser (initially hidden - don't add to component yet)
@@ -144,23 +236,82 @@ void UICoordinator::setupEventHandlers()
         m_controller.setBPM(bpm);
     };
     
-    m_transportBar->onMidiMonitorToggled = [this](bool enabled)
+    m_transportBar->onPatternSelected = [this](int pattern)
     {
-        m_controller.setMidiMonitorEnabled(enabled);
+        // TODO: Implement pattern selection in controller
+        DBG("Pattern " << pattern << " selected");
     };
     
-    // Position update callback - get clock position from audio processor
-    m_transportBar->onRequestPosition = [this](int& bar, int& beat, int& pulse)
+    m_transportBar->onPatternChain = [this](int pattern, bool chain)
+    {
+        // TODO: Implement pattern chaining
+        DBG("Pattern " << pattern << " chaining: " << chain);
+    };
+    
+    m_transportBar->onPanicClicked = [this]()
+    {
+        // TODO: Implement all notes off functionality in HAMAudioProcessor
+        DBG("Panic button clicked - all notes off requested");
+        
+        if (auto* processor = m_controller.getAudioProcessor())
+        {
+            // For now, stop the sequencer which will have a similar effect
+            processor->stop();
+        }
+    };
+    
+    // CPU usage callback
+    m_transportBar->onRequestCPUUsage = [this]() -> float
     {
         if (auto* processor = m_controller.getAudioProcessor())
         {
-            // Get the master clock from processor
-            if (auto* clock = processor->getMasterClock())
+            return processor->getCpuUsage();
+        }
+        return 0.0f;
+    };
+    
+    // Track management button handlers
+    m_addTrackButton->onClick = [this]()
+    {
+        // Add a new track through the controller
+        m_controller.addTrack();
+        DBG("Add track button clicked");
+        
+        // Refresh the UI
+        if (m_trackSidebar)
+        {
+            m_trackSidebar->refreshTracks();
+        }
+        if (m_stageGrid)
+        {
+            m_stageGrid->setTrackCount(TrackManager::getInstance().getTrackCount());
+        }
+    };
+    
+    m_removeTrackButton->onClick = [this]()
+    {
+        // Remove the last track (or selected track)
+        auto& trackManager = TrackManager::getInstance();
+        int trackCount = trackManager.getTrackCount();
+        
+        if (trackCount > 1)  // Keep at least 1 track
+        {
+            m_controller.removeTrack(trackCount - 1);
+            DBG("Remove track button clicked");
+            
+            // Refresh the UI
+            if (m_trackSidebar)
             {
-                bar = clock->getCurrentBar() + 1;    // Add 1 for display (1-based)
-                beat = clock->getCurrentBeat() + 1;  // Add 1 for display (1-based)
-                pulse = clock->getCurrentPulse();    // 0-based is fine for pulse
+                m_trackSidebar->refreshTracks();
             }
+            if (m_stageGrid)
+            {
+                m_stageGrid->setTrackCount(trackManager.getTrackCount());
+            }
+        }
+        else
+        {
+            DBG("Cannot remove last track");
         }
     };
     
@@ -488,17 +639,60 @@ void UICoordinator::resized()
         m_transportBar->setBounds(bounds.removeFromTop(TRANSPORT_HEIGHT));
     }
     
-    // Tab bar
+    // Single integrated toolbar - everything on one line
     auto tabBarArea = bounds.removeFromTop(TAB_BAR_HEIGHT);
-    int tabWidth = 120;
-    int tabX = tabBarArea.getCentreX() - (tabWidth * 3) / 2;
     
+    int iconButtonSize = 36;  // Consistent size for all icon buttons
+    int buttonY = tabBarArea.getY() + (TAB_BAR_HEIGHT - iconButtonSize) / 2;  // Vertically centered
+    
+    // Left side: Navigation buttons
+    int leftX = 10;
+    
+    // Track management buttons (same size as navigation)
+    if (m_addTrackButton)
+    {
+        m_addTrackButton->setBounds(leftX, buttonY, iconButtonSize, iconButtonSize);
+        leftX += iconButtonSize + 5;
+    }
+    if (m_removeTrackButton)
+    {
+        m_removeTrackButton->setBounds(leftX, buttonY, iconButtonSize, iconButtonSize);
+        leftX += iconButtonSize + 10;  // Space before navigation
+    }
+    
+    // Navigation icons
     if (m_sequencerTabButton)
-        m_sequencerTabButton->setBounds(tabX, tabBarArea.getY(), tabWidth, TAB_BAR_HEIGHT);
+    {
+        m_sequencerTabButton->setBounds(leftX, buttonY, iconButtonSize, iconButtonSize);
+        leftX += iconButtonSize + 5;
+    }
     if (m_mixerTabButton)
-        m_mixerTabButton->setBounds(tabX + tabWidth, tabBarArea.getY(), tabWidth, TAB_BAR_HEIGHT);
+    {
+        m_mixerTabButton->setBounds(leftX, buttonY, iconButtonSize, iconButtonSize);
+        leftX += iconButtonSize + 5;
+    }
     if (m_settingsTabButton)
-        m_settingsTabButton->setBounds(tabX + tabWidth * 2, tabBarArea.getY(), tabWidth, TAB_BAR_HEIGHT);
+    {
+        m_settingsTabButton->setBounds(leftX, buttonY, iconButtonSize, iconButtonSize);
+        leftX += iconButtonSize + 5;
+    }
+    
+    // Center: Scale slot selector 
+    if (m_scaleSlotSelector)
+    {
+        // Calculate scale selector width (fixed size for centered positioning)
+        int scaleSelectorWidth = 700;  // Fixed width for scale selector
+        
+        // Center the scale selector in the remaining space
+        int availableWidth = tabBarArea.getWidth() - leftX - 10;  // 10px right margin
+        int centerX = leftX + (availableWidth - scaleSelectorWidth) / 2;
+        
+        // Make sure it doesn't go off screen
+        if (centerX < leftX + 20)
+            centerX = leftX + 20;
+        
+        m_scaleSlotSelector->setBounds(centerX, tabBarArea.getY(), scaleSelectorWidth, TAB_BAR_HEIGHT);
+    }
     
     // Content area
     if (m_contentContainer)
@@ -538,6 +732,8 @@ void UICoordinator::layoutSequencerView()
     
     auto bounds = m_sequencerPage->getLocalBounds();
     
+    // Scale slot selector is now in the toolbar, so we don't position it here
+    
     // HAM Editor at bottom (if visible)
     if (m_hamEditorVisible)
     {
@@ -546,7 +742,7 @@ void UICoordinator::layoutSequencerView()
         // TODO: Position HAMEditorPanel
     }
     
-    // Viewport fills the remaining space
+    // Viewport fills the entire remaining space (more room now!)
     if (m_sequencerViewport)
     {
         m_sequencerViewport->setBounds(bounds);
@@ -605,34 +801,38 @@ void UICoordinator::layoutMixerView()
 
 void UICoordinator::updateViewButtonStates()
 {
-    // Update button styles based on active view
-    // TODO: Update button styles when ModernButton::setStyle is implemented
-    // if (m_sequencerTabButton)
-    // {
-    //     m_sequencerTabButton->setStyle(
-    //         m_activeView == ViewMode::Sequencer ? 
-    //         ModernButton::Style::Solid : 
-    //         ModernButton::Style::Outline
-    //     );
-    // }
+    // Update button active states based on current view
+    if (m_sequencerTabButton)
+        m_sequencerTabButton->setActive(m_activeView == ViewMode::Sequencer);
     
-    // if (m_mixerTabButton)
-    // {
-    //     m_mixerTabButton->setStyle(
-    //         m_activeView == ViewMode::Mixer ? 
-    //         ModernButton::Style::Solid : 
-    //         ModernButton::Style::Outline
-    //     );
-    // }
+    if (m_mixerTabButton)
+        m_mixerTabButton->setActive(m_activeView == ViewMode::Mixer);
     
-    // if (m_settingsTabButton)
-    // {
-    //     m_settingsTabButton->setStyle(
-    //         m_activeView == ViewMode::Settings ? 
-    //         ModernButton::Style::Solid : 
-    //         ModernButton::Style::Outline
-    //     );
-    // }
+    if (m_settingsTabButton)
+        m_settingsTabButton->setActive(m_activeView == ViewMode::Settings);
+}
+
+//==============================================================================
+// Scale browser methods
+
+void UICoordinator::showScaleBrowser(int slotIndex)
+{
+    // Create and show scale browser dialog
+    ScaleBrowser::showScaleBrowser(slotIndex,
+        [this](int slot, const Scale& scale, const juce::String& name)
+        {
+            // Load selected scale into slot via view model
+            if (m_scaleSlotViewModel)
+            {
+                m_scaleSlotViewModel->loadScaleIntoSlot(slot, scale, name);
+            }
+        });
+}
+
+void UICoordinator::hideScaleBrowser()
+{
+    // Scale browser is a modal dialog that handles its own closing
+    // Nothing to do here
 }
 
 } // namespace UI

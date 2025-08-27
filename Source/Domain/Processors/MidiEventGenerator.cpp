@@ -8,6 +8,7 @@
 */
 
 #include "MidiEventGenerator.h"
+#include "../Models/ScaleSlotManager.h"
 #include <algorithm>
 #include <cmath>
 
@@ -48,22 +49,36 @@ std::vector<MidiEventGenerator::MidiEvent> MidiEventGenerator::generateStageEven
     // Process gate events
     auto gateEvents = m_gateEngine->processStageGate(stage, pulseIndex, sampleRate, samplesPerPulse);
     
-    // Get pitch from stage (with scale quantization if needed)
-    int basePitch = stage.getPitch();
-    Scale* scale = track->getScale();
-    if (scale)
-    {
-        // Set scale on engine and quantize
-        m_pitchEngine->setScale(*scale);
-        basePitch = m_pitchEngine->quantizeToScale(basePitch);
-    }
+    // Get the global scale from ScaleSlotManager
+    auto& scaleManager = ScaleSlotManager::getInstance();
+    const Scale& activeScale = scaleManager.getActiveScale();
     
-    // Apply accumulator if enabled
+    // Get effective root (global root + track offset)
+    int effectiveRoot = scaleManager.getEffectiveRoot(track->getRootOffset());
+    
+    // Get pitch as scale degree from stage
+    // Stage pitch now represents scale degrees (0 = root, 1 = 2nd degree, etc.)
+    int scaleDegree = stage.getPitch();
+    
+    // Apply accumulator if enabled (accumulator also works in scale degrees)
     if (track->hasAccumulator())
     {
-        basePitch += track->getAccumulatorValue();
-        basePitch = std::clamp(basePitch, 0, 127);
+        scaleDegree += track->getAccumulatorValue();
     }
+    
+    // Convert scale degree to MIDI note using ScaleDegreeMapper
+    int basePitch = ScaleDegreeMapper::degreeToMidiNote(
+        scaleDegree,
+        activeScale,
+        effectiveRoot,
+        5  // Base octave (C4 = octave 5)
+    );
+    
+    // Apply track octave offset
+    basePitch += track->getOctaveOffset() * 12;
+    
+    // Clamp to valid MIDI range
+    basePitch = std::clamp(basePitch, 0, 127);
     
     // Convert gate events to MIDI events
     for (const auto& gateEvent : gateEvents)

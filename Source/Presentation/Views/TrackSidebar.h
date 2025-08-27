@@ -135,6 +135,7 @@ public:
     void updateTrack(int index, const TrackViewModel& track);
     void selectTrack(int index);
     int getSelectedTrackIndex() const { return m_selectedTrackIndex; }
+    void refreshTracks();
     
     // Callbacks for track changes
     std::function<void(int trackIndex)> onTrackSelected;

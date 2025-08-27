@@ -237,6 +237,27 @@ public:
     void resetStatistics() { m_statistics.reset(); }
     
     //==========================================================================
+    // Voice Tracking for Scale Changes
+    
+    /** Get all active note numbers and their channels */
+    struct ActiveNote
+    {
+        int noteNumber;
+        int velocity;
+        int channel;
+        int voiceId;
+    };
+    
+    /** Get all currently active notes (for retrigger on scale change) */
+    int getActiveNotes(ActiveNote* outNotes, int maxNotes) const;
+    
+    /** Retrigger a note with a new pitch (for scale changes) */
+    void retriggerNote(int oldNote, int newNote, int channel = 1);
+    
+    /** Retrigger all active notes with new pitches */
+    void retriggerAllNotes(const int* newPitches, int numPitches);
+    
+    //==========================================================================
     // Real-time Safe Operations
     
     /** Process voices (called from audio thread) */

@@ -12,6 +12,7 @@
 #include <JuceHeader.h>
 #include <memory>
 #include "Presentation/Core/ComponentBase.h"
+#include "Presentation/Components/IconButton.h"
 
 namespace HAM {
 
@@ -28,6 +29,9 @@ class TrackSidebar;
 class MixerView;
 class PluginBrowser;
 class ModernButton;
+class ScaleSlotSelector;
+class ScaleSlotViewModel;
+class ScaleBrowser;
 
 //==============================================================================
 /**
@@ -61,10 +65,15 @@ public:
     StageGrid* getStageGrid() { return m_stageGrid.get(); }
     TrackSidebar* getTrackSidebar() { return m_trackSidebar.get(); }
     MixerView* getMixerView() { return m_mixerView.get(); }
+    ScaleSlotSelector* getScaleSlotSelector() { return m_scaleSlotSelector.get(); }
     
     // Plugin browser
     void showPluginBrowser(int trackIndex, bool forEffects = false);
     void hidePluginBrowser();
+    
+    // Scale browser
+    void showScaleBrowser(int slotIndex);
+    void hideScaleBrowser();
     
     // HAM Editor panel
     void showHAMEditor(int stageIndex);
@@ -94,10 +103,14 @@ private:
     std::unique_ptr<TransportBar> m_transportBar;
     std::unique_ptr<juce::Component> m_contentContainer;
     
-    // View switching buttons
-    std::unique_ptr<ModernButton> m_sequencerTabButton;
-    std::unique_ptr<ModernButton> m_mixerTabButton;
-    std::unique_ptr<ModernButton> m_settingsTabButton;
+    // View switching buttons (using icons)
+    std::unique_ptr<IconButton> m_sequencerTabButton;
+    std::unique_ptr<IconButton> m_mixerTabButton;
+    std::unique_ptr<IconButton> m_settingsTabButton;
+    
+    // Track management buttons (using icons)
+    std::unique_ptr<IconButton> m_addTrackButton;
+    std::unique_ptr<IconButton> m_removeTrackButton;
     
     // Sequencer view components
     std::unique_ptr<juce::Component> m_sequencerPage;
@@ -105,6 +118,8 @@ private:
     std::unique_ptr<TrackSidebar> m_trackSidebar;
     std::unique_ptr<juce::Viewport> m_sequencerViewport;  // Single viewport for synchronized scrolling
     std::unique_ptr<StageGrid> m_stageGrid;
+    std::unique_ptr<ScaleSlotSelector> m_scaleSlotSelector;
+    std::unique_ptr<ScaleSlotViewModel> m_scaleSlotViewModel;
     // std::unique_ptr<HAMEditorPanel> m_hamEditor; // TODO: Implement
     
     // Mixer view components

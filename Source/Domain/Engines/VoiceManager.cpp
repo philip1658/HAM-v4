@@ -571,4 +571,87 @@ int VoiceManager::handleUnisonNoteOn(int noteNumber, int velocity, int channel)
     return voicesStarted > 0 ? 0 : -1;
 }
 
+//==============================================================================
+// Voice Tracking for Scale Changes
+
+int VoiceManager::getActiveNotes(ActiveNote* outNotes, int maxNotes) const
+{
+    if (!outNotes || maxNotes <= 0)
+        return 0;
+    
+    int count = 0;
+    
+    for (int i = 0; i < MAX_VOICES && count < maxNotes; ++i)
+    {
+        if (m_voices[i].active.load())
+        {
+            outNotes[count].noteNumber = m_voices[i].noteNumber.load();
+            outNotes[count].velocity = m_voices[i].velocity.load();
+            outNotes[count].channel = m_voices[i].channel.load();
+            outNotes[count].voiceId = m_voices[i].voiceId;
+            ++count;
+        }
+    }
+    
+    return count;
+}
+
+void VoiceManager::retriggerNote(int oldNote, int newNote, int channel)
+{
+    // Find the voice playing the old note
+    Voice* voice = findVoiceForNote(oldNote, channel);
+    
+    if (voice)
+    {
+        // Store the current velocity for retriggering
+        int velocity = voice->velocity.load();
+        int actualChannel = channel > 0 ? channel : voice->channel.load();
+        
+        // Stop the old note
+        voice->stopNote();
+        
+        // Small delay to ensure note-off is processed (in samples)
+        // This would normally be handled by the audio thread timing
+        
+        // Start the new note with same velocity
+        noteOn(newNote, velocity, actualChannel);
+    }
+}
+
+void VoiceManager::retriggerAllNotes(const int* newPitches, int numPitches)
+{
+    if (!newPitches || numPitches <= 0)
+        return;
+    
+    // Collect all active notes first
+    ActiveNote activeNotes[MAX_VOICES];
+    int numActive = getActiveNotes(activeNotes, MAX_VOICES);
+    
+    // Stop all current notes
+    for (int i = 0; i < numActive; ++i)
+    {
+        Voice* voice = getVoice(activeNotes[i].voiceId);
+        if (voice && voice->active.load())
+        {
+            voice->stopNote();
+        }
+    }
+    
+    // Retrigger with new pitches
+    int pitchIndex = 0;
+    for (int i = 0; i < numActive && pitchIndex < numPitches; ++i)
+    {
+        // Use new pitch from the array
+        int newPitch = newPitches[pitchIndex];
+        
+        // Start the new note with original velocity and channel
+        noteOn(newPitch, activeNotes[i].velocity, activeNotes[i].channel);
+        
+        // Cycle through available new pitches if we have more notes than pitches
+        pitchIndex = (pitchIndex + 1) % numPitches;
+    }
+    
+    updateStatistics();
+}
+
 } // namespace HAM

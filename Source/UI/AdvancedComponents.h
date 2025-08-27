@@ -33,6 +33,15 @@ public:
     
     void setHighlighted(bool highlight) { isHighlighted = highlight; repaint(); }
     
+    // Set scale degree information for visual indicators
+    void setScaleDegree(int degree, bool isTonic = false, bool isDominant = false, bool isSubdominant = false) {
+        m_scaleDegree = degree;
+        m_isTonic = isTonic;
+        m_isDominant = isDominant;
+        m_isSubdominant = isSubdominant;
+        repaint();
+    }
+    
 private:
     int stageNum;
     bool isHighlighted = false;
@@ -44,6 +53,12 @@ private:
     
     std::unique_ptr<PulseButton> skipButton;
     std::unique_ptr<PulseButton> hamButton;
+    
+    // Scale degree information
+    int m_scaleDegree = 0;  // 0 = not in scale, 1-7 = scale degree
+    bool m_isTonic = false;
+    bool m_isDominant = false;
+    bool m_isSubdominant = false;
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(StageCard)
 };

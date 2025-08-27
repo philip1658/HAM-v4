@@ -88,9 +88,6 @@ public:
     void setName(const juce::String& name) { m_name = name; }
     const juce::String& getName() const { return m_name; }
     
-    /** Set track color */
-    void setColor(juce::Colour color) { m_color = color; }
-    juce::Colour getColor() const { return m_color; }
     
     /** Enable/disable track */
     void setEnabled(bool enabled) { m_enabled = enabled; }
@@ -198,9 +195,13 @@ public:
     void setScaleId(const juce::String& scaleId) { m_scaleId = scaleId; }
     const juce::String& getScaleId() const { return m_scaleId; }
     
-    /** Set root note for scale (0-11, C=0) */
+    /** Set root note for scale (0-11, C=0) - DEPRECATED, use rootOffset instead */
     void setRootNote(int root);
     int getRootNote() const { return m_rootNote; }
+    
+    /** Set root offset from global root (-11 to +11 semitones) */
+    void setRootOffset(int offset);
+    int getRootOffset() const { return m_rootOffset; }
     
     /** Get scale object from ScaleManager (for compatibility with MidiEventGenerator) */
     Scale* getScale() const;
@@ -222,7 +223,6 @@ private:
     
     // Track info
     juce::String m_name = "Track";
-    juce::Colour m_color{0xFF00FF88};  // Default mint green
     bool m_enabled = true;
     bool m_muted = false;
     bool m_solo = false;
@@ -249,7 +249,8 @@ private:
     
     // Scale
     juce::String m_scaleId = "chromatic";
-    int m_rootNote = 0;                 // C = 0
+    int m_rootNote = 0;                 // C = 0 - DEPRECATED
+    int m_rootOffset = 0;               // Offset from global root (-11 to +11)
     
     // Playback state
     int m_currentStageIndex = 0;

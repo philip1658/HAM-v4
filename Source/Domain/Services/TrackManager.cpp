@@ -27,8 +27,8 @@ const std::array<juce::Colour, 8> TrackManager::s_trackColors = {
 //==============================================================================
 TrackManager::TrackManager()
 {
-    // Initialize with 8 default tracks
-    for (int i = 0; i < 8; ++i)
+    // Initialize with 1 default track
+    for (int i = 0; i < 1; ++i)
     {
         TrackState track;
         track.index = i;

@@ -76,6 +76,8 @@ target_sources(HAM PRIVATE
     Source/Domain/Models/Pattern.cpp
     Source/Domain/Models/Scale.h
     Source/Domain/Models/Scale.cpp
+    Source/Domain/Models/ScaleSlotManager.h
+    Source/Domain/Models/ScaleSlotManager.cpp
     
     # Clock System
     Source/Domain/Clock/MasterClock.h
@@ -153,6 +155,14 @@ target_sources(HAM PRIVATE
     Source/Presentation/Views/PluginBrowser.h
     Source/Presentation/Views/MixerView.h
     Source/Presentation/Views/MixerView.cpp
+    Source/Presentation/Views/ScaleSlotSelector.h
+    Source/Presentation/Views/ScaleSlotSelector.cpp
+    Source/Presentation/Views/ScaleBrowser.h
+    Source/Presentation/Views/ScaleBrowser.cpp
+    
+    # Presentation Layer - ViewModels
+    Source/Presentation/ViewModels/ScaleSlotViewModel.h
+    Source/Presentation/ViewModels/ScaleSlotViewModel.cpp
     
     # UI Components - New Modular Architecture
     Source/UI/ComponentBase.h

@@ -14,10 +14,18 @@ namespace HAM {
 //==============================================================================
 Track::Track()
 {
-    // Initialize stages with default values
+    // Initialize all stages with C4 as base note (MIDI 60)
+    // Pitch values now represent scale degrees, not absolute MIDI notes
+    // Default pattern: root note on all 8 stages for simplicity
+    
     for (int i = 0; i < 8; ++i)
     {
-        m_stages[i].setPitch(60 + i);  // Default to C major scale
+        // All stages default to scale degree 0 (root note)
+        // This will play C4 when no scale is selected, or the root of the selected scale
+        m_stages[i].setPitch(0);  // Scale degree 0 = root note
+        m_stages[i].setGate(0.5f);  // 50% gate length
+        m_stages[i].setVelocity(100);
+        m_stages[i].setGateType(GateType::MULTIPLE);
     }
 }
 
@@ -101,6 +109,11 @@ void Track::setRootNote(int root)
     m_rootNote = juce::jlimit(0, 11, root);
 }
 
+void Track::setRootOffset(int offset)
+{
+    m_rootOffset = juce::jlimit(-11, 11, offset);
+}
+
 //==============================================================================
 // State Management
 
@@ -119,7 +132,6 @@ void Track::reset()
     
     // Reset track parameters to defaults
     m_name = "Track";
-    m_color = juce::Colour(0xFF00FF88);
     m_enabled = true;
     m_muted = false;
     m_solo = false;
@@ -166,7 +178,6 @@ juce::ValueTree Track::toValueTree() const
     
     // Track info
     tree.setProperty("name", m_name, nullptr);
-    tree.setProperty("color", m_color.toString(), nullptr);
     tree.setProperty("enabled", m_enabled, nullptr);
     tree.setProperty("muted", m_muted, nullptr);
     tree.setProperty("solo", m_solo, nullptr);
@@ -194,6 +205,7 @@ juce::ValueTree Track::toValueTree() const
     // Scale
     tree.setProperty("scaleId", m_scaleId, nullptr);
     tree.setProperty("rootNote", m_rootNote, nullptr);
+    tree.setProperty("rootOffset", m_rootOffset, nullptr);
     
     // Playback state
     tree.setProperty("currentStageIndex", m_currentStageIndex, nullptr);
@@ -216,7 +228,6 @@ void Track::fromValueTree(const juce::ValueTree& tree)
     
     // Track info
     m_name = tree.getProperty("name", "Track");
-    m_color = juce::Colour::fromString(tree.getProperty("color", "FF00FF88").toString());
     m_enabled = tree.getProperty("enabled", true);
     m_muted = tree.getProperty("muted", false);
     m_solo = tree.getProperty("solo", false);
@@ -244,6 +255,7 @@ void Track::fromValueTree(const juce::ValueTree& tree)
     // Scale
     m_scaleId = tree.getProperty("scaleId", "chromatic");
     m_rootNote = tree.getProperty("rootNote", 0);
+    m_rootOffset = tree.getProperty("rootOffset", 0);
     
     // Playback state
     m_currentStageIndex = tree.getProperty("currentStageIndex", 0);

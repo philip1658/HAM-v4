@@ -871,4 +871,347 @@ private:
     float m_progress = 0;
 };
 
+// ==========================================
+// New Transport Bar Components
+// ==========================================
+
+class PatternButton : public ResizableComponent, private juce::Timer {
+public:
+    PatternButton(int patternNumber) 
+        : m_patternNumber(patternNumber) {
+        setInterceptsMouseClicks(true, false);
+    }
+    
+    void paint(juce::Graphics& g) override {
+        auto bounds = getLocalBounds().toFloat().reduced(scaled(2));
+        
+        // Pulsing glow when chaining
+        if (m_isChaining) {
+            float pulse = 0.3f + 0.2f * std::sin(m_animPhase);
+            g.setColour(juce::Colour(DesignTokens::Colors::ACCENT_CYAN).withAlpha(pulse));
+            g.fillRoundedRectangle(bounds.expanded(scaled(3)), scaled(4));
+        }
+        
+        // Button background
+        juce::Colour bgColor;
+        if (m_isActive) {
+            bgColor = juce::Colour(DesignTokens::Colors::ACCENT_GREEN);
+        } else if (m_isHovered) {
+            bgColor = juce::Colour(DesignTokens::Colors::BG_RAISED).brighter(0.1f);
+        } else {
+            bgColor = juce::Colour(DesignTokens::Colors::BG_RAISED);
+        }
+        
+        g.setColour(bgColor);
+        g.fillRoundedRectangle(bounds, scaled(4));
+        
+        // Border
+        g.setColour(m_isActive 
+                   ? juce::Colour(DesignTokens::Colors::ACCENT_GREEN).brighter(0.3f)
+                   : juce::Colour(DesignTokens::Colors::BORDER));
+        g.drawRoundedRectangle(bounds, scaled(4), scaled(1));
+        
+        // Pattern number/letter
+        g.setColour(m_isActive 
+                   ? juce::Colours::black
+                   : juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
+        g.setFont(juce::Font(juce::FontOptions(scaled(16))).withStyle(juce::Font::bold));
+        
+        juce::String label = m_useLetters 
+            ? juce::String::charToString('A' + m_patternNumber - 1)
+            : juce::String(m_patternNumber);
+        g.drawText(label, bounds, juce::Justification::centred);
+        
+        // Activity LED in corner
+        if (m_hasActivity) {
+            auto topRight = bounds.removeFromTop(scaled(8)).removeFromRight(scaled(8));
+            auto ledBounds = topRight.reduced(scaled(1));
+            g.setColour(juce::Colour(DesignTokens::Colors::ACCENT_AMBER));
+            g.fillEllipse(ledBounds);
+        }
+    }
+    
+    void mouseEnter(const juce::MouseEvent&) override {
+        m_isHovered = true;
+        repaint();
+    }
+    
+    void mouseExit(const juce::MouseEvent&) override {
+        m_isHovered = false;
+        repaint();
+    }
+    
+    void mouseDown(const juce::MouseEvent& e) override {
+        if (e.mods.isShiftDown()) {
+            // Chain pattern
+            m_isChaining = !m_isChaining;
+            if (m_isChaining) {
+                startTimerHz(30);
+            } else {
+                stopTimer();
+            }
+            if (onPatternChain) onPatternChain(m_patternNumber, m_isChaining);
+        } else if (e.mods.isRightButtonDown()) {
+            // Show context menu
+            if (onPatternMenu) onPatternMenu(m_patternNumber);
+        } else {
+            // Select pattern
+            if (onPatternSelected) onPatternSelected(m_patternNumber);
+        }
+        repaint();
+    }
+    
+    void timerCallback() override {
+        m_animPhase += 0.2f;
+        repaint();
+    }
+    
+    void setActive(bool active) {
+        m_isActive = active;
+        repaint();
+    }
+    
+    void setActivity(bool hasActivity) {
+        m_hasActivity = hasActivity;
+        repaint();
+    }
+    
+    void setUseLetters(bool useLetters) {
+        m_useLetters = useLetters;
+        repaint();
+    }
+    
+    std::function<void(int)> onPatternSelected;
+    std::function<void(int, bool)> onPatternChain;
+    std::function<void(int)> onPatternMenu;
+    
+private:
+    int m_patternNumber;
+    bool m_isActive = false;
+    bool m_isHovered = false;
+    bool m_isChaining = false;
+    bool m_hasActivity = false;
+    bool m_useLetters = false;
+    float m_animPhase = 0;
+};
+
+class TempoArrows : public ResizableComponent, private juce::Timer {
+public:
+    TempoArrows() {
+        setInterceptsMouseClicks(true, false);
+    }
+    
+    void paint(juce::Graphics& g) override {
+        auto bounds = getLocalBounds().toFloat();
+        auto upBounds = bounds.removeFromTop(bounds.getHeight() * 0.5f).reduced(scaled(2));
+        auto downBounds = bounds.reduced(scaled(2));
+        
+        // Up arrow button
+        g.setColour(m_upHovered 
+                   ? juce::Colour(DesignTokens::Colors::BG_RAISED).brighter(0.2f)
+                   : juce::Colour(DesignTokens::Colors::BG_RAISED));
+        g.fillRoundedRectangle(upBounds, scaled(3));
+        
+        // Down arrow button
+        g.setColour(m_downHovered 
+                   ? juce::Colour(DesignTokens::Colors::BG_RAISED).brighter(0.2f)
+                   : juce::Colour(DesignTokens::Colors::BG_RAISED));
+        g.fillRoundedRectangle(downBounds, scaled(3));
+        
+        // Borders
+        g.setColour(juce::Colour(DesignTokens::Colors::BORDER));
+        g.drawRoundedRectangle(upBounds, scaled(3), scaled(0.5f));
+        g.drawRoundedRectangle(downBounds, scaled(3), scaled(0.5f));
+        
+        // Draw arrows
+        g.setColour(juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
+        
+        // Up arrow
+        juce::Path upArrow;
+        auto upCenter = upBounds.getCentre();
+        float arrowSize = scaled(5);
+        upArrow.addTriangle(upCenter.x - arrowSize, upCenter.y + arrowSize/2,
+                           upCenter.x + arrowSize, upCenter.y + arrowSize/2,
+                           upCenter.x, upCenter.y - arrowSize/2);
+        g.fillPath(upArrow);
+        
+        // Down arrow
+        juce::Path downArrow;
+        auto downCenter = downBounds.getCentre();
+        downArrow.addTriangle(downCenter.x - arrowSize, downCenter.y - arrowSize/2,
+                             downCenter.x + arrowSize, downCenter.y - arrowSize/2,
+                             downCenter.x, downCenter.y + arrowSize/2);
+        g.fillPath(downArrow);
+    }
+    
+    void mouseMove(const juce::MouseEvent& e) override {
+        auto bounds = getLocalBounds();
+        bool inUpper = e.y < bounds.getHeight() / 2;
+        
+        if (inUpper != m_upHovered || !inUpper != m_downHovered) {
+            m_upHovered = inUpper;
+            m_downHovered = !inUpper;
+            repaint();
+        }
+    }
+    
+    void mouseExit(const juce::MouseEvent&) override {
+        m_upHovered = false;
+        m_downHovered = false;
+        repaint();
+    }
+    
+    void mouseDown(const juce::MouseEvent& e) override {
+        auto bounds = getLocalBounds();
+        bool isUp = e.y < bounds.getHeight() / 2;
+        
+        float increment;
+        if (e.mods.isShiftDown()) {
+            increment = isUp ? 1.0f : -1.0f;  // Coarse: +/- 1 BPM
+        } else if (e.mods.isCommandDown()) {
+            increment = isUp ? 10.0f : -10.0f;  // Super coarse: +/- 10 BPM
+        } else {
+            increment = isUp ? 0.1f : -0.1f;  // Fine: +/- 0.1 BPM
+        }
+        
+        if (onTempoChange) onTempoChange(increment);
+        
+        // Start repeat timer for held button
+        m_isHolding = true;
+        m_holdIncrement = increment;
+        startTimer(500);  // Initial delay before repeat
+    }
+    
+    void mouseUp(const juce::MouseEvent&) override {
+        m_isHolding = false;
+        stopTimer();
+    }
+    
+    void timerCallback() override {
+        if (m_isHolding) {
+            if (onTempoChange) onTempoChange(m_holdIncrement);
+            startTimer(50);  // Faster repeat rate
+        }
+    }
+    
+    std::function<void(float)> onTempoChange;
+    
+private:
+    bool m_upHovered = false;
+    bool m_downHovered = false;
+    bool m_isHolding = false;
+    float m_holdIncrement = 0;
+};
+
+class CompactSwingKnob : public ResizableComponent {
+public:
+    CompactSwingKnob() {
+        setInterceptsMouseClicks(true, false);
+    }
+    
+    void paint(juce::Graphics& g) override {
+        auto bounds = getLocalBounds().toFloat().reduced(scaled(4));
+        auto center = bounds.getCentre();
+        
+        // Background circle
+        g.setColour(juce::Colour(DesignTokens::Colors::BG_RECESSED));
+        g.fillEllipse(bounds);
+        
+        // Value arc
+        float startAngle = juce::MathConstants<float>::pi * 0.75f;
+        float endAngle = juce::MathConstants<float>::pi * 2.25f;
+        float currentAngle = startAngle + (endAngle - startAngle) * m_value;
+        
+        juce::Path arc;
+        arc.addCentredArc(center.x, center.y,
+                         bounds.getWidth() * 0.4f, bounds.getHeight() * 0.4f,
+                         0, startAngle, currentAngle, true);
+        
+        g.setColour(juce::Colour(DesignTokens::Colors::ACCENT_AMBER));
+        g.strokePath(arc, juce::PathStrokeType(scaled(2)));
+        
+        // Center dot
+        g.setColour(juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
+        g.fillEllipse(bounds.reduced(bounds.getWidth() * 0.35f));
+        
+        // Value indicator line
+        float indicatorLength = bounds.getWidth() * 0.3f;
+        juce::Point<float> indicatorEnd(
+            center.x + indicatorLength * std::cos(currentAngle),
+            center.y + indicatorLength * std::sin(currentAngle)
+        );
+        
+        g.drawLine(center.x, center.y, indicatorEnd.x, indicatorEnd.y, scaled(2));
+    }
+    
+    void mouseDown(const juce::MouseEvent& e) override {
+        m_dragStart = e.position;
+        m_dragStartValue = m_value;
+    }
+    
+    void mouseDrag(const juce::MouseEvent& e) override {
+        float deltaY = m_dragStart.y - e.position.y;
+        float newValue = m_dragStartValue + (deltaY / 100.0f);
+        setValue(juce::jlimit(0.0f, 1.0f, newValue));
+        
+        if (onValueChange) onValueChange(m_value);
+    }
+    
+    void setValue(float value) {
+        m_value = juce::jlimit(0.0f, 1.0f, value);
+        repaint();
+    }
+    
+    std::function<void(float)> onValueChange;
+    
+private:
+    float m_value = 0.5f;  // 0.5 = no swing
+    juce::Point<float> m_dragStart;
+    float m_dragStartValue = 0.5f;
+};
+
+class PanicButton : public ResizableComponent {
+public:
+    PanicButton() {
+        setInterceptsMouseClicks(true, false);
+    }
+    
+    void paint(juce::Graphics& g) override {
+        auto bounds = getLocalBounds().toFloat().reduced(scaled(2));
+        
+        // Red alert background when pressed
+        g.setColour(m_isPressed 
+                   ? juce::Colour(DesignTokens::Colors::ACCENT_RED)
+                   : juce::Colour(DesignTokens::Colors::BG_RAISED));
+        g.fillRoundedRectangle(bounds, scaled(4));
+        
+        // Border
+        g.setColour(juce::Colour(DesignTokens::Colors::ACCENT_RED));
+        g.drawRoundedRectangle(bounds, scaled(4), scaled(m_isPressed ? 2 : 1));
+        
+        // Text
+        g.setColour(m_isPressed 
+                   ? juce::Colours::white
+                   : juce::Colour(DesignTokens::Colors::ACCENT_RED));
+        g.setFont(juce::Font(juce::FontOptions(scaled(11))).withStyle(juce::Font::bold));
+        g.drawText("PANIC", bounds, juce::Justification::centred);
+    }
+    
+    void mouseDown(const juce::MouseEvent&) override {
+        m_isPressed = true;
+        repaint();
+        if (onPanic) onPanic();
+    }
+    
+    void mouseUp(const juce::MouseEvent&) override {
+        m_isPressed = false;
+        repaint();
+    }
+    
+    std::function<void()> onPanic;
+    
+private:
+    bool m_isPressed = false;
+};
+
 } // namespace HAM::UI

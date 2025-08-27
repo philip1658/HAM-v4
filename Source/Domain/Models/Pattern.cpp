@@ -51,18 +51,7 @@ int Pattern::addTrack()
     auto track = std::make_unique<Track>();
     track->setName("Track " + juce::String(m_tracks.size() + 1));
     
-    // Assign different colors to tracks
-    const juce::Colour trackColors[] = {
-        juce::Colour(0xFF00FF88),  // Mint
-        juce::Colour(0xFF00D9FF),  // Sky Blue
-        juce::Colour(0xFFFF0088),  // Hot Pink
-        juce::Colour(0xFFFFAA00),  // Amber
-        juce::Colour(0xFF8800FF),  // Purple
-        juce::Colour(0xFFFF5500),  // Orange
-    };
-    
-    int colorIndex = m_tracks.size() % 6;
-    track->setColor(trackColors[colorIndex]);
+    // Track colors removed - handled in UI layer
     
     // Set MIDI channel based on track index
     track->setMidiChannel((m_tracks.size() % 16) + 1);

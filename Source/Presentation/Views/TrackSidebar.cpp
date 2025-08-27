@@ -512,6 +512,13 @@ void TrackSidebar::selectTrack(int index)
     }
 }
 
+void TrackSidebar::refreshTracks()
+{
+    // Rebuild track strips based on current track count
+    auto& trackManager = TrackManager::getInstance();
+    setTrackCount(trackManager.getTrackCount());
+}
+
 void TrackSidebar::timerCallback()
 {
     // Periodic UI updates can be handled here if needed

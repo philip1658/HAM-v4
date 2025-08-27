@@ -12,6 +12,7 @@
 #include "Infrastructure/Messaging/MessageTypes.h"
 #include "Infrastructure/Audio/HAMAudioProcessor.h"
 #include "Infrastructure/Plugins/PluginManager.h"
+#include "../../Domain/Services/TrackManager.h"
 
 namespace HAM {
 namespace UI {
@@ -214,6 +215,62 @@ void AppController::clearPattern(int patternIndex)
     }
     
     markProjectDirty();
+}
+
+//==============================================================================
+void AppController::addTrack()
+{
+    auto& trackManager = TrackManager::getInstance();
+    int newTrackIndex = trackManager.addTrack();
+    
+    if (newTrackIndex >= 0)
+    {
+        DBG("Added new track at index " << newTrackIndex);
+        markProjectDirty();
+        
+        // Notify the audio processor to add a new track
+        if (m_processor)
+        {
+            // Get current pattern and add a new track to it
+            auto pattern = m_processor->getCurrentPattern();
+            if (pattern)
+            {
+                pattern->addTrack();
+            }
+            
+            // Add processors for the new track
+            m_processor->addProcessorsForTrack(newTrackIndex);
+        }
+    }
+}
+
+void AppController::removeTrack(int trackIndex)
+{
+    auto& trackManager = TrackManager::getInstance();
+    
+    if (trackManager.getTrackCount() <= 1)
+    {
+        DBG("Cannot remove last track");
+        return;
+    }
+    
+    trackManager.removeTrack(trackIndex);
+    DBG("Removed track at index " << trackIndex);
+    markProjectDirty();
+    
+    // Notify the audio processor to remove the track
+    if (m_processor)
+    {
+        // Get current pattern and remove the track from it
+        auto pattern = m_processor->getCurrentPattern();
+        if (pattern)
+        {
+            pattern->removeTrack(trackIndex);
+        }
+        
+        // Remove processors for the track
+        m_processor->removeProcessorsForTrack(trackIndex);
+    }
 }
 
 //==============================================================================

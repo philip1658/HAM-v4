@@ -57,6 +57,8 @@ public:
     int getCurrentPatternIndex() const { return m_currentPatternIndex; }
     
     // Track management
+    void addTrack();
+    void removeTrack(int trackIndex);
     void setTrackMute(int trackIndex, bool muted);
     void setTrackSolo(int trackIndex, bool solo);
     void setTrackVolume(int trackIndex, float volume);

@@ -117,6 +117,9 @@ public:
     /** Get and clear MIDI events */
     void getAndClearMidiEvents(std::vector<MidiEvent>& events);
     
+    /** Get and clear MIDI events for a specific track (NEW) */
+    void getAndClearTrackMidiEvents(int trackIndex, std::vector<MidiEvent>& events);
+    
     /** Set current pattern - safe wrapper for legacy code */
     void setPattern(std::shared_ptr<Pattern> pattern) { 
         // Safe delegation to setActivePattern
@@ -176,6 +179,9 @@ public:
     /** Check if any track is soloed */
     bool hasSoloedTracks() const;
     
+    /** Handle scale changes at bar boundaries */
+    void handleScaleChange();
+    
     //==========================================================================
     // Debug & Monitoring
     
@@ -216,9 +222,14 @@ private:
     std::array<std::atomic<int>, 128> m_trackPulseCounters;  // Max 128 tracks
     std::array<std::atomic<int>, 128> m_trackLastTriggerPulse;
     
-    // MIDI event queue (lock-free)
+    // MIDI event queue (lock-free) - DEPRECATED: for backward compatibility only
     juce::AbstractFifo m_midiEventFifo{1024};
     std::vector<MidiEvent> m_midiEventBuffer;
+    
+    // Per-track MIDI buffers (NEW) - proper track isolation
+    static constexpr size_t MAX_TRACKS = 128;
+    std::array<std::unique_ptr<juce::AbstractFifo>, MAX_TRACKS> m_trackMidiFifos;
+    std::array<std::vector<MidiEvent>, MAX_TRACKS> m_trackMidiBuffers;
     
     // Performance stats
     mutable Stats m_stats;

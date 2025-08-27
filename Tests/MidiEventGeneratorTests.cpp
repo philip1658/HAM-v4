@@ -80,7 +80,7 @@ private:
         events = generator.generateRatchetedEvents(72, 127, 1, 1000, 2);
         if (!events.empty() && events[0].message.isNoteOn())
         {
-            expectEquals(events[0].message.getVelocity(), 127, "Velocity should be 127");
+            expectEquals(static_cast<int>(events[0].message.getVelocity()), 127, "Velocity should be 127");
             expectEquals(events[0].channel, 2, "Channel should be 2");
         }
         
@@ -207,8 +207,8 @@ private:
             expectGreaterOrEqual(event.sampleOffset, 0, "Offset should be non-negative");
             if (event.message.isNoteOn())
             {
-                expectGreaterOrEqual(event.message.getVelocity(), 1, "Velocity should be >= 1");
-                expectLessOrEqual(event.message.getVelocity(), 127, "Velocity should be <= 127");
+                expectGreaterOrEqual(static_cast<int>(event.message.getVelocity()), 1, "Velocity should be >= 1");
+                expectLessOrEqual(static_cast<int>(event.message.getVelocity()), 127, "Velocity should be <= 127");
             }
         }
         

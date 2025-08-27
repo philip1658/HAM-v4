@@ -241,7 +241,7 @@ private:
             if (track)
             {
                 track->setName("Track " + juce::String(i));
-                track->setChannel(i + 1);
+                track->setMidiChannel(i + 1);
             }
         }
         
