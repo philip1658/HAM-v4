@@ -799,24 +799,43 @@ bool HAMAudioProcessor::removePlugin(int trackIndex, int pluginIndex)
 
 void HAMAudioProcessor::showPluginEditor(int trackIndex, int pluginIndex)
 {
+    DBG("HAMAudioProcessor::showPluginEditor called for track " << trackIndex << ", plugin " << pluginIndex);
+    
     if (trackIndex < 0 || trackIndex >= static_cast<int>(m_trackPluginChains.size()))
+    {
+        DBG("Invalid track index: " << trackIndex);
         return;
+    }
     
     auto& chain = m_trackPluginChains[trackIndex];
+    if (!chain)
+    {
+        DBG("No plugin chain for track " << trackIndex);
+        return;
+    }
+    
     juce::AudioProcessorGraph::Node::Ptr node;
     juce::AudioPluginInstance* pluginInstance = nullptr;
     
     if (pluginIndex == -1 && chain->instrumentNode)
     {
+        DBG("Attempting to show instrument plugin editor");
         node = chain->instrumentNode;
     }
     else if (pluginIndex >= 0 && pluginIndex < static_cast<int>(chain->effectNodes.size()))
     {
+        DBG("Attempting to show effect plugin " << pluginIndex << " editor");
         node = chain->effectNodes[pluginIndex];
+    }
+    else
+    {
+        DBG("No plugin found at index " << pluginIndex << " for track " << trackIndex);
+        return;
     }
     
     if (node && node->getProcessor())
     {
+        DBG("Found node with processor");
         // Cast to AudioPluginInstance to access plugin-specific features
         pluginInstance = dynamic_cast<juce::AudioPluginInstance*>(node->getProcessor());
         
@@ -824,9 +843,21 @@ void HAMAudioProcessor::showPluginEditor(int trackIndex, int pluginIndex)
         {
             // Use PluginWindowManager for proper window lifecycle management
             juce::String pluginName = pluginInstance->getName();
-            PluginWindowManager::getInstance().openPluginWindow(trackIndex, pluginIndex, 
+            DBG("Opening plugin window for: " << pluginName);
+            DBG("Plugin has editor: " << (pluginInstance->hasEditor() ? "YES" : "NO"));
+            
+            bool success = PluginWindowManager::getInstance().openPluginWindow(trackIndex, pluginIndex, 
                                                                 pluginInstance, pluginName);
+            DBG("Plugin window open result: " << (success ? "SUCCESS" : "FAILED"));
         }
+        else
+        {
+            DBG("Failed to cast processor to AudioPluginInstance");
+        }
+    }
+    else
+    {
+        DBG("No node or processor found");
     }
 }
 

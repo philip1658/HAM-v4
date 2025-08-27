@@ -158,31 +158,19 @@ void TrackControlStrip::setupControls()
         
         if (pluginState && pluginState->hasPlugin)
         {
-            // Plugin is loaded - check if window is open
-            auto& windowManager = PluginWindowManager::getInstance();
-            
-            if (windowManager.isWindowOpen(m_trackIndex, -1))
-            {
-                // Window is open - just bring it to front
-                DBG("Plugin window already open, bringing to front");
-                // The PluginWindowManager will handle focus
-                if (onPluginEditorRequested)
-                    onPluginEditorRequested(m_trackIndex);
-            }
-            else
-            {
-                // Window is not open - open the plugin editor
-                DBG("Opening plugin editor for loaded plugin: " << pluginState->pluginName);
-                if (onPluginEditorRequested)
-                    onPluginEditorRequested(m_trackIndex);
-            }
+            // Plugin is loaded - open/focus the editor window
+            DBG("Opening/focusing plugin editor for: " << pluginState->pluginName);
+            if (onPluginEditorRequested)
+                onPluginEditorRequested(m_trackIndex);
         }
         else
         {
             // No plugin loaded - open the browser
+            // Only call onPluginBrowserRequested, not onPluginButtonClicked
+            // This prevents duplicate browser windows
             DBG("No plugin loaded, opening browser");
-            if (onPluginButtonClicked) 
-                onPluginButtonClicked(m_trackIndex);
+            if (onPluginBrowserRequested) 
+                onPluginBrowserRequested(m_trackIndex);
         }
     };
     addAndMakeVisible(m_pluginButton.get());
@@ -463,18 +451,16 @@ void TrackSidebar::setTrackCount(int count)
             handleTrackParameter(index, "octave", static_cast<float>(octave));
         };
         
-        strip->onPluginButtonClicked = [this](int index) {
-            handleTrackParameter(index, "openPlugin", 1.0f);
-            DBG("Plugin button clicked for track " << index);
-            
-            // Notify that plugin browser is needed
+        strip->onPluginBrowserRequested = [this](int index) {
+            DBG("Plugin browser requested for track " << index);
+            // Forward the browser request
             if (onPluginBrowserRequested)
                 onPluginBrowserRequested(index);
         };
         
         strip->onPluginEditorRequested = [this](int index) {
             DBG("Plugin editor requested for track " << index);
-            // Notify that plugin editor should open
+            // Forward the editor request
             if (onPluginEditorRequested)
                 onPluginEditorRequested(index);
         };

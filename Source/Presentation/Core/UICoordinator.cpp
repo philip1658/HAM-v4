@@ -16,6 +16,7 @@
 #include "Presentation/Views/PluginBrowser.h"
 #include "../../UI/Components/HAMComponentLibrary.h"
 #include "Infrastructure/Audio/HAMAudioProcessor.h"
+#include "../../Domain/Services/TrackManager.h"
 
 namespace HAM {
 namespace UI {
@@ -43,10 +44,13 @@ void UICoordinator::setAudioProcessor(HAMAudioProcessor* processor)
     {
         m_mixerView = std::make_unique<MixerView>(*processor);
         m_contentContainer->addAndMakeVisible(m_mixerView.get());
+        
+        // Set visibility based on current active view
+        // But MixerView is created regardless so its plugin browser can be used
         m_mixerView->setVisible(m_activeView == ViewMode::Mixer);
         
-        // MixerView handles plugin browsing internally
-        // No external callbacks needed as MixerView uses its own plugin browser
+        // MixerView provides the plugin browser for the entire application
+        // It can be accessed even when MixerView itself is not visible
         
         // If we're currently showing the mixer view, layout it
         if (m_activeView == ViewMode::Mixer)
@@ -87,21 +91,25 @@ void UICoordinator::createUIComponents()
     m_sequencerPage = std::make_unique<juce::Component>();
     m_contentContainer->addAndMakeVisible(m_sequencerPage.get());
     
+    // Create a content container that holds both sidebar and grid
+    m_sequencerContent = std::make_unique<juce::Component>();
+    
     // Create track sidebar
     m_trackSidebar = std::make_unique<TrackSidebar>();
-    m_trackSidebar->setTrackCount(1); // Start with 1 track
-    m_sequencerPage->addAndMakeVisible(m_trackSidebar.get());
+    // TrackSidebar automatically gets track count from TrackManager (8 tracks)
+    m_sequencerContent->addAndMakeVisible(m_trackSidebar.get());
     
     // Create stage grid
     m_stageGrid = std::make_unique<StageGrid>();
-    m_stageGrid->setTrackCount(1); // Start with 1 track (creates 8 stage cards)
+    // StageGrid now defaults to 8 tracks matching TrackManager
+    m_sequencerContent->addAndMakeVisible(m_stageGrid.get());
     
-    // Wrap StageGrid in a viewport for scrolling
-    m_stageViewport = std::make_unique<juce::Viewport>("stageViewport");
-    m_stageViewport->setViewedComponent(m_stageGrid.get(), false);
-    m_stageViewport->setScrollBarsShown(true, true); // Both vertical and horizontal scrolling
-    m_stageViewport->setScrollBarThickness(10);
-    m_sequencerPage->addAndMakeVisible(m_stageViewport.get());
+    // Wrap the content container in a viewport for synchronized scrolling
+    m_sequencerViewport = std::make_unique<juce::Viewport>("sequencerViewport");
+    m_sequencerViewport->setViewedComponent(m_sequencerContent.get(), false);
+    m_sequencerViewport->setScrollBarsShown(true, true); // Both vertical and horizontal scrolling
+    m_sequencerViewport->setScrollBarThickness(10);
+    m_sequencerPage->addAndMakeVisible(m_sequencerViewport.get());
     
     // Mixer view will be created when we have processor available
     
@@ -261,26 +269,69 @@ void UICoordinator::setupEventHandlers()
             DBG("Remove track " << trackIndex << " requested");
         };
         
-        // Connect plugin-specific callbacks - these are direct aliases to mixer's plugin buttons
+        // Connect plugin-specific callbacks to use unified browser without forcing view switch
         m_trackSidebar->onPluginBrowserRequested = [this](int trackIndex)
         {
             DBG("Plugin browser requested from sidebar for track " << trackIndex);
-            showPluginBrowser(trackIndex, false);
             
-            // Update TrackManager to indicate we're looking for a plugin
+            // Check if plugin is already loaded first
             auto& trackManager = TrackManager::getInstance();
-            // Browser opened - no plugin yet
+            auto* pluginState = trackManager.getPluginState(trackIndex, true);
+            
+            if (pluginState && pluginState->hasPlugin)
+            {
+                // Plugin is loaded - open its editor window directly
+                DBG("Plugin already loaded, opening editor for: " << pluginState->pluginName);
+                if (auto* processor = m_controller.getAudioProcessor())
+                {
+                    processor->showPluginEditor(trackIndex, -1);
+                }
+            }
+            else
+            {
+                // No plugin loaded - we need to open the browser
+                // First ensure MixerView exists (create it if needed but don't show it)
+                if (!m_mixerView)
+                {
+                    if (auto* processor = m_controller.getAudioProcessor())
+                    {
+                        setAudioProcessor(processor);
+                    }
+                }
+                
+                // If MixerView exists now, use its browser (but stay on current view)
+                if (m_mixerView)
+                {
+                    // Use MixerView's browser but don't switch views
+                    m_mixerView->openPluginBrowserForTrack(trackIndex);
+                }
+                else
+                {
+                    // Fallback to the overlay plugin browser
+                    DBG("Using overlay plugin browser");
+                    showPluginBrowser(trackIndex, false);
+                }
+            }
         };
         
         m_trackSidebar->onPluginEditorRequested = [this](int trackIndex)
         {
             DBG("Plugin editor requested from sidebar for track " << trackIndex);
             
-            // Open the plugin editor if available
-            if (auto* processor = m_controller.getAudioProcessor())
+            // Check if a plugin is actually loaded
+            auto& trackManager = TrackManager::getInstance();
+            auto* pluginState = trackManager.getPluginState(trackIndex, true);
+            
+            if (pluginState && pluginState->hasPlugin)
             {
-                processor->showPluginEditor(trackIndex, -1); // -1 for instrument slot
+                // Open the plugin editor window directly without switching views
+                if (auto* processor = m_controller.getAudioProcessor())
+                {
+                    processor->showPluginEditor(trackIndex, -1);
+                }
             }
+            // If no plugin is loaded, do nothing - the browser should be opened via onPluginBrowserRequested
+            // This prevents duplicate browser windows
         };
     }
     
@@ -481,12 +532,6 @@ void UICoordinator::layoutSequencerView()
     
     auto bounds = m_sequencerPage->getLocalBounds();
     
-    // Track sidebar on left
-    if (m_trackSidebar)
-    {
-        m_trackSidebar->setBounds(bounds.removeFromLeft(SIDEBAR_WIDTH));
-    }
-    
     // HAM Editor at bottom (if visible)
     if (m_hamEditorVisible)
     {
@@ -495,20 +540,34 @@ void UICoordinator::layoutSequencerView()
         // TODO: Position HAMEditorPanel
     }
     
-    // Stage grid in remaining space
-    if (m_stageViewport)
+    // Viewport fills the remaining space
+    if (m_sequencerViewport)
     {
-        m_stageViewport->setBounds(bounds);
+        m_sequencerViewport->setBounds(bounds);
         
-        // Set stage grid size (8 stages)
-        if (m_stageGrid)
+        // Layout the content within the viewport
+        if (m_sequencerContent && m_trackSidebar && m_stageGrid)
         {
-            const int gridWidth = 8 * STAGE_CARD_WIDTH + 7 * 10; // 8 cards + gaps
-            // Calculate total height needed based on track count
-            const int numTracks = 1; // TODO: Get actual track count from model
-            const int verticalPadding = 1; // Matches StageGrid::resized()
-            const int gridHeight = numTracks * STAGE_CARD_HEIGHT + (numTracks - 1) * verticalPadding;
-            m_stageGrid->setSize(gridWidth, gridHeight);
+            // Get track count from TrackManager
+            auto& trackManager = TrackManager::getInstance();
+            const int numTracks = static_cast<int>(trackManager.getAllTracks().size());
+            
+            // Calculate required dimensions
+            const int sidebarWidth = SIDEBAR_WIDTH;
+            const int gridWidth = 8 * STAGE_CARD_WIDTH + 7 * 1; // 8 cards + minimal horizontal gaps
+            const int totalWidth = sidebarWidth + gridWidth + 10; // Add some padding
+            
+            const int trackGap = 8; // Gap between tracks (matches both TrackSidebar and StageGrid)
+            const int totalHeight = numTracks * STAGE_CARD_HEIGHT + (numTracks - 1) * trackGap;
+            
+            // Set the total content size
+            m_sequencerContent->setSize(totalWidth, totalHeight);
+            
+            // Position sidebar on left
+            m_trackSidebar->setBounds(0, 0, sidebarWidth, totalHeight);
+            
+            // Position stage grid next to sidebar
+            m_stageGrid->setBounds(sidebarWidth, 0, gridWidth, totalHeight);
         }
     }
 }

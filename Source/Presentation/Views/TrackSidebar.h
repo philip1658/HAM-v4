@@ -61,7 +61,7 @@ public:
     std::function<void(int trackIndex, int division)> onDivisionChanged;
     std::function<void(int trackIndex, float swing)> onSwingChanged;
     std::function<void(int trackIndex, int octave)> onOctaveChanged;
-    std::function<void(int trackIndex)> onPluginButtonClicked;  // For opening browser
+    std::function<void(int trackIndex)> onPluginBrowserRequested;  // For opening browser
     std::function<void(int trackIndex)> onPluginEditorRequested;  // For opening editor
     std::function<void(int trackIndex)> onAccumulatorButtonClicked;
     

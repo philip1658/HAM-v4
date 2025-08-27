@@ -162,33 +162,20 @@ void MixerView::onPluginSelected(int channelIndex, const juce::PluginDescription
 
 bool MixerView::loadPluginDirect(int channelIndex, const juce::PluginDescription& desc)
 {
-    DBG("SimpleMixerView: Loading plugin directly - " << desc.name);
+    DBG("MixerView: Loading plugin directly - " << desc.name);
     
-    // Get plugin manager and create instance
-    auto& pluginManager = PluginManager::instance();
-    
-    // Get sample rate and block size from processor
-    double sampleRate = m_processor.getSampleRate();
-    int blockSize = m_processor.getBlockSize();
-    
-    // Create plugin instance synchronously (like Pulse does)
-    auto instance = pluginManager.createPluginInstance(desc, sampleRate, blockSize);
-    
-    if (!instance)
-    {
-        DBG("Failed to create plugin instance");
-        return false;
-    }
-    
-    // Add to plugin manager
-    bool success = pluginManager.addInstrumentPlugin(channelIndex, std::move(instance), desc);
+    // Load the plugin through the audio processor instead of plugin manager
+    // This ensures it's properly connected to the audio graph
+    bool isInstrument = desc.isInstrument;
+    bool success = m_processor.loadPlugin(channelIndex, desc, isInstrument);
     
     if (success)
     {
-        DBG("Plugin loaded successfully!");
-        
-        // TODO: Connect plugin to audio processing chain
-        // This would involve adding the plugin to the processor graph
+        DBG("Plugin loaded successfully through audio processor!");
+    }
+    else
+    {
+        DBG("Failed to load plugin through audio processor");
     }
     
     return success;
@@ -253,6 +240,57 @@ void MixerView::trackPluginChanged(int trackIndex)
             // Clear plugin display
             m_channelStrips[trackIndex]->updatePluginDisplay("");
         }
+    }
+}
+
+void MixerView::openPluginBrowserForTrack(int trackIndex)
+{
+    DBG("MixerView::openPluginBrowserForTrack called for track " << trackIndex);
+    
+    // Make sure we have a valid track index
+    if (trackIndex < 0 || trackIndex >= static_cast<int>(m_channelStrips.size()))
+    {
+        DBG("Invalid track index: " << trackIndex);
+        return;
+    }
+    
+    // Check if plugin is already loaded
+    auto& trackManager = TrackManager::getInstance();
+    auto* pluginState = trackManager.getPluginState(trackIndex, true);
+    
+    if (pluginState && pluginState->hasPlugin)
+    {
+        // Plugin is already loaded - open its editor instead
+        DBG("Plugin already loaded, opening editor for: " << pluginState->pluginName);
+        m_channelStrips[trackIndex]->showPluginEditor();
+    }
+    else
+    {
+        // No plugin loaded - open browser
+        DBG("Opening plugin browser for track " << trackIndex);
+        
+        // Create or show the browser window
+        auto* browserWindow = m_browserManager.createBrowserWindow();
+        if (!browserWindow)
+        {
+            DBG("Failed to create browser window!");
+            return;
+        }
+        
+        // Get the browser component
+        if (auto* browser = m_browserManager.getBrowser())
+        {
+            // Set up callback to handle plugin selection
+            browser->onPluginSelected = [this, trackIndex](const juce::PluginDescription& desc)
+            {
+                DBG("Plugin selected from browser: " << desc.name);
+                onPluginSelected(trackIndex, desc);
+                m_browserManager.closeBrowser();
+            };
+        }
+        
+        browserWindow->setVisible(true);
+        browserWindow->toFront(true);
     }
 }
 

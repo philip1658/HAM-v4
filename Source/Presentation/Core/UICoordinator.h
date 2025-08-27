@@ -101,8 +101,9 @@ private:
     
     // Sequencer view components
     std::unique_ptr<juce::Component> m_sequencerPage;
+    std::unique_ptr<juce::Component> m_sequencerContent;  // Container for both sidebar and grid
     std::unique_ptr<TrackSidebar> m_trackSidebar;
-    std::unique_ptr<juce::Viewport> m_stageViewport;
+    std::unique_ptr<juce::Viewport> m_sequencerViewport;  // Single viewport for synchronized scrolling
     std::unique_ptr<StageGrid> m_stageGrid;
     // std::unique_ptr<HAMEditorPanel> m_hamEditor; // TODO: Implement
     
@@ -121,10 +122,10 @@ private:
     // Layout constants
     static constexpr int TRANSPORT_HEIGHT = 80;
     static constexpr int TAB_BAR_HEIGHT = 40;
-    static constexpr int SIDEBAR_WIDTH = 200;
+    static constexpr int SIDEBAR_WIDTH = 250;  // Wider for better layout
     static constexpr int HAM_EDITOR_HEIGHT = 300;
     static constexpr int STAGE_CARD_WIDTH = 140;
-    static constexpr int STAGE_CARD_HEIGHT = 420;
+    static constexpr int STAGE_CARD_HEIGHT = 480;  // Match TrackSidebar height
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(UICoordinator)
 };

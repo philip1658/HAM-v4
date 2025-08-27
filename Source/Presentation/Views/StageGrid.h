@@ -17,8 +17,8 @@ namespace HAM::UI {
 class StageGrid : public BaseComponent {
 public:
     StageGrid() {
-        // Start with 1 track by default
-        setTrackCount(1);
+        // Start with 8 tracks to match TrackManager initialization
+        setTrackCount(8);
     }
     
     ~StageGrid() override = default;
@@ -46,7 +46,7 @@ public:
         // Calculate optimized card dimensions
         const int numCardsPerRow = 8;
         const int horizontalPadding = 1;  // 1px spacing between cards for clean separation
-        const int verticalPadding = 1;    // 1px spacing between tracks
+        const int verticalPadding = 8;    // 8px spacing between tracks to match TrackSidebar
         
         // Calculate card width to fill available space
         int totalHorizontalPadding = horizontalPadding * (numCardsPerRow - 1);
@@ -54,8 +54,8 @@ public:
         int cardWidth = availableWidth / numCardsPerRow;
         
         // Cards should align directly at the top of the content area
-        // Use consistent height from UICoordinator constants
-        int cardHeight = 420; // Fixed height for stage cards matching UICoordinator::STAGE_CARD_HEIGHT
+        // Match TrackSidebar height for proper alignment
+        int cardHeight = 480; // Match TrackSidebar::TRACK_HEIGHT for proper alignment
         
         // Position cards for each track
         for (int track = 0; track < m_trackCount; ++track) {

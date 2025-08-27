@@ -45,6 +45,10 @@ public:
     void trackParametersChanged(int trackIndex) override;
     void trackPluginChanged(int trackIndex) override;
     
+    // Public method to open plugin browser for a specific track
+    // This allows external components (like TrackSidebar) to trigger the same browser
+    void openPluginBrowserForTrack(int trackIndex);
+    
 private:
     /**
      * ChannelStrip - Single track with direct plugin loading
@@ -71,6 +75,9 @@ private:
         // Get channel index
         int getChannelIndex() const { return m_channelIndex; }
         
+        // Show plugin editor window (made public for unified access)
+        void showPluginEditor();
+        
     private:
         int m_channelIndex;
         HAMAudioProcessor& m_processor;
@@ -92,7 +99,6 @@ private:
         juce::String m_loadedPluginName;
         
         // Helper methods
-        void showPluginEditor();
         juce::Colour getTrackColor() const;
         
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChannelStrip)

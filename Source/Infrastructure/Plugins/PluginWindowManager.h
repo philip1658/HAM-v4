@@ -201,14 +201,24 @@ public:
                          juce::AudioPluginInstance* plugin,
                          const juce::String& pluginName)
     {
+        DBG("PluginWindowManager::openPluginWindow called");
+        DBG("  Track: " << trackIndex << ", Plugin: " << pluginIndex);
+        DBG("  Plugin Name: " << pluginName);
+        
         if (!plugin)
+        {
+            DBG("  ERROR: Plugin pointer is null!");
             return false;
+        }
+        
+        DBG("  Plugin has editor: " << (plugin->hasEditor() ? "YES" : "NO"));
         
         WindowID windowId(trackIndex, pluginIndex);
         
         // Check if window already exists
         if (auto it = m_windows.find(windowId); it != m_windows.end())
         {
+            DBG("  Window already exists, bringing to front");
             // Bring existing window to front
             if (it->second)
             {
@@ -217,6 +227,7 @@ public:
             }
         }
         
+        DBG("  Creating new window...");
         // Create new window
         auto windowName = pluginName + " [Track " + juce::String(trackIndex + 1) + "]";
         
@@ -229,12 +240,17 @@ public:
         
         if (window->getContentComponent())
         {
+            DBG("  Window created successfully with content");
             window->restoreWindowPosition();
             window->setVisible(true);
             window->toFront(true);
             
             m_windows[windowId] = std::move(window);
             return true;
+        }
+        else
+        {
+            DBG("  ERROR: Failed to create window content (no editor component)");
         }
         
         return false;
