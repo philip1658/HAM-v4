@@ -8,6 +8,54 @@ function(add_coverage_to_target target_name)
     endif()
 endfunction()
 
+# Plugin Sandbox Tests
+juce_add_console_app(PluginSandboxTests
+    PRODUCT_NAME "PluginSandboxTests"
+)
+
+juce_generate_juce_header(PluginSandboxTests)
+
+target_sources(PluginSandboxTests PRIVATE
+    PluginSandboxTests.cpp
+    ../Source/Infrastructure/Plugins/PluginSandbox.cpp
+    ../Source/Infrastructure/Plugins/PluginSandbox.h
+)
+
+target_compile_definitions(PluginSandboxTests PRIVATE
+    JUCE_UNIT_TESTS=1
+    JUCE_USE_CURL=0
+    JUCE_MODAL_LOOPS_PERMITTED=0
+    JUCE_STRICT_REFCOUNTEDPOINTER=1
+    JUCE_PLUGINHOST_VST3=1
+    JUCE_PLUGINHOST_AU=1
+)
+
+target_include_directories(PluginSandboxTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/Source
+    ${CMAKE_SOURCE_DIR}
+)
+
+target_link_libraries(PluginSandboxTests PRIVATE
+    juce::juce_core
+    juce::juce_audio_basics
+    juce::juce_audio_processors
+    juce::juce_audio_formats
+    juce::juce_events
+    juce::juce_recommended_config_flags
+)
+
+# Platform-specific linking
+if(APPLE)
+    target_link_libraries(PluginSandboxTests PRIVATE
+        "-framework CoreAudio"
+        "-framework AudioUnit"
+        "-framework CoreAudioKit"
+    )
+endif()
+
+add_coverage_to_target(PluginSandboxTests)
+add_test(NAME PluginSandboxTests COMMAND PluginSandboxTests)
+
 # Add new comprehensive test executables
 # MasterClock Tests
 juce_add_console_app(MasterClockTests
@@ -974,3 +1022,8 @@ target_link_libraries(SyncManagerTests PRIVATE
 
 add_coverage_to_target(SyncManagerTests)
 add_test(NAME SyncManagerTests COMMAND SyncManagerTests)
+
+# Performance Testing Suite
+if(EXISTS ${CMAKE_SOURCE_DIR}/Tests/Performance)
+    add_subdirectory(Performance)
+endif()

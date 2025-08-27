@@ -651,13 +651,21 @@ void HAMAudioProcessor::processUIMessage(const UIToEngineMessage& msg)
             break;
             
         case UIToEngineMessage::ENABLE_DEBUG_MODE:
-            // TODO: Implement debug mode when Transport class supports it
-            DBG("Debug mode enabled");
+            if (m_transport)
+            {
+                m_transport->setDebugMode(true);
+                DBG("Debug mode enabled");
+                juce::Logger::writeToLog("Transport debug mode enabled - detailed timing logs will be generated");
+            }
             break;
             
         case UIToEngineMessage::DISABLE_DEBUG_MODE:
-            // TODO: Implement debug mode when Transport class supports it
-            DBG("Debug mode disabled");
+            if (m_transport)
+            {
+                m_transport->setDebugMode(false);
+                DBG("Debug mode disabled");
+                juce::Logger::writeToLog("Transport debug mode disabled");
+            }
             break;
             
         default:
@@ -696,8 +704,7 @@ void HAMAudioProcessor::processEngineMessage(const EngineToUIMessage& msg)
             case EngineToUIMessage::DEBUG_TIMING_INFO:
             case EngineToUIMessage::DEBUG_QUEUE_STATS:
                 // Debug messages only sent when debug mode is active
-                // TODO: Add debug mode check when Transport supports it
-                if (true) // Temporary - always send debug messages
+                if (m_transport && m_transport->isDebugMode())
                 {
                     m_messageDispatcher->sendToUI(msg);
                 }

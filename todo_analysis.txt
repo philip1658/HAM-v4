@@ -1,0 +1,130 @@
+Source/UI/CLAUDE.md:214:### Current TODOs: 8 across UI layer
+Source/UI/CLAUDE.md:216:#### Component Implementation (6 TODOs)
+Source/UI/CLAUDE.md:217:1. **AdvancedComponents.cpp**: 3 TODOs - Pattern morphing UI, advanced visualizations
+Source/UI/CLAUDE.md:218:2. **BasicComponents.cpp**: 2 TODOs - Touch gesture support, accessibility
+Source/UI/CLAUDE.md:219:3. **ComponentShowcase.cpp**: 1 TODO - Automated screenshot testing
+Source/UI/CLAUDE.md:221:#### Responsive Design (2 TODOs)
+Source/UI/CLAUDE.md:222:1. **LayoutComponents.cpp**: 1 TODO - Advanced grid system  
+Source/UI/CLAUDE.md:223:2. **ComponentBase.cpp**: 1 TODO - Dynamic scaling for different DPI
+Source/MainComponent.cpp:100:                    // TODO: Implement MIDI export
+Source/MainComponent.cpp.backup:20:// #include "Presentation/Views/HAMEditorPanel.h" // TODO: Implement HAMEditorPanel
+Source/MainComponent.cpp.backup:86:            // TODO: Implement HAMEditorPanel
+Source/MainComponent.cpp.backup:153:        // TODO: Implement HAMEditorPanel
+Source/MainComponent.cpp.backup:500:        // TODO: Implement HAMEditorPanel
+Source/MainComponent.cpp.backup:831:        // TODO: send message to engine when pattern scheduler is wired
+Source/MainComponent.cpp.backup:865:    // std::unique_ptr<HAM::UI::HAMEditorPanel> m_hamEditor; // TODO: Implement HAMEditorPanel
+Source/SOURCE_OVERVIEW.md:6:- **Technical Debt**: 60 TODOs across 12 files
+Source/SOURCE_OVERVIEW.md:277:### Current TODOs (60 across 12 files)
+Source/SOURCE_OVERVIEW.md:278:1. **UI Implementation**: 16 TODOs in Presentation layer
+Source/SOURCE_OVERVIEW.md:279:2. **Plugin Integration**: 12 TODOs in Infrastructure/Plugins  
+Source/SOURCE_OVERVIEW.md:280:3. **Sync Manager**: 8 TODOs for external sync features
+Source/SOURCE_OVERVIEW.md:281:4. **Transport Control**: 6 TODOs for advanced playback features
+Source/SOURCE_OVERVIEW.md:282:5. **Performance Optimization**: 8 TODOs for SIMD and caching
+Source/Infrastructure/Plugins/PluginSandbox.cpp:483:    // TODO: Implement parameter control via IPC
+Source/Infrastructure/Plugins/PluginSandbox.cpp:489:    // TODO: Implement parameter query via IPC
+Source/Infrastructure/Plugins/PluginSandbox.cpp:501:    // TODO: Implement editor showing via IPC
+Source/Infrastructure/Plugins/PluginSandbox.cpp:506:    // TODO: Implement editor closing via IPC
+Source/Infrastructure/Plugins/PluginSandbox.cpp:523:    // TODO: Calculate CPU usage
+Source/Infrastructure/Plugins/PluginSandbox.cpp:885:            // TODO: Notify user of failed recovery
+Source/Infrastructure/Plugins/PluginSandbox.cpp:914:            // TODO: Create sandboxed wrapper that implements AudioPluginInstance interface
+Source/Infrastructure/Audio/HAMAudioProcessor.h:227:    // TODO: Re-enable when TrackGateProcessor is implemented
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp:421:                // TODO: Swing should be applied per-track, not globally
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp:434:                // TODO: Pattern length should be managed differently
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp:558:                    // TODO: Scale setting should use Scale object, not int value
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp:581:                // TODO: GateType should be set per-stage, not per-track
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp:654:            // TODO: Implement debug mode when Transport class supports it
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp:659:            // TODO: Implement debug mode when Transport class supports it
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp:699:                // TODO: Add debug mode check when Transport supports it
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp:924:    // TODO: Re-enable when TrackGateProcessor is implemented
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp:1166:    // TODO: Re-enable when TrackGateProcessor is implemented
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp:1270:                // TODO: Add volume and pan when Track supports them
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp:1426:                    // TODO: Restore volume and pan when Track supports them
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp:1485:        // TODO: Implement full plugin restoration if graph state is insufficient
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp.backup:265:                // TODO: Swing should be applied per-track, not globally
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp.backup:278:                // TODO: Pattern length should be managed differently
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp.backup:402:                    // TODO: Scale setting should use Scale object, not int value
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp.backup:425:                // TODO: GateType should be set per-stage, not per-track
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp.backup:498:            // TODO: Implement debug mode when Transport class supports it
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp.backup:503:            // TODO: Implement debug mode when Transport class supports it
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp.backup:543:                // TODO: Add debug mode check when Transport supports it
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp.backup:646:    // TODO: Re-enable when TrackGateProcessor is implemented
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp.backup:716:        // TODO: Connect effect in chain
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp.backup:798:    // TODO: Re-enable when TrackGateProcessor is implemented
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp.backup:902:                // TODO: Add volume and pan when Track supports them
+Source/Infrastructure/Audio/HAMAudioProcessor.cpp.backup:978:                    // TODO: Restore volume and pan when Track supports them
+Source/Infrastructure/CLAUDE.md:62:### Current TODOs: 20 across Infrastructure layer
+Source/Infrastructure/CLAUDE.md:64:#### Audio Layer (12 TODOs)
+Source/Infrastructure/CLAUDE.md:65:1. **HAMAudioProcessor.h**: 1 TODO - TrackGateProcessor integration
+Source/Infrastructure/CLAUDE.md:66:2. **HAMAudioProcessor.cpp**: 11 TODOs - Plugin hosting improvements, error handling
+Source/Infrastructure/CLAUDE.md:68:#### Messaging Layer (2 TODOs)
+Source/Infrastructure/CLAUDE.md:69:1. **MessageDispatcher.h**: 1 TODO - Message prioritization system
+Source/Infrastructure/CLAUDE.md:70:2. **MessageTypes.h**: 1 TODO - Message versioning for future compatibility
+Source/Infrastructure/CLAUDE.md:72:#### Plugins Layer (6 TODOs)  
+Source/Infrastructure/CLAUDE.md:73:1. **PluginManager.cpp**: 4 TODOs - Plugin sandboxing, crash recovery
+Source/Infrastructure/CLAUDE.md:74:2. **PluginWindowManager.h**: 2 TODOs - Multi-monitor support, UI scaling
+Source/Domain/Transport/SyncManager.h:109:    bool isLinkAvailable() const { return false; }  // TODO: Implement with Link SDK
+Source/Domain/Transport/SyncManager.h:118:    int getLinkPeerCount() const { return 0; }  // TODO: Implement
+Source/Domain/Transport/SyncManager.h:213:    // TODO: Add Link session when implementing
+Source/Domain/Transport/SyncManager.cpp:196:        // TODO: Initialize Link session
+Source/Domain/Transport/SyncManager.cpp:202:        // TODO: Disable Link session
+Source/Domain/Transport/SyncManager.cpp:209:    // TODO: Implement Link phase alignment
+Source/Domain/Transport/SyncManager.cpp:286:    status.isLinkConnected = false;  // TODO: Implement with Link
+Source/Domain/Transport/SyncManager.cpp:450:    // TODO: Apply compensation to master clock timing
+Source/Domain/Models/CLAUDE.md:195:### Current TODOs: 8 across Models
+Source/Domain/Models/CLAUDE.md:196:1. **Scale.cpp**: 3 TODOs - Microtonal scale support, custom temperaments
+Source/Domain/Models/CLAUDE.md:197:2. **Stage.cpp**: 2 TODOs - Advanced velocity curve algorithms  
+Source/Domain/Models/CLAUDE.md:198:3. **Pattern.cpp**: 2 TODOs - Pattern morphing math, version migration
+Source/Domain/Models/CLAUDE.md:199:4. **Track.cpp**: 1 TODO - Direction change smoothing
+Source/Domain/Engines/SequencerEngine.cpp:545:    // TODO: Apply scale quantization when Scale class is integrated
+Source/Domain/Engines/SequencerEngine.cpp:874:        // TODO: Implement skip condition logic
+Source/Domain/CLAUDE.md:82:### Current TODOs: 28 across Domain layer
+Source/Domain/CLAUDE.md:83:1. **SyncManager.h**: 3 TODOs - External sync features (Ableton Link)
+Source/Domain/CLAUDE.md:84:2. **SequencerEngine.cpp**: 2 TODOs - Pattern morphing integration  
+Source/Domain/CLAUDE.md:85:3. **Transport.h**: 3 TODOs - Advanced transport features
+Source/Domain/CLAUDE.md:86:4. **Various engines**: 20 TODOs - Performance optimizations and feature completions
+Source/Presentation/Core/AppController.cpp:161:    // TODO: Implement proper pause that maintains position
+Source/Presentation/Core/AppController.cpp:200:    // TODO: Implement pattern saving
+Source/Presentation/Core/AppController.cpp:335:    // TODO: Add SET_TRACK_PAN message type
+Source/Presentation/Core/AppController.cpp:383:    // TODO: Actually load the plugin via PluginManager
+Source/Presentation/Core/AppController.cpp:394:    // TODO: Actually remove the plugin via PluginManager
+Source/Presentation/Core/AppController.cpp:403:    // TODO: Show plugin editor window
+Source/Presentation/Core/AppController.cpp:439:    // TODO: Implement project loading
+Source/Presentation/Core/AppController.cpp:446:    // TODO: Implement project saving
+Source/Presentation/Core/AppController.cpp:500:        // TODO: Register handlers for engine messages to update stats
+Source/Presentation/Core/UICoordinator.h:123:    // std::unique_ptr<HAMEditorPanel> m_hamEditor; // TODO: Implement
+Source/Presentation/Core/MainWindow.cpp:131:    // TODO: Implement menu bar model
+Source/Presentation/Core/MainWindow.cpp:162:    // TODO: Implement edit menu actions
+Source/Presentation/Core/MainWindow.cpp:171:            // TODO: Toggle fullscreen mode
+Source/Presentation/Core/MainWindow.cpp:174:            // TODO: Reset UI layout to defaults
+Source/Presentation/Core/MainWindow.cpp:177:            // TODO: Toggle MIDI monitor visibility
+Source/Presentation/Core/MainWindow.cpp:190:            // TODO: Open documentation
+Source/Presentation/Core/UICoordinator.cpp:241:        // TODO: Implement pattern selection in controller
+Source/Presentation/Core/UICoordinator.cpp:247:        // TODO: Implement pattern chaining
+Source/Presentation/Core/UICoordinator.cpp:253:        // TODO: Implement all notes off functionality in HAMAudioProcessor
+Source/Presentation/Core/UICoordinator.cpp:349:                // TODO: Show accumulator editor
+Source/Presentation/Core/UICoordinator.cpp:362:                // TODO: Add setTrackMidiChannel to AppController
+Source/Presentation/Core/UICoordinator.cpp:368:                // TODO: Add setTrackVoiceMode to AppController
+Source/Presentation/Core/UICoordinator.cpp:374:                // TODO: Add setTrackDivision to AppController
+Source/Presentation/Core/UICoordinator.cpp:380:                // TODO: Add setTrackSwing to AppController
+Source/Presentation/Core/UICoordinator.cpp:386:                // TODO: Add setTrackOctave to AppController
+Source/Presentation/Core/UICoordinator.cpp:392:                // TODO: Add setTrackMaxPulseLength to AppController
+Source/Presentation/Core/UICoordinator.cpp:400:            // TODO: Add selectTrack to AppController
+Source/Presentation/Core/UICoordinator.cpp:407:            // TODO: Add addTrack to AppController
+Source/Presentation/Core/UICoordinator.cpp:414:            // TODO: Add removeTrack to AppController
+Source/Presentation/Core/UICoordinator.cpp:535:    // TODO: Configure plugin browser for the specific track
+Source/Presentation/Core/UICoordinator.cpp:583:    // TODO: Create and show HAMEditorPanel
+Source/Presentation/Core/UICoordinator.cpp:598:    // TODO: Hide HAMEditorPanel
+Source/Presentation/Core/UICoordinator.cpp:745:        // TODO: Position HAMEditorPanel
+Source/Presentation/Views/ScaleSlotSelector.cpp:434:                    case 3: // Copy (TODO)
+Source/Presentation/Views/CustomScaleEditor.cpp:588:    // TODO: Send MIDI preview of the scale
+Source/Presentation/CLAUDE.md:115:### Current TODOs: 16 across Presentation layer
+Source/Presentation/CLAUDE.md:117:#### Core UI (8 TODOs)
+Source/Presentation/CLAUDE.md:118:1. **UICoordinator.cpp**: 1 TODO - State persistence between sessions
+Source/Presentation/CLAUDE.md:119:2. **MainWindow.cpp**: 1 TODO - Window state management (size, position)
+Source/Presentation/CLAUDE.md:120:3. **AppController.cpp**: 6 TODOs - Plugin UI integration, menu system, preferences
+Source/Presentation/CLAUDE.md:122:#### Views (8 TODOs)
+Source/Presentation/CLAUDE.md:123:1. **MainEditor.h**: 3 TODOs - Complete stage grid implementation
+Source/Presentation/CLAUDE.md:124:2. **StageGrid.h**: 2 TODOs - Visual feedback animations, multi-stage selection
+Source/Presentation/CLAUDE.md:125:3. **TrackSidebar.cpp**: 2 TODOs - Plugin parameter mapping, automation  
+Source/Presentation/CLAUDE.md:126:4. **PerformanceMonitorView.cpp**: 1 TODO - Historical performance data
+Source/Main.cpp:121:                // For now, just quit - TODO: Add save prompt

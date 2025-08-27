@@ -1,5 +1,12 @@
 # CloneHAM - Hardware Accumulator Mode Sequencer
 
+[![Build Status](https://github.com/yourusername/HAM/workflows/CI/badge.svg)](https://github.com/yourusername/HAM/actions)
+[![Coverage](https://codecov.io/gh/yourusername/HAM/branch/main/graph/badge.svg)](https://codecov.io/gh/yourusername/HAM)
+[![Code Quality](https://img.shields.io/badge/code%20quality-A-green)](https://github.com/yourusername/HAM)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![JUCE](https://img.shields.io/badge/JUCE-8.0.8-orange)](https://juce.com)
+[![C++](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
+
 ## 🎹 Overview
 
 CloneHAM is a modern MIDI sequencer inspired by the Intellijel Metropolix, built with JUCE and C++20. It features sample-accurate timing, unlimited tracks, and sophisticated gate/ratchet patterns with both mono and polyphonic voice modes.

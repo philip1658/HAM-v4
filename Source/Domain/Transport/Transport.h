@@ -247,6 +247,15 @@ public:
     /** Get count-in bars */
     int getCountInBars() const { return m_countInBars; }
     
+    //==========================================================================
+    // Debug Mode
+    
+    /** Enable debug mode with detailed logging */
+    void setDebugMode(bool enabled) { m_debugMode = enabled; }
+    
+    /** Check if debug mode is enabled */
+    bool isDebugMode() const { return m_debugMode; }
+    
     /** Check if in count-in */
     bool isCountingIn() const { return m_state == State::COUNT_IN; }
     
@@ -293,6 +302,9 @@ private:
     // Time signature
     std::atomic<int> m_timeSignatureNum{4};
     std::atomic<int> m_timeSignatureDenom{4};
+    
+    // Debug mode
+    std::atomic<bool> m_debugMode{false};
     
     // Listeners
     std::vector<Listener*> m_listeners;

@@ -431,7 +431,22 @@ void ScaleSlotSelector::handleSlotClick(int slotIndex)
                     case 2: // Clear
                         m_viewModel->clearSlot(slotIndex);
                         break;
-                    case 3: // Copy (TODO)
+                    case 3: // Copy
+                        if (m_viewModel && !m_viewModel->getSlotInfo(slotIndex).isEmpty)
+                        {
+                            // Copy scale to clipboard
+                            auto slotInfo = m_viewModel->getSlotInfo(slotIndex);
+                            auto clipboardData = juce::JSON::parse(juce::String("{"
+                                "\"scaleName\":\"") + slotInfo.displayName + 
+                                "\",\"scaleType\":\"" + slotInfo.scaleType + 
+                                "\",\"rootNote\":" + juce::String(slotInfo.rootNote) + "}");
+                            
+                            if (clipboardData.isObject())
+                            {
+                                juce::SystemClipboard::copyTextToClipboard(juce::JSON::toString(clipboardData));
+                                juce::Logger::writeToLog("Scale copied to clipboard: " + slotInfo.displayName);
+                            }
+                        }
                         break;
                 }
             });

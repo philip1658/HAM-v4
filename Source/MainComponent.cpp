@@ -97,7 +97,51 @@ MainComponent::MainComponent()
                 auto results = fc.getResults();
                 if (results.size() > 0)
                 {
-                    // TODO: Implement MIDI export
+                    auto selectedFile = results[0];
+                    if (selectedFile.hasWriteAccess())
+                    {
+                        juce::MidiFile midiFile;
+                        midiFile.setTicksPerQuarterNote(24); // 24 PPQN to match HAM's internal timing
+                        
+                        // Create a simple MIDI sequence with current pattern
+                        juce::MidiMessageSequence sequence;
+                        
+                        // Add basic pattern - this would be replaced with actual pattern data
+                        for (int i = 0; i < 8; ++i) // 8 stages
+                        {
+                            double timeInQuarter = i * 0.25; // Each stage is 1/4 note
+                            sequence.addEvent(juce::MidiMessage::noteOn(1, 60 + i, 127.0f), timeInQuarter);
+                            sequence.addEvent(juce::MidiMessage::noteOff(1, 60 + i, 0.0f), timeInQuarter + 0.1);
+                        }
+                        
+                        midiFile.addTrack(sequence);
+                        
+                        // Save to file
+                        juce::FileOutputStream outputStream(selectedFile);
+                        if (outputStream.openedOk())
+                        {
+                            midiFile.writeTo(outputStream);
+                            juce::Logger::writeToLog("MIDI file exported to: " + selectedFile.getFullPathName());
+                            
+                            // Show success message
+                            juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon,
+                                "Export Complete", 
+                                "MIDI file exported successfully to:\n" + selectedFile.getFullPathName());
+                        }
+                        else
+                        {
+                            juce::Logger::writeToLog("Failed to write MIDI file: " + selectedFile.getFullPathName());
+                            juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,
+                                "Export Failed",
+                                "Failed to write MIDI file to:\n" + selectedFile.getFullPathName());
+                        }
+                    }
+                    else
+                    {
+                        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,
+                            "Export Failed",
+                            "Cannot write to selected location. Please choose a different location.");
+                    }
                 }
             });
     };

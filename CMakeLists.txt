@@ -19,8 +19,10 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # Options
 option(HAM_BUILD_TESTS "Build unit tests" ON)
+option(HAM_BUILD_BENCHMARKS "Build performance benchmarks" ON)
 option(DEBUG_MIDI_MONITOR "Enable MIDI debug monitor on channel 16" OFF)
 option(HAM_ENABLE_COVERAGE "Enable code coverage" OFF)
+option(HAM_ENABLE_PERFORMANCE_MONITORING "Enable performance monitoring in builds" OFF)
 
 # Download JUCE if not found
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/JUCE")
@@ -186,6 +188,8 @@ target_sources(HAM PRIVATE
     # Infrastructure Layer - Plugins
     Source/Infrastructure/Plugins/PluginManager.h
     Source/Infrastructure/Plugins/PluginManager.cpp
+    Source/Infrastructure/Plugins/PluginSandbox.h
+    Source/Infrastructure/Plugins/PluginSandbox.cpp
     
     # Domain Layer - Processors
     Source/Domain/Processors/TrackProcessor.h
@@ -211,31 +215,71 @@ target_compile_definitions(HAM PRIVATE
 # Code coverage configuration
 if(HAM_ENABLE_COVERAGE)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
-        target_compile_options(HAM PRIVATE --coverage -fprofile-arcs -ftest-coverage)
+        # Coverage flags for main target
+        target_compile_options(HAM PRIVATE 
+            --coverage 
+            -fprofile-arcs 
+            -ftest-coverage
+            -fprofile-instr-generate
+            -fcoverage-mapping
+        )
         target_link_options(HAM PRIVATE --coverage)
         
-        # Add custom target for coverage report
-        find_program(LCOV lcov)
-        find_program(GENHTML genhtml)
+        # Coverage will be added to plugin tools after they're defined
+        
+        # Find coverage tools
+        find_program(LCOV lcov PATHS /opt/homebrew/bin /usr/local/bin)
+        find_program(GENHTML genhtml PATHS /opt/homebrew/bin /usr/local/bin)
+        find_program(GCOVR gcovr PATHS /opt/homebrew/bin /usr/local/bin)
         
         if(LCOV AND GENHTML)
             add_custom_target(coverage
                 COMMAND ${LCOV} --directory . --capture --output-file coverage.info
-                COMMAND ${LCOV} --remove coverage.info '/usr/*' '*/JUCE/*' '*/Tests/*' --output-file coverage.info
-                COMMAND ${GENHTML} coverage.info --output-directory coverage-report
+                COMMAND ${LCOV} --remove coverage.info '/usr/*' '*/JUCE/*' '*/Tests/*' '*/Tools/*' '*/build*/*' --output-file coverage.info
+                COMMAND ${GENHTML} coverage.info --output-directory coverage-report --title "HAM Coverage" --show-details --legend
                 WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-                COMMENT "Generating code coverage report..."
+                COMMENT "Generating lcov HTML coverage report..."
             )
             
             add_custom_target(coverage-clean
                 COMMAND ${LCOV} --directory . --zerocounters
-                COMMAND rm -rf coverage.info coverage-report
+                COMMAND rm -rf coverage.info coverage-report *.gcda *.gcno
                 WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
                 COMMENT "Cleaning coverage data..."
             )
         else()
-            message(WARNING "lcov/genhtml not found. Coverage report generation will not be available.")
+            message(WARNING "lcov/genhtml not found. HTML coverage reports will not be available.")
         endif()
+        
+        if(GCOVR)
+            add_custom_target(coverage-xml
+                COMMAND ${GCOVR} --xml-pretty --exclude-unreachable-branches 
+                    --filter ../Source/ --exclude ../Source/Tests/ --exclude ../Source/Tools/
+                    --output coverage.xml
+                WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+                COMMENT "Generating gcovr XML coverage report..."
+            )
+            
+            add_custom_target(coverage-json
+                COMMAND ${GCOVR} --json-pretty --exclude-unreachable-branches
+                    --filter ../Source/ --exclude ../Source/Tests/ --exclude ../Source/Tools/
+                    --output coverage.json
+                WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+                COMMENT "Generating gcovr JSON coverage report..."
+            )
+        else()
+            message(WARNING "gcovr not found. XML/JSON coverage reports will not be available.")
+        endif()
+        
+        # Combined coverage target
+        add_custom_target(coverage-all
+            DEPENDS coverage coverage-xml coverage-json
+            COMMENT "Generating all coverage reports..."
+        )
+        
+        message(STATUS "Code coverage enabled. Use 'make coverage-all' to generate reports.")
+    else()
+        message(WARNING "Code coverage requires GCC or Clang compiler.")
     endif()
 endif()
 
@@ -313,6 +357,12 @@ if(APPLE)
     )
 endif()
 
+# Add coverage to PluginScanWorker if enabled
+if(HAM_ENABLE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+    target_compile_options(PluginScanWorker PRIVATE --coverage -fprofile-arcs -ftest-coverage)
+    target_link_options(PluginScanWorker PRIVATE --coverage)
+endif()
+
 # Plugin Probe Worker (out-of-process plugin instantiation probe)
 juce_add_console_app(PluginProbeWorker
     PRODUCT_NAME "PluginProbeWorker"
@@ -350,6 +400,12 @@ if(APPLE)
         "-framework CoreAudioKit"
         "-framework Accelerate"
     )
+endif()
+
+# Add coverage to PluginProbeWorker if enabled  
+if(HAM_ENABLE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+    target_compile_options(PluginProbeWorker PRIVATE --coverage -fprofile-arcs -ftest-coverage)
+    target_link_options(PluginProbeWorker PRIVATE --coverage)
 endif()
 
 # Plugin Host Bridge (out-of-process plugin UI/hosting)
@@ -395,6 +451,55 @@ if(APPLE)
         "-framework Accelerate"
     )
 endif()
+
+# Plugin Sandbox Host (out-of-process plugin host for crash protection)
+juce_add_console_app(PluginSandboxHost
+    PRODUCT_NAME "PluginSandboxHost"
+)
+
+juce_generate_juce_header(PluginSandboxHost)
+
+target_sources(PluginSandboxHost PRIVATE
+    Tools/PluginSandboxHost/PluginSandboxHostMain.cpp
+    Source/Infrastructure/Plugins/PluginSandbox.cpp
+    Source/Infrastructure/Plugins/PluginSandbox.h
+)
+
+target_compile_definitions(PluginSandboxHost PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_REPORT_APP_USAGE=0
+    JUCE_MODAL_LOOPS_PERMITTED=0
+    JUCE_STRICT_REFCOUNTEDPOINTER=1
+    JUCE_PLUGINHOST_VST3=1
+    JUCE_PLUGINHOST_AU=1
+)
+
+target_link_libraries(PluginSandboxHost PRIVATE
+    juce::juce_core
+    juce::juce_audio_basics
+    juce::juce_audio_devices
+    juce::juce_audio_processors
+    juce::juce_audio_formats
+    juce::juce_events
+    juce::juce_recommended_config_flags
+)
+
+# Platform-specific linking for sandboxed host
+if(APPLE)
+    target_link_libraries(PluginSandboxHost PRIVATE
+        "-framework CoreAudio"
+        "-framework CoreMIDI"
+        "-framework AudioToolbox"
+        "-framework AudioUnit"
+        "-framework CoreAudioKit"
+        "-framework Accelerate"
+    )
+endif()
+
+target_include_directories(PluginSandboxHost PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
 
 # Note: No external copy (Desktop) to keep all artifacts inside clone folder
 

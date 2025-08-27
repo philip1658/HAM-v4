@@ -118,9 +118,27 @@ public:
             // Check if user wants to save before quitting
             if (auto* mainComp = dynamic_cast<MainComponent*>(getContentComponent()))
             {
-                // For now, just quit - TODO: Add save prompt
+                // Check if there are unsaved changes
+                bool hasUnsavedChanges = false; // TODO: Implement actual dirty state check
+                
+                if (hasUnsavedChanges)
+                {
+                    // TODO: Implement proper async dialog with callback for save confirmation
+                    // For now, just quit without saving since hasUnsavedChanges is always false
+                    juce::Logger::writeToLog("Quit requested - no save dialog implemented yet");
+                    JUCEApplication::getInstance()->systemRequestedQuit();
+                }
+                else
+                {
+                    // No unsaved changes, quit immediately
+                    JUCEApplication::getInstance()->systemRequestedQuit();
+                }
             }
-            JUCEApplication::getInstance()->systemRequestedQuit();
+            else
+            {
+                // No main component, quit immediately
+                JUCEApplication::getInstance()->systemRequestedQuit();
+            }
         }
 
     private:

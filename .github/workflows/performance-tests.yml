@@ -1,0 +1,232 @@
+name: Performance Regression Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: Release
+  BENCHMARK_DATA_DIR: benchmark-data
+
+jobs:
+  performance-benchmarks:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+        include:
+          - os: macos-latest
+            name: macOS
+            cmake_generator: Ninja
+          - os: ubuntu-latest
+            name: Linux
+            cmake_generator: Ninja
+          - os: windows-latest
+            name: Windows
+            cmake_generator: "Visual Studio 17 2022"
+    
+    name: Performance Tests - ${{ matrix.name }}
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+    
+    - name: Setup Ninja
+      if: matrix.cmake_generator == 'Ninja'
+      uses: seanmiddleditch/gha-setup-ninja@master
+    
+    - name: Install Dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install cmake ccache google-benchmark
+        echo "CMAKE_PREFIX_PATH=/opt/homebrew" >> $GITHUB_ENV
+    
+    - name: Install Dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake ninja-build ccache \
+          libasound2-dev libjack-jackd2-dev \
+          libfreetype6-dev libx11-dev libxinerama-dev \
+          libxrandr-dev libxcursor-dev libxcomposite-dev \
+          mesa-common-dev libasound2-dev freeglut3-dev \
+          libcurl4-gnutls-dev libasound2-dev libsndfile1-dev \
+          libbenchmark-dev
+    
+    - name: Install Dependencies (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        vcpkg install benchmark:x64-windows
+        echo "CMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
+    
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ${{ runner.os }}-performance
+    
+    - name: Configure CMake
+      run: |
+        cmake -B build \
+          -G "${{ matrix.cmake_generator }}" \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DHAM_BUILD_TESTS=ON \
+          -DHAM_BUILD_BENCHMARKS=ON
+    
+    - name: Build
+      run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+    
+    - name: Download Baseline
+      id: baseline
+      uses: actions/cache@v3
+      with:
+        path: ${{ env.BENCHMARK_DATA_DIR }}
+        key: performance-baseline-${{ runner.os }}-${{ github.sha }}
+        restore-keys: |
+          performance-baseline-${{ runner.os }}-
+    
+    - name: Run Performance Benchmarks
+      working-directory: build/Tests/Performance
+      run: |
+        mkdir -p ${{ github.workspace }}/${{ env.BENCHMARK_DATA_DIR }}
+        ./HAMPerformanceBenchmarks \
+          --benchmark_out=current_results.json \
+          --benchmark_out_format=json \
+          --benchmark_repetitions=3
+    
+    - name: Run Performance Tests
+      working-directory: build/Tests/Performance
+      run: ./HAMPerformanceTests
+    
+    - name: Compare with Baseline
+      if: steps.baseline.outputs.cache-hit == 'true'
+      working-directory: build/Tests/Performance
+      run: |
+        ./HAMRegressionDetector \
+          ${{ github.workspace }}/${{ env.BENCHMARK_DATA_DIR }}/baseline_results.json \
+          current_results.json \
+          --threshold 10
+      continue-on-error: true
+    
+    - name: Update Baseline (main branch only)
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: |
+        cp build/Tests/Performance/current_results.json \
+           ${{ env.BENCHMARK_DATA_DIR }}/baseline_results.json
+    
+    - name: Upload Benchmark Results
+      uses: actions/upload-artifact@v3
+      with:
+        name: benchmark-results-${{ runner.os }}
+        path: |
+          build/Tests/Performance/current_results.json
+          build/Tests/Performance/performance_report.html
+        retention-days: 30
+    
+    - name: Performance Report Comment (PR)
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const results = JSON.parse(fs.readFileSync('build/Tests/Performance/current_results.json'));
+          
+          let comment = '## 📊 Performance Report\n\n';
+          comment += '| Benchmark | Time | CPU Usage | Memory | Status |\n';
+          comment += '|-----------|------|-----------|--------|--------|\n';
+          
+          for (const benchmark of results.benchmarks) {
+            const time = (benchmark.real_time / 1000000).toFixed(2);
+            const cpu = benchmark.cpu_usage_percent?.toFixed(2) || 'N/A';
+            const memory = benchmark.memory_mb?.toFixed(2) || 'N/A';
+            const status = benchmark.cpu_usage_percent < 5 ? '✅' : '⚠️';
+            
+            comment += `| ${benchmark.name} | ${time}ms | ${cpu}% | ${memory}MB | ${status} |\n`;
+          }
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+    
+    - name: Check Performance Thresholds
+      working-directory: build/Tests/Performance
+      run: |
+        python3 - <<EOF
+        import json
+        import sys
+        
+        with open('current_results.json') as f:
+            results = json.load(f)
+        
+        failures = []
+        for benchmark in results['benchmarks']:
+            if 'cpu_usage_percent' in benchmark and benchmark['cpu_usage_percent'] > 5.0:
+                failures.append(f"{benchmark['name']}: CPU {benchmark['cpu_usage_percent']:.2f}% > 5%")
+            if 'midi_jitter_ms' in benchmark and benchmark['midi_jitter_ms'] > 0.1:
+                failures.append(f"{benchmark['name']}: Jitter {benchmark['midi_jitter_ms']:.3f}ms > 0.1ms")
+            if 'audio_latency_ms' in benchmark and benchmark['audio_latency_ms'] > 5.0:
+                failures.append(f"{benchmark['name']}: Latency {benchmark['audio_latency_ms']:.2f}ms > 5ms")
+        
+        if failures:
+            print("❌ Performance threshold violations:")
+            for failure in failures:
+                print(f"  • {failure}")
+            sys.exit(1)
+        else:
+            print("✅ All performance thresholds met!")
+        EOF
+
+  performance-dashboard:
+    needs: performance-benchmarks
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install Python dependencies
+      run: |
+        pip install matplotlib pandas plotly kaleido
+    
+    - name: Generate Performance Dashboard
+      run: |
+        python3 Tests/Performance/Scripts/generate_dashboard.py \
+          --input artifacts \
+          --output performance-dashboard.html
+    
+    - name: Deploy to GitHub Pages
+      if: success()
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./
+        destination_dir: performance
+        keep_files: true
+    
+    - name: Update README Badge
+      run: |
+        # Update performance badge in README
+        if [ -f "performance-dashboard.html" ]; then
+          echo "[![Performance](https://img.shields.io/badge/performance-passing-green)](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/performance/)" > performance-badge.txt
+        fi
