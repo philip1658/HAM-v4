@@ -113,17 +113,10 @@ public:
         m_midiActivityLED = std::make_unique<LED>(juce::Colour(DesignTokens::Colors::ACCENT_GREEN));
         addAndMakeVisible(m_midiActivityLED.get());
         
-        // Create panic button
-        m_panicButton = std::make_unique<PanicButton>();
-        m_panicButton->onPanic = [this]() {
-            if (onPanicClicked) {
-                onPanicClicked();
-            }
-        };
-        addAndMakeVisible(m_panicButton.get());
+        // Panic button removed - no longer needed
         
-        // Set default size
-        setSize(1200, 80);
+        // Set default size - unified height
+        setSize(1200, 52);  // Matches UNIFIED_BAR_HEIGHT in UICoordinator
     }
     
     ~TransportBar() override = default;
@@ -162,86 +155,89 @@ public:
     
     // Resize override
     void resized() override {
-        auto bounds = getLocalBounds().reduced(scaled(10));
+        // UNIFIED LAYOUT: Use same spacing as second bar
+        const int UNIFIED_BUTTON_HEIGHT = scaled(36);
+        const int UNIFIED_SPACING = scaled(8);
+        const int UNIFIED_MARGIN = scaled(8);
         
-        // Left Section: Transport buttons (160px) - More reasonable sizes
-        auto transportSection = bounds.removeFromLeft(scaled(160));
+        auto bounds = getLocalBounds().reduced(UNIFIED_MARGIN);
         
-        // Play button (45px - still prominent but not oversized)
-        m_playButton->setBounds(transportSection.removeFromLeft(scaled(50))
-                                              .withSizeKeepingCentre(scaled(45), scaled(45)));
-        transportSection.removeFromLeft(scaled(5));
+        // Left Section: Transport buttons (compact but visible)
+        auto transportSection = bounds.removeFromLeft(scaled(140));
         
-        // Stop button (45px)
-        m_stopButton->setBounds(transportSection.removeFromLeft(scaled(50))
-                                              .withSizeKeepingCentre(scaled(45), scaled(45)));
-        transportSection.removeFromLeft(scaled(5));
+        // Play button (36px - matches other bars)
+        m_playButton->setBounds(transportSection.removeFromLeft(scaled(40))
+                                              .withSizeKeepingCentre(UNIFIED_BUTTON_HEIGHT, UNIFIED_BUTTON_HEIGHT));
+        transportSection.removeFromLeft(UNIFIED_SPACING);
         
-        // Record button (40px - slightly smaller)
-        m_recordButton->setBounds(transportSection.removeFromLeft(scaled(45))
-                                                .withSizeKeepingCentre(scaled(40), scaled(40)));
+        // Stop button (36px)
+        m_stopButton->setBounds(transportSection.removeFromLeft(scaled(40))
+                                              .withSizeKeepingCentre(UNIFIED_BUTTON_HEIGHT, UNIFIED_BUTTON_HEIGHT));
+        transportSection.removeFromLeft(UNIFIED_SPACING);
         
-        bounds.removeFromLeft(scaled(15)); // Visual separator
+        // Record button (36px)
+        m_recordButton->setBounds(transportSection.removeFromLeft(scaled(40))
+                                                .withSizeKeepingCentre(UNIFIED_BUTTON_HEIGHT, UNIFIED_BUTTON_HEIGHT));
         
-        // Tempo Section FIRST (150px) - More logical placement before patterns
-        auto tempoSection = bounds.removeFromLeft(scaled(150));
+        bounds.removeFromLeft(UNIFIED_SPACING * 2); // Visual separator
         
-        // Tempo display (medium size)
-        auto tempoDisplayBounds = tempoSection.removeFromLeft(scaled(100))
-                                              .withSizeKeepingCentre(scaled(95), scaled(45));
+        // Tempo Section (compact)
+        auto tempoSection = bounds.removeFromLeft(scaled(120));
+        
+        // Tempo display (unified height)
+        auto tempoDisplayBounds = tempoSection.removeFromLeft(scaled(80))
+                                              .withSizeKeepingCentre(scaled(75), UNIFIED_BUTTON_HEIGHT);
         m_tempoDisplay->setBounds(tempoDisplayBounds);
         
-        tempoSection.removeFromLeft(scaled(5));
+        tempoSection.removeFromLeft(UNIFIED_SPACING);
         
-        // Tempo arrows (smaller)
-        auto arrowBounds = tempoSection.removeFromLeft(scaled(40))
-                                      .withSizeKeepingCentre(scaled(35), scaled(35));
+        // Tempo arrows (unified height)
+        auto arrowBounds = tempoSection.removeFromLeft(scaled(35))
+                                      .withSizeKeepingCentre(scaled(30), UNIFIED_BUTTON_HEIGHT);
         m_tempoArrows->setBounds(arrowBounds);
         
-        bounds.removeFromLeft(scaled(20)); // Visual separator
+        bounds.removeFromLeft(UNIFIED_SPACING * 2); // Visual separator
         
-        // Pattern Section (700px) - More space for 8 pattern buttons
-        auto patternSection = bounds.removeFromLeft(scaled(700));
+        // SHIFT PATTERN BLOCK RIGHT by 2 scale button widths (124px)
+        const int SHIFT_RIGHT = scaled(124);  // 2 scale buttons width
+        bounds.removeFromLeft(SHIFT_RIGHT);  // Add extra space before patterns
         
-        // Pattern selection buttons - now 8 buttons arranged in SINGLE row
-        auto patternButtonArea = patternSection.withSizeKeepingCentre(patternSection.getWidth(), scaled(35));
+        // Pattern Section: All 8 patterns in single row (unified spacing)
+        auto patternSection = bounds.removeFromLeft(scaled(600));  // Adjusted for better spacing
         
-        float patternButtonWidth = scaled(50);  // Slightly smaller to fit all 8
-        float patternGap = scaled(4);
+        // Pattern selection buttons - now with unified height and spacing
+        auto patternButtonArea = patternSection.withSizeKeepingCentre(patternSection.getWidth(), UNIFIED_BUTTON_HEIGHT);
         
-        // Single row - all 8 patterns
+        const float PATTERN_BUTTON_WIDTH = scaled(45);  // Optimal size for 8 buttons
+        
+        // Single row - all 8 patterns with unified spacing
         for (size_t i = 0; i < 8 && i < m_patternButtons.size(); ++i) {
-            auto buttonBounds = patternButtonArea.removeFromLeft(patternButtonWidth)
-                                                .withSizeKeepingCentre(patternButtonWidth, scaled(30));
+            auto buttonBounds = patternButtonArea.removeFromLeft(PATTERN_BUTTON_WIDTH)
+                                                .withSizeKeepingCentre(PATTERN_BUTTON_WIDTH, UNIFIED_BUTTON_HEIGHT);
             m_patternButtons[i]->setBounds(buttonBounds);
-            patternButtonArea.removeFromLeft(patternGap);
+            
+            if (i < 7) // Don't add spacing after last button
+                patternButtonArea.removeFromLeft(UNIFIED_SPACING);
         }
         
         // Gap before save/load buttons
-        patternButtonArea.removeFromLeft(scaled(25));
+        patternButtonArea.removeFromLeft(UNIFIED_SPACING * 3);
         
         // Save/Load buttons aligned with pattern buttons
-        auto saveLoadWidth = scaled(55);
-        m_saveButton->setBounds(patternButtonArea.removeFromLeft(saveLoadWidth)
-                                                .withSizeKeepingCentre(saveLoadWidth, scaled(30)));
-        patternButtonArea.removeFromLeft(scaled(5));
+        const auto SAVE_LOAD_WIDTH = scaled(50);
+        m_saveButton->setBounds(patternButtonArea.removeFromLeft(SAVE_LOAD_WIDTH)
+                                                .withSizeKeepingCentre(SAVE_LOAD_WIDTH, UNIFIED_BUTTON_HEIGHT));
+        patternButtonArea.removeFromLeft(UNIFIED_SPACING);
         
-        m_loadButton->setBounds(patternButtonArea.removeFromLeft(saveLoadWidth)
-                                                .withSizeKeepingCentre(saveLoadWidth, scaled(30)));
+        m_loadButton->setBounds(patternButtonArea.removeFromLeft(SAVE_LOAD_WIDTH)
+                                                .withSizeKeepingCentre(SAVE_LOAD_WIDTH, UNIFIED_BUTTON_HEIGHT));
         
-        // Right Section: Status & Monitoring (remaining space)
-        auto statusSection = bounds.removeFromRight(scaled(100));
+        // Right Section: Only MIDI LED remains
+        auto statusSection = bounds.removeFromRight(scaled(40));
         
-        // Panic button (rightmost)
-        auto panicBounds = statusSection.removeFromRight(scaled(55))
-                                       .withSizeKeepingCentre(scaled(50), scaled(25));
-        m_panicButton->setBounds(panicBounds);
-        
-        statusSection.removeFromRight(scaled(10));
-        
-        // MIDI LED
-        auto ledBounds = statusSection.removeFromRight(scaled(25))
-                                     .withSizeKeepingCentre(scaled(20), scaled(20));
+        // MIDI LED (centered vertically on the right)
+        auto ledBounds = statusSection.removeFromRight(scaled(20))
+                                     .withSizeKeepingCentre(scaled(16), scaled(16));
         m_midiActivityLED->setBounds(ledBounds);
     }
     
@@ -276,7 +272,7 @@ public:
     std::function<void(int pattern, bool chain)> onPatternChain;
     std::function<void()> onPatternSave;
     std::function<void()> onPatternLoad;
-    std::function<void()> onPanicClicked;
+    // Panic button removed - std::function<void()> onPanicClicked;
     
     bool isPlaying() const { return m_isPlaying; }
     
@@ -315,7 +311,7 @@ private:
     
     // Status displays - VISUAL HIERARCHY MINIMAL
     std::unique_ptr<LED> m_midiActivityLED;
-    std::unique_ptr<PanicButton> m_panicButton;
+    // Panic button removed
     
     // State
     bool m_isPlaying = false;

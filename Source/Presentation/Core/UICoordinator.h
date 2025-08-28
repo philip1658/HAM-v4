@@ -106,7 +106,7 @@ private:
     // View switching buttons (using icons)
     std::unique_ptr<IconButton> m_sequencerTabButton;
     std::unique_ptr<IconButton> m_mixerTabButton;
-    std::unique_ptr<IconButton> m_settingsTabButton;
+    // Settings button removed - std::unique_ptr<IconButton> m_settingsTabButton;
     
     // Track management buttons (using icons)
     std::unique_ptr<IconButton> m_addTrackButton;
@@ -134,13 +134,18 @@ private:
     bool m_hamEditorVisible = false;
     int m_hamEditorStageIndex = -1;
     
-    // Layout constants
-    static constexpr int TRANSPORT_HEIGHT = 80;
-    static constexpr int TAB_BAR_HEIGHT = 40;
+    // Layout constants - UNIFIED HEIGHTS
+    static constexpr int TRANSPORT_HEIGHT = 52;  // Unified bar height
+    static constexpr int TAB_BAR_HEIGHT = 52;    // Same height for both bars
     static constexpr int SIDEBAR_WIDTH = 250;  // Wider for better layout
     static constexpr int HAM_EDITOR_HEIGHT = 300;
-    static constexpr int STAGE_CARD_WIDTH = 140;
-    static constexpr int STAGE_CARD_HEIGHT = 480;  // Match TrackSidebar height
+    static constexpr int STAGE_CARD_WIDTH = 140;  // Default width (now used as minimum)
+    static constexpr int STAGE_CARD_HEIGHT = 510;  // Increased by 30px for Accumulator button
+    
+    // Responsive sizing constants
+    static constexpr int MIN_STAGE_CARD_WIDTH = 120;  // Minimum card width to remain usable
+    static constexpr int MAX_STAGE_CARD_WIDTH = 200;  // Maximum card width to prevent over-stretching
+    static constexpr float STAGE_CARD_ASPECT_RATIO = 140.0f / 510.0f;  // Width to height ratio
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(UICoordinator)
 };

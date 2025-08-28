@@ -159,6 +159,8 @@ target_sources(HAM PRIVATE
     Source/Presentation/Views/MixerView.cpp
     Source/Presentation/Views/ScaleSlotSelector.h
     Source/Presentation/Views/ScaleSlotSelector.cpp
+    Source/Presentation/Views/PulseScaleSwitcher.h
+    Source/Presentation/Views/PulseScaleSwitcher.cpp
     Source/Presentation/Views/ScaleBrowser.h
     Source/Presentation/Views/ScaleBrowser.cpp
     

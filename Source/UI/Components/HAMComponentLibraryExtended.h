@@ -212,10 +212,7 @@ public:
         auto textBounds = bounds.reduced(scaled(4));
         g.drawText(juce::String(m_bpm, 1), textBounds, juce::Justification::centred);
         
-        // BPM label
-        g.setFont(juce::Font(juce::FontOptions(scaled(10))));
-        g.setColour(juce::Colour(DesignTokens::Colors::TEXT_MUTED));
-        g.drawText("BPM", textBounds, juce::Justification::centredBottom);
+        // BPM label removed - cleaner look without text
         
         // Tap indicator
         if (m_tapFlash > 0) {

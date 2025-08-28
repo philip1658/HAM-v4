@@ -3,7 +3,7 @@
 
     TrackSidebar.cpp
     Implementation of Track control sidebar for HAM sequencer
-    Fixed 480px height with all controls always visible
+    Fixed 510px height with all controls always visible (increased for Accumulator button)
 
   ==============================================================================
 */
@@ -251,10 +251,8 @@ void TrackControlStrip::resized()
 {
     auto bounds = getLocalBounds();
     
-    // Limit height to match stage cards (line 5 to line 26 = 480px)
-    if (bounds.getHeight() > 480) {
-        bounds.setHeight(480);
-    }
+    // Use full height allocated (510px to accommodate Accumulator button)
+    // No need to limit height anymore since we have the space
     
     // Match stage card positioning - start content at top of content area (line 5)
     // No top offset needed since cards now start at content area top
@@ -323,18 +321,18 @@ void TrackControlStrip::resized()
         octaveInputArea.getHeight()
     );
     
-    // Bottom buttons with better spacing
+    // Bottom buttons with proper spacing now that we have full height
     // Calculate remaining space for buttons
-    bounds.removeFromTop(12); // Extra spacing before buttons
+    bounds.removeFromTop(8); // Small spacing before buttons
     
-    // Plugin button
-    auto pluginButtonBounds = bounds.removeFromTop(38);
+    // Plugin button - consistent height
+    auto pluginButtonBounds = bounds.removeFromTop(36);
     m_pluginButton->setBounds(pluginButtonBounds.reduced(4, 2));
     
-    bounds.removeFromTop(8); // Spacing between buttons
+    bounds.removeFromTop(6); // Spacing between buttons
     
-    // Accumulator button
-    auto accumButtonBounds = bounds.removeFromTop(38);
+    // Accumulator button - same height as plugin button
+    auto accumButtonBounds = bounds.removeFromTop(36);
     m_accumulatorButton->setBounds(accumButtonBounds.reduced(4, 2));
 }
 
@@ -576,8 +574,8 @@ void TrackSidebar::updateTrackLayout()
         if (strip)
         {
             // Position track strip with consistent height matching stage cards
-            strip->setBounds(0, y, m_trackContainer->getWidth(), 480);
-            y += 480 + gap;
+            strip->setBounds(0, y, m_trackContainer->getWidth(), 512);  // Adjusted for button height
+            y += 512 + gap;  // Adjusted for button height
         }
     }
     // Set container size to accommodate all tracks

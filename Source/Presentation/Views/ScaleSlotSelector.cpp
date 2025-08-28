@@ -263,22 +263,16 @@ ScaleSlotSelector::~ScaleSlotSelector()
 
 void ScaleSlotSelector::paint(juce::Graphics& g)
 {
-    // Background panel
-    g.setColour(juce::Colour(0xFF1A1A1A));
-    g.fillRoundedRectangle(getLocalBounds().toFloat(), 5.0f);
+    // REMOVED: Background panel and border frame - no longer needed
+    // The topbar itself will have a unified frame
     
-    // Border
-    g.setColour(juce::Colour(0xFF3A3A3A));
-    g.drawRoundedRectangle(getLocalBounds().toFloat(), 5.0f, 1.0f);
-    
-    // Removed title text to give more space for slots
-    
-    // Auto-progression progress bar
+    // Auto-progression progress bar (if active)
     if (m_viewModel && m_viewModel->isAutoProgressionActive())
     {
         float progress = m_viewModel->getAutoProgressionProgress();
         
-        auto progressBounds = m_slotsArea.removeFromBottom(2).toFloat();
+        // Draw a thin progress line at the bottom
+        auto progressBounds = getLocalBounds().removeFromBottom(2).toFloat();
         g.setColour(juce::Colour(0xFF00FF88).withAlpha(0.3f));
         g.fillRect(progressBounds);
         
@@ -291,36 +285,40 @@ void ScaleSlotSelector::resized()
 {
     auto bounds = getLocalBounds();
     
-    // For toolbar layout - everything in a single horizontal line
-    int buttonHeight = bounds.getHeight() - 6;  // Full height minus some padding
-    int currentX = 5;
+    // UNIFIED LAYOUT: Use exact same dimensions as TransportBar
+    const int UNIFIED_BUTTON_HEIGHT = 36;  // Same height everywhere
+    const int SCALE_SPACING = 4;           // Tighter spacing for scale buttons
+    const int UNIFIED_SPACING = 8;         // Normal spacing for other elements
     
-    // Left arrow (bigger and more visible)
-    m_leftArrowButton->setBounds(currentX, 3, 30, buttonHeight);
-    currentX += 32;
+    int buttonY = (bounds.getHeight() - UNIFIED_BUTTON_HEIGHT) / 2;  // Center vertically
+    int currentX = SCALE_SPACING;
     
-    // 8 scale slots (narrow)
-    int slotWidth = 55;  // Very narrow slots
+    // Left arrow (unified height)
+    m_leftArrowButton->setBounds(currentX, buttonY, 28, UNIFIED_BUTTON_HEIGHT);
+    currentX += 28 + SCALE_SPACING;
+    
+    // 8 scale slots (optimized for space with 120px total shift)
+    int slotWidth = 43;  // Reduced to fit with two slot widths shift
     for (int i = 0; i < 8; ++i)
     {
-        m_slotButtons[i]->setBounds(currentX, 3, slotWidth, buttonHeight);
-        currentX += slotWidth + 2;
+        m_slotButtons[i]->setBounds(currentX, buttonY, slotWidth, UNIFIED_BUTTON_HEIGHT);
+        currentX += slotWidth + SCALE_SPACING;  // Tight spacing between slots
     }
     
-    // Right arrow (bigger and more visible)
-    m_rightArrowButton->setBounds(currentX, 3, 30, buttonHeight);
-    currentX += 35;
+    // Right arrow (unified height)
+    m_rightArrowButton->setBounds(currentX, buttonY, 28, UNIFIED_BUTTON_HEIGHT);
+    currentX += 28 + UNIFIED_SPACING;
     
-    // Root note button
-    m_rootNoteButton->setBounds(currentX, 3, 50, buttonHeight);
-    currentX += 55;
+    // Root note button (smaller)
+    m_rootNoteButton->setBounds(currentX, buttonY, 40, UNIFIED_BUTTON_HEIGHT);
+    currentX += 40 + UNIFIED_SPACING;
     
-    // Auto mode button
-    m_autoModeButton->setBounds(currentX, 3, 45, buttonHeight);
-    currentX += 50;
+    // Auto mode button (smaller)
+    m_autoModeButton->setBounds(currentX, buttonY, 45, UNIFIED_BUTTON_HEIGHT);
+    currentX += 45;
     
-    // Auto mode menu (count-in)
-    m_autoModeMenuButton->setBounds(currentX, 3, 60, buttonHeight);
+    // Auto mode menu (smaller)
+    m_autoModeMenuButton->setBounds(currentX, buttonY, 50, UNIFIED_BUTTON_HEIGHT);
 }
 
 void ScaleSlotSelector::layoutSlots()

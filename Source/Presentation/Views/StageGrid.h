@@ -78,7 +78,7 @@ public:
         
         // Cards should align directly at the top of the content area
         // Match TrackSidebar height for proper alignment
-        int cardHeight = 480; // Match TrackSidebar::TRACK_HEIGHT for proper alignment
+        int cardHeight = 510; // Match TrackSidebar::TRACK_HEIGHT (increased by 30px)
         
         // Position cards for each track
         for (int track = 0; track < m_trackCount; ++track) {

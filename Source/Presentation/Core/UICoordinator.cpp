@@ -86,9 +86,7 @@ void UICoordinator::createUIComponents()
     m_mixerTabButton->setTooltip("Mixer View");
     addAndMakeVisible(m_mixerTabButton.get());
     
-    m_settingsTabButton = std::make_unique<IconButton>("Settings", IconButton::IconType::Settings);
-    m_settingsTabButton->setTooltip("Settings");
-    addAndMakeVisible(m_settingsTabButton.get());
+    // Settings button removed - no longer needed
     
     // Create track management buttons with icon style
     m_addTrackButton = std::make_unique<IconButton>("Add Track", IconButton::IconType::AddTrack);
@@ -108,19 +106,8 @@ void UICoordinator::createUIComponents()
             m_stageGrid->setTrackCount(newTrackCount);
         }
         
-        // Force the sequencer content to recalculate its size
-        if (m_sequencerContent) {
-            // Calculate new height based on track count
-            const int trackHeight = 480; // Height per track
-            const int trackGap = 8;
-            int newHeight = newTrackCount * (trackHeight + trackGap);
-            m_sequencerContent->setSize(m_sequencerContent->getWidth(), newHeight);
-        }
-        
-        // Refresh the viewport
-        if (m_sequencerViewport) {
-            m_sequencerViewport->resized();
-        }
+        // Re-layout the entire sequencer view to recalculate responsive widths
+        layoutSequencerView();
         
         DBG("Track added - now have " << newTrackCount << " tracks");
     };
@@ -147,19 +134,8 @@ void UICoordinator::createUIComponents()
                 m_stageGrid->setTrackCount(newTrackCount);
             }
             
-            // Force the sequencer content to recalculate its size
-            if (m_sequencerContent) {
-                // Calculate new height based on track count
-                const int trackHeight = 480; // Height per track
-                const int trackGap = 8;
-                int newHeight = newTrackCount * (trackHeight + trackGap);
-                m_sequencerContent->setSize(m_sequencerContent->getWidth(), newHeight);
-            }
-            
-            // Refresh the viewport
-            if (m_sequencerViewport) {
-                m_sequencerViewport->resized();
-            }
+            // Re-layout the entire sequencer view to recalculate responsive widths
+            layoutSequencerView();
             
             DBG("Track removed - now have " << newTrackCount << " tracks");
         } else {
@@ -248,17 +224,7 @@ void UICoordinator::setupEventHandlers()
         DBG("Pattern " << pattern << " chaining: " << chain);
     };
     
-    m_transportBar->onPanicClicked = [this]()
-    {
-        // TODO: Implement all notes off functionality in HAMAudioProcessor
-        DBG("Panic button clicked - all notes off requested");
-        
-        if (auto* processor = m_controller.getAudioProcessor())
-        {
-            // For now, stop the sequencer which will have a similar effect
-            processor->stop();
-        }
-    };
+    // Panic button removed - no callback needed
     
     // Track management button handlers
     m_addTrackButton->onClick = [this]()
@@ -316,10 +282,7 @@ void UICoordinator::setupEventHandlers()
         setActiveView(ViewMode::Mixer);
     };
     
-    m_settingsTabButton->onClick = [this]()
-    {
-        setActiveView(ViewMode::Settings);
-    };
+    // Settings button removed - no event handler needed
     
     // Stage grid handlers
     m_stageGrid->onStageParameterChanged = [this](int track, int stage, 
@@ -618,11 +581,33 @@ void UICoordinator::paint(juce::Graphics& g)
     // Dark background matching Pulse aesthetic
     g.fillAll(juce::Colour(0xFF0A0A0A));
     
+    // Draw frame around the entire topbar area for visual separation
+    if (m_transportBar)
+    {
+        // Calculate topbar area (transport + tab bar)
+        auto topbarBounds = getLocalBounds();
+        topbarBounds = topbarBounds.removeFromTop(TRANSPORT_HEIGHT + TAB_BAR_HEIGHT);
+        
+        // Draw subtle background for topbar area
+        g.setColour(juce::Colour(0xFF141414));
+        g.fillRect(topbarBounds);
+        
+        // Draw bottom border line for clean separation
+        g.setColour(juce::Colour(0xFF2A2A2A));
+        g.fillRect(topbarBounds.getX(), topbarBounds.getBottom() - 1, 
+                   topbarBounds.getWidth(), 1);
+        
+        // Draw top border line (under window title bar)
+        g.setColour(juce::Colour(0xFF2A2A2A));
+        g.fillRect(topbarBounds.getX(), topbarBounds.getY(), 
+                   topbarBounds.getWidth(), 1);
+    }
+    
     // Draw visual separator between track management and view tabs
     if (m_removeTrackButton && m_sequencerTabButton)
     {
         // Get positions from the buttons
-        int separatorX = m_removeTrackButton->getRight() + 5;
+        int separatorX = m_removeTrackButton->getRight() + 20;  // Centered in the gap
         int separatorY = m_removeTrackButton->getY() + 4;
         int separatorHeight = m_removeTrackButton->getHeight() - 8;
         
@@ -636,66 +621,82 @@ void UICoordinator::resized()
 {
     auto bounds = getLocalBounds();
     
-    // Transport bar at top
+    // UNIFIED LAYOUT: Both top bars use same height and spacing
+    const int UNIFIED_BAR_HEIGHT = 52;  // Same height for both bars
+    const int UNIFIED_BUTTON_HEIGHT = 36; // Same button height everywhere
+    const int UNIFIED_SPACING = 8;  // Consistent spacing
+    const int UNIFIED_MARGIN = 8;   // Uniform margins
+    
+    // Transport bar at top (now uses unified height)
     if (m_transportBar)
     {
-        m_transportBar->setBounds(bounds.removeFromTop(TRANSPORT_HEIGHT));
+        m_transportBar->setBounds(bounds.removeFromTop(UNIFIED_BAR_HEIGHT));
     }
     
-    // Single integrated toolbar - everything on one line
-    auto tabBarArea = bounds.removeFromTop(TAB_BAR_HEIGHT);
+    // Second bar area for tabs and scale switcher
+    auto secondBarArea = bounds.removeFromTop(UNIFIED_BAR_HEIGHT);
     
-    int iconButtonSize = 36;  // Size for track management buttons
-    int tabButtonWidth = 72;  // Double width for tab buttons
-    int buttonY = tabBarArea.getY() + (TAB_BAR_HEIGHT - iconButtonSize) / 2;  // Vertically centered
+    // Calculate vertical center for all buttons
+    int buttonY = secondBarArea.getY() + (UNIFIED_BAR_HEIGHT - UNIFIED_BUTTON_HEIGHT) / 2;
     
     // Left side: Track management buttons
-    int leftX = 10;
+    int leftX = UNIFIED_MARGIN;
     
-    // Track management buttons (square icons)
+    // Track management buttons (square icons, unified height)
     if (m_addTrackButton)
     {
-        m_addTrackButton->setBounds(leftX, buttonY, iconButtonSize, iconButtonSize);
-        leftX += iconButtonSize + 5;
+        m_addTrackButton->setBounds(leftX, buttonY, UNIFIED_BUTTON_HEIGHT, UNIFIED_BUTTON_HEIGHT);
+        leftX += UNIFIED_BUTTON_HEIGHT + UNIFIED_SPACING;
     }
     if (m_removeTrackButton)
     {
-        m_removeTrackButton->setBounds(leftX, buttonY, iconButtonSize, iconButtonSize);
-        leftX += iconButtonSize + 40;  // Much larger space before tabs for clear separation
+        m_removeTrackButton->setBounds(leftX, buttonY, UNIFIED_BUTTON_HEIGHT, UNIFIED_BUTTON_HEIGHT);
+        leftX += UNIFIED_BUTTON_HEIGHT + (UNIFIED_SPACING * 3);  // Larger gap for visual grouping
     }
     
-    // Navigation tabs (double width)
+    // Navigation tabs (only Sequencer and Mixer - Settings removed)
+    const int TAB_WIDTH = 80;  // Wider tabs for better visibility
     if (m_sequencerTabButton)
     {
-        m_sequencerTabButton->setBounds(leftX, buttonY, tabButtonWidth, iconButtonSize);
-        leftX += tabButtonWidth + 5;
+        m_sequencerTabButton->setBounds(leftX, buttonY, TAB_WIDTH, UNIFIED_BUTTON_HEIGHT);
+        leftX += TAB_WIDTH + UNIFIED_SPACING;
     }
     if (m_mixerTabButton)
     {
-        m_mixerTabButton->setBounds(leftX, buttonY, tabButtonWidth, iconButtonSize);
-        leftX += tabButtonWidth + 5;
+        m_mixerTabButton->setBounds(leftX, buttonY, TAB_WIDTH, UNIFIED_BUTTON_HEIGHT);
+        leftX += TAB_WIDTH + UNIFIED_SPACING;
     }
-    if (m_settingsTabButton)
-    {
-        m_settingsTabButton->setBounds(leftX, buttonY, tabButtonWidth, iconButtonSize);
-        leftX += tabButtonWidth + 5;
-    }
+    // Settings tab removed - no longer needed
     
-    // Center: Scale slot selector 
+    // Scale slot selector - positioned normally after tabs
     if (m_scaleSlotSelector)
     {
-        // Calculate scale selector width (fixed size for centered positioning)
-        int scaleSelectorWidth = 700;  // Fixed width for scale selector
+        // Calculate realistic width for 8 scale slots + controls (adjusted for 120px total shift)
+        const int SCALE_BUTTON_WIDTH = 43;  // Reduced to fit with two slot widths shift
+        const int ROOT_BUTTON_WIDTH = 40;   // Smaller root selector
+        const int AUTO_BUTTON_WIDTH = 45;   // Smaller auto button
+        const int AUTO_MENU_WIDTH = 50;     // Auto menu button
+        const int ARROW_WIDTH = 28;         // Arrow buttons
+        const int SCALE_SPACING = 4;        // Tighter spacing between scale buttons
+        const int NORMAL_SPACING = 8;       // Normal spacing
         
-        // Center the scale selector in the remaining space
-        int availableWidth = tabBarArea.getWidth() - leftX - 10;  // 10px right margin
-        int centerX = leftX + (availableWidth - scaleSelectorWidth) / 2;
+        // Total width: arrows + 8 buttons + root + auto + auto menu + spacing
+        int scaleSelectorWidth = (2 * ARROW_WIDTH) + (8 * SCALE_BUTTON_WIDTH) + ROOT_BUTTON_WIDTH + 
+                                AUTO_BUTTON_WIDTH + AUTO_MENU_WIDTH + (10 * SCALE_SPACING) + (2 * NORMAL_SPACING);
         
-        // Make sure it doesn't go off screen
-        if (centerX < leftX + 20)
-            centerX = leftX + 20;
+        // Position after tabs with some spacing, plus shift right by two scale slot widths
+        int scaleSelectorX = leftX + UNIFIED_SPACING * 2 + 30 + (SCALE_BUTTON_WIDTH * 2);  // Shifted by 30px + 90px (two slot widths)
         
-        m_scaleSlotSelector->setBounds(centerX, tabBarArea.getY(), scaleSelectorWidth, TAB_BAR_HEIGHT);
+        // Check if it fits in available space
+        int availableWidth = secondBarArea.getWidth() - scaleSelectorX - UNIFIED_MARGIN;
+        if (scaleSelectorWidth > availableWidth)
+        {
+            // If too wide, make it fit
+            scaleSelectorWidth = availableWidth;
+        }
+        
+        // Set bounds with unified height
+        m_scaleSlotSelector->setBounds(scaleSelectorX, buttonY, scaleSelectorWidth, UNIFIED_BUTTON_HEIGHT);
     }
     
     // Content area
@@ -758,22 +759,55 @@ void UICoordinator::layoutSequencerView()
             auto& trackManager = TrackManager::getInstance();
             const int numTracks = static_cast<int>(trackManager.getAllTracks().size());
             
-            // Calculate required dimensions
-            const int sidebarWidth = SIDEBAR_WIDTH;
-            const int gridWidth = 8 * STAGE_CARD_WIDTH + 7 * 1; // 8 cards + minimal horizontal gaps
-            const int totalWidth = sidebarWidth + gridWidth + 10; // Add some padding
+            // Get the visible viewport dimensions (this is what we see on screen)
+            auto viewportBounds = m_sequencerViewport->getLocalBounds();
+            const int viewportWidth = viewportBounds.getWidth();
+            const int viewportHeight = viewportBounds.getHeight();
             
+            // Fixed sidebar width
+            const int sidebarWidth = SIDEBAR_WIDTH;
+            
+            // Calculate available width for the grid (viewport width minus sidebar)
+            const int availableGridWidth = viewportWidth - sidebarWidth;
+            
+            // Calculate optimal stage card width to fill available space
+            // The StageGrid component will handle the internal card sizing
+            // We just need to give it the right amount of space
+            
+            // Calculate height based on tracks
             const int trackGap = 8; // Gap between tracks (matches both TrackSidebar and StageGrid)
             const int totalHeight = numTracks * STAGE_CARD_HEIGHT + (numTracks - 1) * trackGap;
             
+            // Determine if we need horizontal scrolling
+            // We want at least MIN_STAGE_CARD_WIDTH per card
+            const int minRequiredWidth = 8 * MIN_STAGE_CARD_WIDTH + 7 * 1;  // 8 cards with minimal gaps
+            
+            // If available space is less than minimum, enable horizontal scrolling
+            // Otherwise, use the full viewport width (no horizontal scroll)
+            int gridWidth;
+            bool needsHorizontalScroll = availableGridWidth < minRequiredWidth;
+            
+            if (needsHorizontalScroll) {
+                // Use minimum width and allow horizontal scrolling
+                gridWidth = minRequiredWidth;
+            } else {
+                // Use all available width - no horizontal scroll needed
+                gridWidth = availableGridWidth;
+            }
+            
             // Set the total content size
+            const int totalWidth = sidebarWidth + gridWidth;
             m_sequencerContent->setSize(totalWidth, totalHeight);
             
             // Position sidebar on left
             m_trackSidebar->setBounds(0, 0, sidebarWidth, totalHeight);
             
-            // Position stage grid next to sidebar
+            // Position stage grid next to sidebar with all available/required width
             m_stageGrid->setBounds(sidebarWidth, 0, gridWidth, totalHeight);
+            
+            // Update scrollbar visibility
+            // Show horizontal scrollbar only when needed
+            m_sequencerViewport->setScrollBarsShown(true, needsHorizontalScroll);
         }
     }
 }
@@ -812,8 +846,7 @@ void UICoordinator::updateViewButtonStates()
     if (m_mixerTabButton)
         m_mixerTabButton->setActive(m_activeView == ViewMode::Mixer);
     
-    if (m_settingsTabButton)
-        m_settingsTabButton->setActive(m_activeView == ViewMode::Settings);
+    // Settings button removed - no state update needed
 }
 
 //==============================================================================

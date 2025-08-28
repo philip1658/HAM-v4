@@ -5,7 +5,7 @@
     Track control sidebar for HAM sequencer
     
     Features:
-    - Fixed 440px height per track (matches reduced StageCard height)
+    - Fixed 510px height per track (increased by 30px for Accumulator button)
     - All controls always visible (no expand/collapse)
     - Track color indicator and name
     - Mute/Solo buttons
@@ -35,7 +35,7 @@ namespace HAM::UI {
 //==============================================================================
 /**
  * Individual track control strip in the sidebar
- * Fixed height of 440px to match reduced StageCard
+ * Fixed height of 510px (increased for Accumulator button)
  */
 class TrackControlStrip : public ResizableComponent
 {
@@ -168,7 +168,7 @@ private:
     
     static constexpr int MIN_WIDTH = 240;
     static constexpr int IDEAL_WIDTH = 250;  // Wider for better button layout
-    static constexpr int TRACK_HEIGHT = 480;  // Full height now without header
+    static constexpr int TRACK_HEIGHT = 510;  // Increased by 30px for Accumulator button
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TrackSidebar)
 };

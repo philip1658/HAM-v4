@@ -95,111 +95,128 @@ public:
 private:
     void drawSequencerIcon(juce::Graphics& g, juce::Rectangle<float> bounds)
     {
-        // Draw horizontal lines representing timeline/sequence
-        float lineHeight = 2.0f;
-        float spacing = bounds.getHeight() / 4.0f;
+        // Modern minimalist sequencer icon - horizontal step pattern
+        float stepWidth = bounds.getWidth() / 8.0f;
+        float stepHeight = 3.0f;
+        float dotSize = 2.0f;
+        float centerY = bounds.getCentreY();
         
-        for (int i = 0; i < 3; i++)
+        // Draw 8 steps in a pattern suggesting rhythm
+        float pattern[] = { 1.0f, 0.3f, 0.6f, 0.3f, 0.9f, 0.3f, 0.5f, 0.7f };
+        
+        for (int i = 0; i < 8; i++)
         {
-            float y = bounds.getY() + spacing * (i + 1) - lineHeight / 2;
-            g.fillRoundedRectangle(bounds.getX(), y, bounds.getWidth(), lineHeight, 1.0f);
+            float x = bounds.getX() + i * stepWidth + stepWidth * 0.5f - dotSize * 0.5f;
+            float height = stepHeight + (bounds.getHeight() * 0.4f * pattern[i]);
+            float y = centerY - height * 0.5f;
+            
+            // Draw vertical lines of varying heights (like a step sequencer)
+            g.fillRoundedRectangle(x - dotSize * 0.5f, y, dotSize, height, dotSize * 0.5f);
+            
+            // Add a small dot at the base for visual anchor
+            if (pattern[i] > 0.5f)
+            {
+                g.fillEllipse(x - dotSize * 0.5f, centerY + bounds.getHeight() * 0.3f - dotSize,
+                             dotSize, dotSize);
+            }
         }
     }
     
     void drawMixerIcon(juce::Graphics& g, juce::Rectangle<float> bounds)
     {
-        // Draw vertical sliders
-        float sliderWidth = bounds.getWidth() / 5.0f;
-        float spacing = bounds.getWidth() / 3.0f;
+        // Ultra-clean mixer icon with line-based faders
+        float faderSpacing = bounds.getWidth() / 4.0f;
+        float faderHeight = bounds.getHeight() * 0.75f;
+        float lineWidth = 2.0f;
+        float knobSize = 6.0f;
+        float startY = bounds.getY() + (bounds.getHeight() - faderHeight) * 0.5f;
+        
+        // Fader positions for visual variety
+        float positions[] = { 0.65f, 0.35f, 0.8f };
         
         for (int i = 0; i < 3; i++)
         {
-            float x = bounds.getX() + spacing * i + sliderWidth / 2;
+            float x = bounds.getX() + faderSpacing * (i + 1);
             
-            // Slider track
-            g.setColour(juce::Colour(0xFF555555));
-            g.fillRoundedRectangle(x, bounds.getY(), sliderWidth, bounds.getHeight(), 1.0f);
+            // Draw fader track (thin vertical line)
+            g.setColour(juce::Colour(0xFF4A4A4A));
+            g.fillRoundedRectangle(x - lineWidth * 0.5f, startY, lineWidth, faderHeight, lineWidth * 0.5f);
             
-            // Slider handle
-            g.setColour(m_isActive ? juce::Colours::white : juce::Colour(0xFFCCCCCC));
-            float handleY = bounds.getY() + bounds.getHeight() * (0.3f + i * 0.2f);
-            g.fillEllipse(x - sliderWidth * 0.3f, handleY - sliderWidth * 0.3f,
-                         sliderWidth * 1.6f, sliderWidth * 1.6f);
+            // Draw fader knob (circle)
+            float knobY = startY + faderHeight * (1.0f - positions[i]);
+            g.setColour(m_isActive ? juce::Colours::white : juce::Colour(0xFFAAAAAA));
+            g.fillEllipse(x - knobSize * 0.5f, knobY - knobSize * 0.5f, knobSize, knobSize);
+            
+            // Add subtle tick marks
+            g.setColour(juce::Colour(0xFF5A5A5A));
+            for (int tick = 0; tick <= 4; tick++)
+            {
+                float tickY = startY + (faderHeight / 4.0f) * tick;
+                g.fillRect(x - 4.0f, tickY - 0.5f, 8.0f, 1.0f);
+            }
         }
     }
     
     void drawSettingsIcon(juce::Graphics& g, juce::Rectangle<float> bounds)
     {
-        // Draw cogwheel
-        float centerX = bounds.getCentreX();
-        float centerY = bounds.getCentreY();
-        float outerRadius = bounds.getWidth() * 0.4f;
-        float innerRadius = outerRadius * 0.6f;
-        float holeRadius = innerRadius * 0.5f;
-        int numTeeth = 8;
+        // Modern settings icon - three horizontal sliders
+        float lineHeight = 2.0f;
+        float lineLength = bounds.getWidth() * 0.7f;
+        float knobSize = 5.0f;
+        float spacing = bounds.getHeight() / 4.0f;
+        float startX = bounds.getX() + (bounds.getWidth() - lineLength) * 0.5f;
         
-        juce::Path cogwheel;
+        // Knob positions for each slider (0.0 to 1.0)
+        float positions[] = { 0.3f, 0.7f, 0.45f };
         
-        for (int i = 0; i < numTeeth; i++)
+        for (int i = 0; i < 3; i++)
         {
-            float angle = (i * 2.0f * juce::MathConstants<float>::pi) / numTeeth;
-            float toothAngle = juce::MathConstants<float>::pi / numTeeth * 0.3f;
+            float y = bounds.getY() + spacing * (i + 1);
             
-            float angle1 = angle - toothAngle;
-            float angle2 = angle + toothAngle;
-            float angle3 = angle + juce::MathConstants<float>::pi / numTeeth - toothAngle;
-            float angle4 = angle + juce::MathConstants<float>::pi / numTeeth + toothAngle;
+            // Draw slider track
+            g.setColour(juce::Colour(0xFF4A4A4A));
+            g.fillRoundedRectangle(startX, y - lineHeight * 0.5f, lineLength, lineHeight, lineHeight * 0.5f);
             
-            if (i == 0)
-            {
-                cogwheel.startNewSubPath(centerX + outerRadius * std::cos(angle1),
-                                        centerY + outerRadius * std::sin(angle1));
-            }
+            // Draw slider knob
+            float knobX = startX + lineLength * positions[i];
+            g.setColour(m_isActive ? juce::Colours::white : juce::Colour(0xFFBBBBBB));
+            g.fillEllipse(knobX - knobSize * 0.5f, y - knobSize * 0.5f, knobSize, knobSize);
             
-            cogwheel.lineTo(centerX + outerRadius * std::cos(angle2),
-                           centerY + outerRadius * std::sin(angle2));
-            cogwheel.lineTo(centerX + innerRadius * std::cos(angle3),
-                           centerY + innerRadius * std::sin(angle3));
-            cogwheel.lineTo(centerX + innerRadius * std::cos(angle4),
-                           centerY + innerRadius * std::sin(angle4));
+            // Add subtle end markers
+            g.setColour(juce::Colour(0xFF6A6A6A));
+            g.fillRect(startX - 1.0f, y - 3.0f, 2.0f, 6.0f);
+            g.fillRect(startX + lineLength - 1.0f, y - 3.0f, 2.0f, 6.0f);
         }
-        
-        cogwheel.closeSubPath();
-        
-        // Add center hole as a new sub-path (will be subtracted)
-        cogwheel.addEllipse(centerX - holeRadius, centerY - holeRadius,
-                           holeRadius * 2, holeRadius * 2);
-        
-        g.fillPath(cogwheel);
     }
     
     void drawAddIcon(juce::Graphics& g, juce::Rectangle<float> bounds)
     {
-        // Draw plus sign
-        float thickness = 2.5f;
-        float length = bounds.getWidth() * 0.5f;
+        // Clean, perfectly centered plus icon
+        float thickness = 2.0f;
+        float length = bounds.getWidth() * 0.4f;
         float centerX = bounds.getCentreX();
         float centerY = bounds.getCentreY();
         
+        // Draw with rounded ends for softer appearance
         // Horizontal line
         g.fillRoundedRectangle(centerX - length/2, centerY - thickness/2, 
-                               length, thickness, 1.0f);
+                               length, thickness, thickness * 0.5f);
         // Vertical line
         g.fillRoundedRectangle(centerX - thickness/2, centerY - length/2,
-                               thickness, length, 1.0f);
+                               thickness, length, thickness * 0.5f);
     }
     
     void drawRemoveIcon(juce::Graphics& g, juce::Rectangle<float> bounds)
     {
-        // Draw minus sign
-        float thickness = 2.5f;
-        float length = bounds.getWidth() * 0.5f;
+        // Clean minus icon matching the plus icon style
+        float thickness = 2.0f;
+        float length = bounds.getWidth() * 0.4f;
         float centerX = bounds.getCentreX();
         float centerY = bounds.getCentreY();
         
-        // Horizontal line only
+        // Horizontal line with rounded ends
         g.fillRoundedRectangle(centerX - length/2, centerY - thickness/2,
-                               length, thickness, 1.0f);
+                               length, thickness, thickness * 0.5f);
     }
     
     IconType m_iconType;
