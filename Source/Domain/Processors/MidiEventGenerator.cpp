@@ -9,6 +9,7 @@
 
 #include "MidiEventGenerator.h"
 #include "../Models/ScaleSlotManager.h"
+#include "../Clock/TimingConstants.h"
 #include <algorithm>
 #include <cmath>
 
@@ -88,7 +89,7 @@ std::vector<MidiEventGenerator::MidiEvent> MidiEventGenerator::generateStageEven
         midiEvent.trackIndex = track->getIndex();
         midiEvent.stageIndex = stageIndex;
         midiEvent.ratchetIndex = gateEvent.ratchetIndex;
-        midiEvent.sampleOffset = std::min(gateEvent.sampleOffset, bufferSize - 1);
+        midiEvent.sampleOffset = gateEvent.sampleOffset;  // Don't clamp - handle overflow below
         
         if (gateEvent.isNoteOn)
         {
@@ -120,7 +121,19 @@ std::vector<MidiEventGenerator::MidiEvent> MidiEventGenerator::generateStageEven
                                                              static_cast<int>(samplesPerPulse * 0.1f));
         }
         
-        events.push_back(midiEvent);
+        // Check for buffer overflow and handle appropriately
+        if (midiEvent.sampleOffset >= bufferSize) {
+            // Event falls outside current buffer - queue for next buffer
+            midiEvent.sampleOffset -= bufferSize;  // Adjust offset for next buffer
+            queueEventIfOverflow(midiEvent, bufferSize);
+        } else if (midiEvent.sampleOffset < 0) {
+            // Event is in the past - clamp to start of buffer
+            midiEvent.sampleOffset = 0;
+            events.push_back(midiEvent);
+        } else {
+            // Event fits in current buffer
+            events.push_back(midiEvent);
+        }
     }
     
     // Generate CC events if enabled
@@ -155,17 +168,20 @@ std::vector<MidiEventGenerator::MidiEvent> MidiEventGenerator::generateRatcheted
     
     if (ratchetCount <= 0) return events;
     
-    int samplesPerRatchet = samplesPerPulse / ratchetCount;
-    int gateLength = static_cast<int>(samplesPerRatchet * 0.9f); // 90% gate length
+    // Use floating-point arithmetic for even ratchet spacing (no precision loss)
+    double precisionSamplesPerRatchet = static_cast<double>(samplesPerPulse) / static_cast<double>(ratchetCount);
+    double precisionGateLength = precisionSamplesPerRatchet * TimingConstants::RATCHET_GATE_LENGTH;
     
     for (int i = 0; i < ratchetCount; ++i)
     {
-        int offset = i * samplesPerRatchet;
+        // Calculate precise ratchet timing using floating-point arithmetic
+        int offset = static_cast<int>(std::round(static_cast<double>(i) * precisionSamplesPerRatchet));
+        int gateLength = static_cast<int>(std::round(precisionGateLength));
         
         // Note on
         events.push_back(createNoteOnEvent(baseNote, velocity, channel, offset));
         
-        // Note off
+        // Note off (with precise gate length timing)
         events.push_back(createNoteOffEvent(baseNote, channel, offset + gateLength));
     }
     
@@ -325,6 +341,50 @@ MidiEventGenerator::MidiEvent MidiEventGenerator::createPitchBendEvent(
     event.stageIndex = 0;    // Initialize to default
     event.ratchetIndex = 0;  // Initialize to default
     return event;
+}
+
+//==============================================================================
+// Buffer Overflow Management
+
+std::vector<MidiEventGenerator::MidiEvent> MidiEventGenerator::getAndClearQueuedEvents(int bufferSize)
+{
+    std::lock_guard<std::mutex> lock(m_queueMutex);
+    
+    std::vector<MidiEvent> validEvents;
+    std::vector<MidiEvent> stillQueued;
+    
+    for (auto& event : m_queuedEvents) {
+        if (event.sampleOffset < bufferSize) {
+            // Event can now fit in this buffer
+            validEvents.push_back(event);
+        } else {
+            // Event still needs to wait for future buffer
+            event.sampleOffset -= bufferSize;
+            stillQueued.push_back(event);
+        }
+    }
+    
+    // Replace queue with events that still need to wait
+    m_queuedEvents = std::move(stillQueued);
+    
+    return validEvents;
+}
+
+void MidiEventGenerator::queueEventIfOverflow(MidiEvent& event, int bufferSize)
+{
+    std::lock_guard<std::mutex> lock(m_queueMutex);
+    
+    // Ensure event timing is valid for future buffer
+    if (event.sampleOffset >= 0) {
+        m_queuedEvents.push_back(event);
+    }
+    
+    // Prevent queue from growing too large (protect against timing errors)
+    if (m_queuedEvents.size() > TimingConstants::MIDI_EVENT_QUEUE_SIZE) {
+        // Remove oldest events to prevent memory bloat
+        m_queuedEvents.erase(m_queuedEvents.begin(), 
+                            m_queuedEvents.begin() + (m_queuedEvents.size() - TimingConstants::MIDI_EVENT_QUEUE_SIZE / 2));
+    }
 }
 
 

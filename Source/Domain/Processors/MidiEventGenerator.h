@@ -17,6 +17,8 @@
 #include "../Engines/PitchEngine.h"
 #include <vector>
 #include <memory>
+#include <mutex>
+#include <optional>
 
 namespace HAM
 {
@@ -142,6 +144,22 @@ public:
     void setCCEnabled(bool enabled) { m_ccEnabled.store(enabled); }
     
     //==============================================================================
+    // Buffer Overflow Management
+    
+    /**
+     * Get queued events from previous buffer overflow and clear the queue
+     * @param bufferSize Current buffer size
+     * @return Vector of events that should be processed in current buffer
+     */
+    std::vector<MidiEvent> getAndClearQueuedEvents(int bufferSize);
+    
+    /**
+     * Check if there are queued events waiting
+     * @return True if events are queued
+     */
+    bool hasQueuedEvents() const { return !m_queuedEvents.empty(); }
+    
+    //==============================================================================
     // Helper Components
     
     /** Get gate engine for configuration */
@@ -176,6 +194,12 @@ private:
     juce::Random m_random;
     
     //==============================================================================
+    // Buffer overflow queue
+    
+    std::vector<MidiEvent> m_queuedEvents;
+    mutable std::mutex m_queueMutex;  // Protect queue access
+    
+    //==============================================================================
     // Internal helpers
     
     int applyVelocityRandomization(int baseVelocity);
@@ -185,6 +209,9 @@ private:
     MidiEvent createNoteOffEvent(int note, int channel, int sampleOffset);
     MidiEvent createCCEvent(int ccNumber, int value, int channel, int sampleOffset);
     MidiEvent createPitchBendEvent(int value, int channel, int sampleOffset);
+    
+    /** Queue event for next buffer if it falls outside current buffer */
+    void queueEventIfOverflow(MidiEvent& event, int bufferSize);
     
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MidiEventGenerator)

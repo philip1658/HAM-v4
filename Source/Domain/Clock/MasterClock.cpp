@@ -8,6 +8,7 @@
 */
 
 #include "MasterClock.h"
+#include "TimingConstants.h"
 #include <algorithm>
 #include <cmath>
 #include <thread>
@@ -17,8 +18,8 @@ namespace HAM {
 //==============================================================================
 MasterClock::MasterClock()
 {
-    // Initialize with default 120 BPM
-    updateSamplesPerPulse(44100.0);
+    // Initialize with default BPM and sample rate
+    updateSamplesPerPulse(TimingConstants::DEFAULT_SAMPLE_RATE);
 }
 
 MasterClock::~MasterClock()
@@ -49,7 +50,7 @@ void MasterClock::start()
         DBG(juce::String("  - Current Position: Bar ") + juce::String(m_currentBar.load()) + ":" + juce::String(m_currentBeat.load()) + ":" + juce::String(m_currentPulse.load()));
         
         // Reset sample counter to ensure immediate pulse generation
-        m_sampleCounter = 0.0;
+        m_preciseSampleCounter = 0;
         
         notifyClockStart();
     }
@@ -75,7 +76,7 @@ void MasterClock::reset()
     m_currentBeat.store(0);
     m_currentBar.store(0);
     m_pulsePhase.store(0.0f);
-    m_sampleCounter = 0.0;
+    m_preciseSampleCounter = 0;  // Reset high-precision counter
     m_midiClockCounter = 0;
     
     notifyClockReset();
@@ -86,8 +87,8 @@ void MasterClock::reset()
 
 void MasterClock::setBPM(float bpm)
 {
-    // Clamp BPM to reasonable range
-    bpm = std::clamp(bpm, 20.0f, 999.0f);
+    // Clamp BPM to valid range using constants
+    bpm = TimingConstants::clampBPM(bpm);
     
     if (m_tempoGlideEnabled && m_isRunning.load())
     {
@@ -170,31 +171,40 @@ void MasterClock::processBlock(double sampleRate, int numSamples)
         processTempoGlide(numSamples);
     }
     
-    // Process samples and generate clock pulses
+    // Process samples and generate clock pulses with high-precision arithmetic
     int samplesProcessed = 0;
     
     while (samplesProcessed < numSamples)
     {
-        // Calculate samples until next pulse
-        double samplesUntilPulse = m_samplesPerPulse - m_sampleCounter;
+        // Calculate precise samples until next pulse using integer arithmetic
+        TimingConstants::PreciseSampleCount preciseSamplesUntilPulse = 
+            m_preciseSamplesPerPulse - m_preciseSampleCounter;
+        
+        // Convert to actual samples, rounding up to ensure we don't miss pulses
+        double samplesUntilPulse = TimingConstants::fromPreciseSamples(preciseSamplesUntilPulse);
         int samplesToProcess = std::min(
             static_cast<int>(std::ceil(samplesUntilPulse)),
             numSamples - samplesProcessed
         );
         
-        // Advance sample counter
-        m_sampleCounter += samplesToProcess;
+        // Advance precise sample counter (no precision loss!)
+        TimingConstants::PreciseSampleCount preciseSamplesToProcess = 
+            TimingConstants::toPreciseSamples(samplesToProcess);
+        m_preciseSampleCounter += preciseSamplesToProcess;
         samplesProcessed += samplesToProcess;
         
-        // Update pulse phase
-        float phase = static_cast<float>(m_sampleCounter / m_samplesPerPulse);
-        m_pulsePhase.store(std::clamp(phase, 0.0f, 1.0f));
+        // Update pulse phase with high precision
+        if (m_preciseSamplesPerPulse > 0) {
+            float phase = static_cast<float>(m_preciseSampleCounter) / 
+                         static_cast<float>(m_preciseSamplesPerPulse);
+            m_pulsePhase.store(std::clamp(phase, 0.0f, 1.0f));
+        }
         
         // Check if we've reached a pulse boundary
-        if (m_sampleCounter >= m_samplesPerPulse)
+        if (m_preciseSampleCounter >= m_preciseSamplesPerPulse)
         {
-            // Reset counter for next pulse
-            m_sampleCounter -= m_samplesPerPulse;
+            // Reset counter for next pulse with precise arithmetic
+            m_preciseSampleCounter -= m_preciseSamplesPerPulse;
             
             // Advance pulse and notify listeners
             advancePulse();
@@ -271,7 +281,11 @@ int MasterClock::getSamplesUntilNextPulse(double sampleRate) const
     if (!m_isRunning.load())
         return 0;
     
-    double samplesRemaining = m_samplesPerPulse - m_sampleCounter;
+    // Use high-precision arithmetic to avoid precision loss
+    TimingConstants::PreciseSampleCount preciseSamplesRemaining = 
+        m_preciseSamplesPerPulse - m_preciseSampleCounter;
+    
+    double samplesRemaining = TimingConstants::fromPreciseSamples(preciseSamplesRemaining);
     return static_cast<int>(std::ceil(samplesRemaining));
 }
 
@@ -298,11 +312,11 @@ int MasterClock::getNextDivisionPulse(Division div) const
 
 double MasterClock::getSamplesPerDivision(Division div, float bpm, double sampleRate)
 {
-    // Calculate samples per quarter note
-    double samplesPerQuarter = (60.0 / bpm) * sampleRate;
+    // Calculate samples per quarter note using constants
+    double samplesPerQuarter = (TimingConstants::SECONDS_PER_MINUTE / bpm) * sampleRate;
     
-    // Scale by division
-    double divisionFactor = static_cast<double>(div) / 24.0;
+    // Scale by division (using PPQN constant)
+    double divisionFactor = static_cast<double>(div) / static_cast<double>(TimingConstants::PPQN);
     return samplesPerQuarter * divisionFactor;
 }
 
@@ -414,14 +428,19 @@ void MasterClock::processMidiContinue()
 
 void MasterClock::updateSamplesPerPulse(double sampleRate)
 {
-    // Calculate samples per pulse (24 ppq)
-    // 60 seconds / BPM = seconds per beat
-    // seconds per beat / 24 = seconds per pulse
-    // seconds per pulse * sample rate = samples per pulse
+    // Calculate high-precision samples per pulse
+    // Use integer arithmetic to prevent precision loss over time
+    // Formula: (60 / BPM) * sampleRate / PPQN
     
-    double secondsPerBeat = 60.0 / static_cast<double>(m_bpm.load());
-    double secondsPerPulse = secondsPerBeat / 24.0;
-    m_samplesPerPulse = secondsPerPulse * sampleRate;
+    if (!TimingConstants::isValidSampleRate(sampleRate)) {
+        sampleRate = TimingConstants::DEFAULT_SAMPLE_RATE;
+    }
+    
+    float currentBpm = m_bpm.load();
+    m_preciseSamplesPerPulse = TimingConstants::calculatePreciseSamplesPerPulse(currentBpm, sampleRate);
+    
+    // Update last sample rate for change detection
+    m_lastSampleRate = sampleRate;
 }
 
 void MasterClock::advancePulse()
@@ -552,6 +571,28 @@ void MasterClock::notifyTempoChanged(float bpm)
             if (listener != nullptr) listener->onTempoChanged(bpm);
         m_isNotifying.store(false);
     });
+}
+
+void MasterClock::applyDriftCompensation(double sampleOffset)
+{
+    // Apply compensation to high-precision sample counter
+    // This gradually adjusts timing to correct for external sync drift
+    TimingConstants::PreciseSampleCount preciseCompensation = 
+        TimingConstants::toPreciseSamples(sampleOffset);
+    
+    // Apply the compensation atomically
+    m_preciseSampleCounter += preciseCompensation;
+    
+    // Ensure counter doesn't go negative
+    if (m_preciseSampleCounter < 0) {
+        m_preciseSampleCounter = 0;
+    }
+    
+    // If compensation moves us past a pulse boundary, handle it
+    while (m_preciseSampleCounter >= m_preciseSamplesPerPulse && m_preciseSamplesPerPulse > 0) {
+        m_preciseSampleCounter -= m_preciseSamplesPerPulse;
+        advancePulse();
+    }
 }
 
 } // namespace HAM

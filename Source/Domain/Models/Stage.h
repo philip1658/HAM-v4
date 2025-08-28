@@ -23,8 +23,9 @@ namespace HAM {
  */
 enum class GateType
 {
+    SUSTAINED,  // Single sustained note for entire stage duration (DEFAULT)
     MULTIPLE,   // Individual gate per ratchet
-    HOLD,       // Single sustained gate across all ratchets
+    HOLD,       // Single sustained gate across all ratchets  
     SINGLE,     // Gate on first ratchet only
     REST        // No gate output (silence)
 };
@@ -175,7 +176,7 @@ public:
     
     // Overload for int (for GateEngine compatibility)
     void setGateType(int type) { 
-        m_gateType = static_cast<GateType>(juce::jlimit(0, 3, type)); 
+        m_gateType = static_cast<GateType>(juce::jlimit(0, 4, type)); 
     }
     int getGateTypeAsInt() const { return static_cast<int>(m_gateType); }
     
@@ -281,7 +282,7 @@ private:
     
     // Ratcheting (per pulse)
     std::array<int, 8> m_ratchets{1,1,1,1,1,1,1,1}; // Ratchets per pulse
-    GateType m_gateType = GateType::MULTIPLE;
+    GateType m_gateType = GateType::SUSTAINED;
     bool m_gateStretching = false;
     float m_ratchetProbability = 1.0f;  // Always trigger ratchets by default
     

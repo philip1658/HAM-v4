@@ -14,6 +14,7 @@
 #include <atomic>
 #include <functional>
 #include <vector>
+#include "TimingConstants.h"
 
 namespace HAM {
 
@@ -173,14 +174,19 @@ public:
     /** Check if using external sync */
     bool isExternalSyncEnabled() const { return m_externalSyncEnabled; }
     
+    /** Apply drift compensation by adjusting sample counter
+        @param sampleOffset Compensation in samples (can be negative)
+    */
+    void applyDriftCompensation(double sampleOffset);
+    
 private:
     //==========================================================================
     // Internal State
     
     // Transport state
     std::atomic<bool> m_isRunning{false};
-    std::atomic<float> m_bpm{120.0f};
-    std::atomic<float> m_targetBpm{120.0f};
+    std::atomic<float> m_bpm{TimingConstants::DEFAULT_BPM};
+    std::atomic<float> m_targetBpm{TimingConstants::DEFAULT_BPM};
     
     // Clock position
     std::atomic<int> m_currentPulse{0};      // 0-23 within beat
@@ -188,20 +194,20 @@ private:
     std::atomic<int> m_currentBar{0};        // Bar number
     std::atomic<float> m_pulsePhase{0.0f};   // 0-1 within pulse
     
-    // Sample-accurate timing
-    double m_samplesPerPulse{0.0};
-    double m_sampleCounter{0.0};
-    double m_lastSampleRate{44100.0};
+    // High-precision sample-accurate timing
+    TimingConstants::PreciseSampleCount m_preciseSamplesPerPulse{0};
+    TimingConstants::PreciseSampleCount m_preciseSampleCounter{0};
+    double m_lastSampleRate{TimingConstants::FALLBACK_SAMPLE_RATE};
     
     // Tempo glide
     bool m_tempoGlideEnabled{false};
-    float m_tempoGlideMs{100.0f};
-    float m_currentGlideBpm{120.0f};
+    float m_tempoGlideMs{TimingConstants::DEFAULT_TEMPO_GLIDE_MS};
+    float m_currentGlideBpm{TimingConstants::DEFAULT_BPM};
     float m_glideIncrement{0.0f};
     int m_glideSamplesRemaining{0};
     
     // Sample rate
-    std::atomic<double> m_sampleRate{48000.0};
+    std::atomic<double> m_sampleRate{TimingConstants::DEFAULT_SAMPLE_RATE};
     
     // External sync
     bool m_externalSyncEnabled{false};

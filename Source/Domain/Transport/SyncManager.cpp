@@ -8,6 +8,7 @@
 */
 
 #include "SyncManager.h"
+#include "../Clock/TimingConstants.h"
 #include <chrono>
 
 namespace HAM {
@@ -418,17 +419,52 @@ void SyncManager::processMidiClockTick()
 
 void SyncManager::calculateExternalBPM()
 {
-    if (m_midiClockInterval > 0)
+    if (m_midiClockInterval <= 0) return;
+    
+    // Calculate BPM using timing constants for better accuracy
+    double rawBpm = TimingConstants::calculateBPMFromInterval(m_midiClockInterval);
+    
+    // Enhanced validation with tighter constraints
+    if (rawBpm < TimingConstants::MIN_BPM || rawBpm > TimingConstants::MAX_BPM)
     {
-        // 24 clocks per quarter note
-        double quarterNoteTime = m_midiClockInterval * 24.0;
-        double bpm = 60.0 / quarterNoteTime;
-        
-        // Sanity check
-        if (bpm > 20.0 && bpm < 999.0)
+        // Invalid BPM - increment dropped clock counter
+        m_droppedClocks++;
+        return;
+    }
+    
+    // Additional stability check - reject large jumps that could be jitter
+    if (m_estimatedExternalBPM > 0)
+    {
+        double percentChange = std::abs(rawBpm - m_estimatedExternalBPM) / m_estimatedExternalBPM;
+        if (percentChange > 0.1)  // Reject changes > 10%
         {
-            m_estimatedExternalBPM = static_cast<float>(bpm);
+            // Large change detected - could be jitter or tempo change
+            // Apply stricter filtering for stability
+            rawBpm = m_estimatedExternalBPM + (rawBpm - m_estimatedExternalBPM) * 0.1;
         }
+    }
+    
+    // Apply sophisticated smoothing filter to reduce jitter impact
+    if (m_estimatedExternalBPM <= 0)
+    {
+        // First BPM reading - accept it directly
+        m_estimatedExternalBPM = static_cast<float>(rawBpm);
+    }
+    else
+    {
+        // Apply exponential smoothing with dynamic filtering strength
+        double smoothingFactor = TimingConstants::BPM_SMOOTHING_FACTOR;
+        
+        // Use stronger smoothing for small changes (reduce jitter)
+        double bpmDelta = std::abs(rawBpm - m_estimatedExternalBPM);
+        if (bpmDelta < 1.0)
+        {
+            smoothingFactor *= 0.5;  // Stronger smoothing for small jitter
+        }
+        
+        // Apply filtered update
+        double smoothedBpm = m_estimatedExternalBPM * (1.0 - smoothingFactor) + rawBpm * smoothingFactor;
+        m_estimatedExternalBPM = static_cast<float>(smoothedBpm);
     }
 }
 
@@ -447,8 +483,27 @@ void SyncManager::applyDriftCompensation()
     // Update clock drift for monitoring
     m_clockDrift = m_driftAccumulator * 1000.0;  // Convert to ms
     
-    // TODO: Apply compensation to master clock timing
-    // This would adjust the sample counter slightly to maintain sync
+    // Apply compensation to master clock timing to maintain sync
+    if (std::abs(compensation) > 0.0001)  // Only apply significant compensation
+    {
+        // Calculate sample offset compensation
+        double sampleRate = 48000.0;  // TODO: Get from master clock
+        double sampleCompensation = compensation * sampleRate;
+        
+        // Apply gradual compensation to prevent audible glitches
+        // Limit compensation to prevent large timing jumps
+        sampleCompensation = std::clamp(sampleCompensation, -10.0, 10.0);
+        
+        // Apply compensation through MasterClock interface
+        if (std::abs(sampleCompensation) >= 1.0)
+        {
+            // Apply drift compensation to master clock timing
+            m_masterClock.applyDriftCompensation(sampleCompensation);
+            
+            // Reset accumulator after applying compensation
+            m_driftAccumulator *= (1.0 - m_driftCompensationStrength);
+        }
+    }
 }
 
 void SyncManager::sendMidiClockTick()

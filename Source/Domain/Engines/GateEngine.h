@@ -33,6 +33,7 @@ public:
     
     enum class GateType
     {
+        SUSTAINED,  // Single sustained note for entire stage duration (DEFAULT)
         MULTIPLE,   // Individual gate per ratchet
         HOLD,       // Single sustained gate across pulse
         SINGLE,     // Gate on first ratchet only

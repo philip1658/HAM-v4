@@ -56,6 +56,39 @@ std::vector<GateEngine::GateEvent> GateEngine::processStageGate(
     // Process based on gate type
     switch (gateType)
     {
+        case GateType::SUSTAINED:
+        {
+            // Single sustained note for entire stage - only trigger on first pulse
+            if (pulseIndex == 0)  // Only on first pulse of stage
+            {
+                float probability = stage.getProbability() / 100.0f;  // Convert from percentage
+                if (shouldTrigger(probability))
+                {
+                    // Note on at stage start
+                    GateEvent noteOn;
+                    noteOn.isNoteOn = true;
+                    noteOn.sampleOffset = 0;  // Immediate start
+                    noteOn.velocity = getEffectiveVelocity(stage, 0);
+                    noteOn.ratchetIndex = 0;
+                    events.push_back(noteOn);
+                    
+                    // Note off after full stage duration (all pulses * samplesPerPulse)
+                    int stageDurationSamples = stage.getPulseCount() * samplesPerPulse;
+                    float gateLength = stage.getGateLength();
+                    int noteOffSamples = static_cast<int>(stageDurationSamples * gateLength);
+                    
+                    GateEvent noteOff;
+                    noteOff.isNoteOn = false;
+                    noteOff.sampleOffset = noteOffSamples;
+                    noteOff.velocity = 0.0f;
+                    noteOff.ratchetIndex = 0;
+                    events.push_back(noteOff);
+                }
+            }
+            // For subsequent pulses (pulseIndex > 0), return empty events
+            break;
+        }
+        
         case GateType::MULTIPLE:
         {
             // Generate gate for each ratchet
@@ -274,11 +307,12 @@ GateEngine::GateType GateEngine::getGateTypeFromStage(const Stage& stage) const
     
     switch (gateTypeInt)
     {
-        case 0: return GateType::MULTIPLE;
-        case 1: return GateType::HOLD;
-        case 2: return GateType::SINGLE;
-        case 3: return GateType::REST;
-        default: return GateType::MULTIPLE;
+        case 0: return GateType::SUSTAINED;
+        case 1: return GateType::MULTIPLE;
+        case 2: return GateType::HOLD;
+        case 3: return GateType::SINGLE;
+        case 4: return GateType::REST;
+        default: return GateType::SUSTAINED;
     }
 }
 
