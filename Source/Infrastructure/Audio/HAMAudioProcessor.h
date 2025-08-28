@@ -170,6 +170,14 @@ public:
     
 private:
     //==============================================================================
+    // Private helper methods
+    
+    /** Send engine status to UI */
+    void sendEngineStatus();
+    
+    /** Reconnect audio routing for a track */
+    void reconnectTrackRouting(int trackIndex);
+    //==============================================================================
     // MasterClock::Listener overrides
     
     void onClockPulse(int pulseNumber) override;
@@ -237,6 +245,9 @@ private:
     
     std::unique_ptr<LockFreeMessageQueue<UIToEngineMessage, 2048>> m_messageQueue;
     std::unique_ptr<MessageDispatcher> m_messageDispatcher;
+    
+    // Plugin format manager for loading plugins
+    juce::AudioPluginFormatManager m_formatManager;
     
     //==============================================================================
     // State

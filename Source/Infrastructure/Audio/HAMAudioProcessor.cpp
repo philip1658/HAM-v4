@@ -37,11 +37,7 @@ HAMAudioProcessor::HAMAudioProcessor()
     
     // Initialize message dispatcher for UI communication
     m_messageDispatcher = std::make_unique<MessageDispatcher>();
-    m_messageQueue = std::make_unique<UIToEngineQueue>();
-    m_engineToUIQueue = std::make_unique<EngineToUIQueue>();
-    
-    // Set up message dispatcher callbacks
-    m_messageDispatcher->setMessageQueues(m_messageQueue.get(), m_engineToUIQueue.get());
+    m_messageQueue = std::make_unique<LockFreeMessageQueue<UIToEngineMessage, 2048>>();
     
     // Initialize default pattern
     m_currentPattern = std::make_unique<Pattern>();
@@ -50,16 +46,17 @@ HAMAudioProcessor::HAMAudioProcessor()
     // Initialize per-track engines (8 tracks by default)
     for (int i = 0; i < 8; ++i)
     {
-        m_gateEngines.push_back(std::make_unique<GateEngine>());
+        // Gate engines are commented out until TrackGateProcessor is implemented
+        // m_gateProcessors.push_back(std::make_unique<TrackGateProcessor>());
         m_pitchEngines.push_back(std::make_unique<PitchEngine>());
         m_accumulatorEngines.push_back(std::make_unique<AccumulatorEngine>());
         
         // Initialize track plugin chains
-        m_trackPluginChains.push_back(std::make_unique<TrackPluginChain>());
+        m_trackPluginChains.push_back(std::make_unique<TrackPluginChain>(i));
     }
     
     // Set pattern in sequencer
-    m_sequencerEngine->setPattern(m_currentPattern.get());
+    m_sequencerEngine->setPattern(m_currentPattern);
     
     // Pre-allocate MIDI event buffer
     m_midiEventBuffer.reserve(1024);
@@ -70,6 +67,9 @@ HAMAudioProcessor::HAMAudioProcessor()
     // Connect engines
     m_sequencerEngine->setMasterClock(m_masterClock.get());
     m_sequencerEngine->setVoiceManager(m_voiceManager.get());
+    
+    // Initialize plugin format manager
+    m_formatManager.addDefaultFormats();
     
     // Initialize plugin graph
     m_pluginGraph = std::make_unique<juce::AudioProcessorGraph>();
@@ -143,20 +143,22 @@ void HAMAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     
     // Prepare engines
     m_masterClock->setSampleRate(sampleRate);
-    m_sequencerEngine->prepareToPlay(sampleRate, samplesPerBlock);
+    // SequencerEngine doesn't have prepareToPlay, it uses processBlock
+    // m_sequencerEngine->prepareToPlay(sampleRate, samplesPerBlock);
     
-    // Prepare voice manager
-    m_voiceManager->setSampleRate(sampleRate);
+    // VoiceManager doesn't have setSampleRate method
+    // m_voiceManager->setSampleRate(sampleRate);
     
     // Clear message buffers
     m_incomingMidi.clear();
     m_outgoingMidi.clear();
     
     // Reset engines
-    for (auto& engine : m_gateEngines)
-    {
-        engine->reset();
-    }
+    // Gate engines are not implemented yet
+    // for (auto& engine : m_gateProcessors)
+    // {
+    //     engine->reset();
+    // }
     
     for (auto& engine : m_pitchEngines)
     {
@@ -232,28 +234,19 @@ void HAMAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         
         // Get MIDI events from sequencer using pre-allocated buffer
         m_midiEventBuffer.clear();
-        m_sequencerEngine->getMidiEvents(m_midiEventBuffer);
+        m_sequencerEngine->getAndClearMidiEvents(m_midiEventBuffer);
         
         // Convert to JUCE MidiBuffer with sample-accurate timing
         for (const auto& event : m_midiEventBuffer)
         {
-            // Calculate sample position within this block
-            int samplePosition = static_cast<int>(event.samplePosition);
+            // The event contains a juce::MidiMessage and sample offset
+            int samplePosition = event.sampleOffset;
             
             // Ensure sample position is within block bounds
             if (samplePosition >= 0 && samplePosition < numSamples)
             {
-                // Create JUCE MIDI message based on event type
-                if (event.noteOn)
-                {
-                    auto msg = juce::MidiMessage::noteOn(event.channel, event.noteNumber, event.velocity);
-                    midiMessages.addEvent(msg, samplePosition);
-                }
-                else
-                {
-                    auto msg = juce::MidiMessage::noteOff(event.channel, event.noteNumber, event.velocity);
-                    midiMessages.addEvent(msg, samplePosition);
-                }
+                // Add the MIDI message directly
+                midiMessages.addEvent(event.message, samplePosition);
             }
         }
         
@@ -286,7 +279,7 @@ void HAMAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // applyMasterEffects(buffer);
     
     // Send feedback to UI about current state
-    sendEngineStatus();
+    // sendEngineStatus(); // TODO: Implement when UI messaging is ready
     
     // Performance monitoring
     auto endTime = std::chrono::high_resolution_clock::now();
@@ -431,6 +424,13 @@ void HAMAudioProcessor::showPluginEditor(int trackIndex, int pluginIndex)
     }
 }
 
+void HAMAudioProcessor::sendEngineStatus()
+{
+    // TODO: Implement status updates to UI
+    // This will send transport state, CPU usage, etc.
+    // For now, this is a stub to allow compilation
+}
+
 void HAMAudioProcessor::reconnectTrackRouting(int trackIndex)
 {
     if (trackIndex < 0 || trackIndex >= static_cast<int>(m_trackPluginChains.size()))
@@ -474,7 +474,111 @@ void HAMAudioProcessor::reconnectTrackRouting(int trackIndex)
     }
 }
 
-// Rest of the implementation remains the same...
-// [Include all other methods from the original file]
+//==============================================================================
+// UI Message Processing
+void HAMAudioProcessor::processUIMessages()
+{
+    if (m_messageDispatcher)
+    {
+        m_messageDispatcher->processUIMessages(10);
+    }
+}
+
+//==============================================================================
+// State Management
+void HAMAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
+{
+    // TODO: Serialize state to binary format
+    // For now, just clear the data
+    destData.reset();
+}
+
+void HAMAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
+{
+    // TODO: Deserialize state from binary format
+    // For now, this is a stub
+    juce::ignoreUnused(data, sizeInBytes);
+}
+
+//==============================================================================
+// Editor Creation
+juce::AudioProcessorEditor* HAMAudioProcessor::createEditor()
+{
+    // Return nullptr for now - will be implemented when UI is ready
+    return nullptr;
+}
+
+//==============================================================================
+// Transport Control
+void HAMAudioProcessor::stop()
+{
+    if (m_transport)
+    {
+        m_transport->stop();
+    }
+}
+
+//==============================================================================
+// Track Processor Management
+void HAMAudioProcessor::addProcessorsForTrack(int trackIndex)
+{
+    // Ensure we have enough track chains
+    while (trackIndex >= static_cast<int>(m_trackPluginChains.size()))
+    {
+        int newIndex = static_cast<int>(m_trackPluginChains.size());
+        m_trackPluginChains.push_back(std::make_unique<TrackPluginChain>(newIndex));
+        m_pitchEngines.push_back(std::make_unique<PitchEngine>());
+        m_accumulatorEngines.push_back(std::make_unique<AccumulatorEngine>());
+    }
+}
+
+void HAMAudioProcessor::removeProcessorsForTrack(int trackIndex)
+{
+    if (trackIndex >= 0 && trackIndex < static_cast<int>(m_trackPluginChains.size()))
+    {
+        // Remove any loaded plugins for this track
+        auto& chain = m_trackPluginChains[trackIndex];
+        if (chain)
+        {
+            if (chain->instrumentNode)
+            {
+                m_pluginGraph->removeNode(chain->instrumentNode.get());
+            }
+            for (auto& effectNode : chain->effectNodes)
+            {
+                m_pluginGraph->removeNode(effectNode.get());
+            }
+        }
+    }
+}
+
+//==============================================================================
+// MasterClock::Listener overrides
+void HAMAudioProcessor::onClockPulse(int pulseNumber)
+{
+    // Handle clock pulse - typically used for timing synchronization
+    juce::ignoreUnused(pulseNumber);
+}
+
+void HAMAudioProcessor::onClockStart()
+{
+    // Handle clock start event
+}
+
+void HAMAudioProcessor::onClockStop()
+{
+    // Handle clock stop event
+}
+
+void HAMAudioProcessor::onClockReset()
+{
+    // Handle clock reset event
+}
+
+void HAMAudioProcessor::onTempoChanged(float newBPM)
+{
+    // Handle tempo change event
+    juce::ignoreUnused(newBPM);
+}
 
 } // namespace HAM
