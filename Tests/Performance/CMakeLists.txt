@@ -131,7 +131,7 @@ target_sources(HAMPerformanceTests PRIVATE
     Tests/ThreadContentionTest.cpp
     
     # Main test runner
-    TestMain.cpp
+    Tests/TestMain.cpp
 )
 
 target_compile_definitions(HAMPerformanceTests PRIVATE
