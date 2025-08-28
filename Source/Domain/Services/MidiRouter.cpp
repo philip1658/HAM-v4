@@ -16,6 +16,12 @@ MidiRouter::MidiRouter()
 {
     // Initialize track buffers lazily to save memory
     // They'll be created as needed when tracks are used
+    
+    // Initialize all tracks to plugin-only routing by default
+    for (int i = 0; i < MAX_TRACKS; ++i)
+    {
+        m_trackRoutingModes[i] = MidiRoutingMode::PLUGIN_ONLY;
+    }
 }
 
 //==============================================================================
@@ -122,11 +128,26 @@ void MidiRouter::routeTrackEvents(int trackIndex, juce::MidiBuffer& outputBuffer
     for (int i = 0; i < size1; ++i)
     {
         const auto& event = buffer->eventBuffer[start1 + i];
+        int sampleOffset = juce::jlimit(0, numSamples - 1, event.sampleOffset);
+        
+        // Get routing mode for this track
+        MidiRoutingMode routingMode = getTrackMidiRoutingMode(trackIndex);
         
         // Route to channel 1
         auto routedMessage = routeToChannel(event.message, OUTPUT_CHANNEL);
-        int sampleOffset = juce::jlimit(0, numSamples - 1, event.sampleOffset);
-        outputBuffer.addEvent(routedMessage, sampleOffset);
+        
+        // Send to plugin graph (internal routing) 
+        if (routingMode == MidiRoutingMode::PLUGIN_ONLY || routingMode == MidiRoutingMode::BOTH)
+        {
+            outputBuffer.addEvent(routedMessage, sampleOffset);
+        }
+        
+        // Send to external MIDI device
+        if ((routingMode == MidiRoutingMode::EXTERNAL_ONLY || routingMode == MidiRoutingMode::BOTH) 
+            && m_externalMidiOutput != nullptr)
+        {
+            m_externalMidiOutput->sendMessageNow(routedMessage);
+        }
         
         // Add debug copy on channel 16
         if (m_debugEnabled.load())
@@ -141,11 +162,26 @@ void MidiRouter::routeTrackEvents(int trackIndex, juce::MidiBuffer& outputBuffer
     for (int i = 0; i < size2; ++i)
     {
         const auto& event = buffer->eventBuffer[start2 + i];
+        int sampleOffset = juce::jlimit(0, numSamples - 1, event.sampleOffset);
+        
+        // Get routing mode for this track
+        MidiRoutingMode routingMode = getTrackMidiRoutingMode(trackIndex);
         
         // Route to channel 1
         auto routedMessage = routeToChannel(event.message, OUTPUT_CHANNEL);
-        int sampleOffset = juce::jlimit(0, numSamples - 1, event.sampleOffset);
-        outputBuffer.addEvent(routedMessage, sampleOffset);
+        
+        // Send to plugin graph (internal routing) 
+        if (routingMode == MidiRoutingMode::PLUGIN_ONLY || routingMode == MidiRoutingMode::BOTH)
+        {
+            outputBuffer.addEvent(routedMessage, sampleOffset);
+        }
+        
+        // Send to external MIDI device
+        if ((routingMode == MidiRoutingMode::EXTERNAL_ONLY || routingMode == MidiRoutingMode::BOTH) 
+            && m_externalMidiOutput != nullptr)
+        {
+            m_externalMidiOutput->sendMessageNow(routedMessage);
+        }
         
         // Add debug copy on channel 16
         if (m_debugEnabled.load())
@@ -332,6 +368,26 @@ void MidiRouter::addDebugEvent(const juce::MidiMessage& originalMessage,
     outputBuffer.addEvent(trackIdMessage, debugOffset);
     
     m_stats.debugEventsSent.fetch_add(1);
+}
+
+//==============================================================================
+// MIDI Routing Mode Management
+
+void MidiRouter::setTrackMidiRoutingMode(int trackIndex, MidiRoutingMode mode)
+{
+    if (trackIndex >= 0 && trackIndex < MAX_TRACKS)
+    {
+        m_trackRoutingModes[trackIndex] = mode;
+    }
+}
+
+MidiRoutingMode MidiRouter::getTrackMidiRoutingMode(int trackIndex) const
+{
+    if (trackIndex >= 0 && trackIndex < MAX_TRACKS)
+    {
+        return m_trackRoutingModes[trackIndex];
+    }
+    return MidiRoutingMode::PLUGIN_ONLY;
 }
 
 } // namespace HAM

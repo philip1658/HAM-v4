@@ -25,6 +25,8 @@
 #include "../../UI/Components/HAMComponentLibrary.h"
 #include "../../UI/Components/HAMComponentLibraryExtended.h"
 #include "../../Domain/Services/TrackManager.h"
+#include "../../Domain/Models/Track.h"
+#include "../../Domain/Types/MidiRoutingTypes.h"
 #include <vector>
 #include <functional>
 
@@ -56,6 +58,7 @@ public:
     std::function<void(int trackIndex, bool muted)> onMuteChanged;
     std::function<void(int trackIndex, bool soloed)> onSoloChanged;
     std::function<void(int trackIndex, int channel)> onChannelChanged;
+    std::function<void(int trackIndex, HAM::MidiRoutingMode mode)> onMidiRoutingChanged;
     std::function<void(int trackIndex, bool polyMode)> onVoiceModeChanged;
     std::function<void(int trackIndex, int maxPulseLength)> onMaxPulseLengthChanged;
     std::function<void(int trackIndex, int division)> onDivisionChanged;
@@ -83,6 +86,9 @@ private:
     // Main controls (all always visible)
     std::unique_ptr<juce::Label> m_channelLabel;
     std::unique_ptr<juce::ComboBox> m_channelSelector;
+    
+    std::unique_ptr<juce::Label> m_midiRoutingLabel;
+    std::unique_ptr<juce::ComboBox> m_midiRoutingSelector;
     
     std::unique_ptr<juce::Label> m_voiceModeLabel;
     std::unique_ptr<ModernToggle> m_voiceModeToggle;

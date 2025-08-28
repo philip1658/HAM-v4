@@ -99,6 +99,22 @@ HAMAudioProcessor::HAMAudioProcessor()
     m_masterClock->addListener(this);
     m_masterClock->addListener(m_sequencerEngine.get());
     
+    // Initialize external MIDI output (IAC Driver Bus 1 for monitoring)
+    auto midiOutputDevices = juce::MidiOutput::getAvailableDevices();
+    for (const auto& device : midiOutputDevices)
+    {
+        if (device.name.contains("IAC") && device.name.contains("Bus 1"))
+        {
+            m_externalMidiOutput = juce::MidiOutput::openDevice(device.identifier);
+            if (m_externalMidiOutput && m_midiRouter)
+            {
+                m_midiRouter->setExternalMidiOutput(m_externalMidiOutput.get());
+                DBG("External MIDI output initialized: " << device.name);
+            }
+            break;
+        }
+    }
+    
     // Initialize sequencer with pattern
     m_sequencerEngine->setPattern(m_currentPattern);
     m_sequencerEngine->setVoiceManager(m_voiceManager.get());

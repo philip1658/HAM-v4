@@ -98,6 +98,20 @@ public:
         sendChangeMessage();
     }
     
+    // MIDI Routing
+    enum class MidiRoutingMode {
+        PluginOnly,    // Send MIDI only to internal plugins
+        ExternalOnly,  // Send MIDI only to external MIDI devices
+        Both          // Send MIDI to both plugins and external devices
+    };
+    
+    void setMidiRoutingMode(MidiRoutingMode mode) {
+        if (m_midiRoutingMode != mode) {
+            m_midiRoutingMode = mode;
+            sendChangeMessage();
+        }
+    }
+    
     void setOctaveOffset(int offset) {
         m_octaveOffset = juce::jlimit(-4, 4, offset);
         sendChangeMessage();
@@ -157,6 +171,7 @@ public:
     Division getDivision() const { return m_division; }
     float getSwing() const { return m_swing.load(); }
     int getMidiChannel() const { return m_midiChannel; }
+    MidiRoutingMode getMidiRoutingMode() const { return m_midiRoutingMode; }
     int getOctaveOffset() const { return m_octaveOffset; }
     int getPatternLength() const { return m_patternLength; }
     int getCurrentStageIndex() const { return m_currentStageIndex; }
@@ -223,6 +238,7 @@ public:
         m_division = Division::Quarter;
         m_swing = 0.0f;
         m_midiChannel = m_trackIndex + 1;
+        m_midiRoutingMode = MidiRoutingMode::PluginOnly;
         m_octaveOffset = 0;
         m_patternLength = 8;
         m_currentStageIndex = 0;
@@ -250,6 +266,7 @@ private:
     Division m_division = Division::Quarter;
     std::atomic<float> m_swing{0.0f};
     int m_midiChannel = 1;
+    MidiRoutingMode m_midiRoutingMode = MidiRoutingMode::PluginOnly;
     int m_octaveOffset = 0;
     int m_patternLength = 8;
     int m_currentStageIndex = -1;

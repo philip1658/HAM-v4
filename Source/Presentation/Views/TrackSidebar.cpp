@@ -92,6 +92,30 @@ void TrackControlStrip::setupControls()
     m_channelSelector->setColour(juce::ComboBox::outlineColourId, m_trackColor.withAlpha(0.3f));
     addAndMakeVisible(m_channelSelector.get());
     
+    // MIDI Routing selector
+    m_midiRoutingLabel = createLabel("MIDI Routing");
+    m_midiRoutingSelector = std::make_unique<juce::ComboBox>("MidiRouting");
+    m_midiRoutingSelector->addItem("Plugin Only", 1);
+    m_midiRoutingSelector->addItem("External Only", 2);
+    m_midiRoutingSelector->addItem("Both", 3);
+    m_midiRoutingSelector->onChange = [this]() {
+        if (onMidiRoutingChanged) {
+            HAM::MidiRoutingMode mode;
+            switch (m_midiRoutingSelector->getSelectedId()) {
+                case 1: mode = HAM::MidiRoutingMode::PLUGIN_ONLY; break;
+                case 2: mode = HAM::MidiRoutingMode::EXTERNAL_ONLY; break;
+                case 3: mode = HAM::MidiRoutingMode::BOTH; break;
+                default: mode = HAM::MidiRoutingMode::PLUGIN_ONLY; break;
+            }
+            onMidiRoutingChanged(m_trackIndex, mode);
+        }
+    };
+    m_midiRoutingSelector->setSelectedId(1); // Default to Plugin Only
+    m_midiRoutingSelector->setColour(juce::ComboBox::backgroundColourId, juce::Colour(DesignTokens::Colors::BG_RAISED));
+    m_midiRoutingSelector->setColour(juce::ComboBox::textColourId, juce::Colour(DesignTokens::Colors::TEXT_PRIMARY));
+    m_midiRoutingSelector->setColour(juce::ComboBox::outlineColourId, m_trackColor.withAlpha(0.3f));
+    addAndMakeVisible(m_midiRoutingSelector.get());
+    
     // Voice mode toggle (Mono/Poly)
     m_voiceModeLabel = createLabel("Voice Mode");
     m_voiceModeToggle = std::make_unique<ModernToggle>();
@@ -261,6 +285,9 @@ void TrackControlStrip::resized()
     // MIDI Channel
     layoutControl(m_channelLabel.get(), m_channelSelector.get(), 30);
     
+    // MIDI Routing  
+    layoutControl(m_midiRoutingLabel.get(), m_midiRoutingSelector.get(), 30);
+    
     // Voice Mode - centered toggle
     auto voiceRow = bounds.removeFromTop(46);
     m_voiceModeLabel->setBounds(voiceRow.removeFromTop(14));
@@ -318,6 +345,19 @@ void TrackControlStrip::updateFromTrack(const TrackViewModel& track)
     m_trackColor = track.getTrackColor();
     m_isMuted = track.isMuted();
     m_isSoloed = track.isSoloed();
+    
+    // Update MIDI routing dropdown
+    switch (track.getMidiRoutingMode()) {
+        case TrackViewModel::MidiRoutingMode::PluginOnly:
+            m_midiRoutingSelector->setSelectedId(1, juce::dontSendNotification);
+            break;
+        case TrackViewModel::MidiRoutingMode::ExternalOnly:
+            m_midiRoutingSelector->setSelectedId(2, juce::dontSendNotification);
+            break;
+        case TrackViewModel::MidiRoutingMode::Both:
+            m_midiRoutingSelector->setSelectedId(3, juce::dontSendNotification);
+            break;
+    }
     
     // Update control states - use track color when not active
     m_muteButton->setColor(m_isMuted ? 

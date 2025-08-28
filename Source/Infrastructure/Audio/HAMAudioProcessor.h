@@ -205,6 +205,9 @@ private:
     std::unique_ptr<MidiRouter> m_midiRouter;
     std::unique_ptr<ChannelManager> m_channelManager;
     
+    // External MIDI output
+    std::unique_ptr<juce::MidiOutput> m_externalMidiOutput;
+    
     // Plugin hosting
     std::unique_ptr<juce::AudioProcessorGraph> m_pluginGraph;
     juce::AudioProcessorGraph::Node::Ptr m_audioInputNode;

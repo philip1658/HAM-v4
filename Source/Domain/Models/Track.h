@@ -14,6 +14,7 @@
 #include <JuceHeader.h>
 #include "Stage.h"
 #include "Scale.h"
+#include "../Types/MidiRoutingTypes.h"
 
 namespace HAM {
 
@@ -115,6 +116,10 @@ public:
     /** Set MIDI output channel (1-16) */
     void setMidiChannel(int channel);
     int getMidiChannel() const { return m_midiChannel; }
+    
+    /** Set MIDI routing mode */
+    void setMidiRoutingMode(MidiRoutingMode mode) { m_midiRoutingMode = mode; }
+    MidiRoutingMode getMidiRoutingMode() const { return m_midiRoutingMode; }
     
     /** Set voice mode */
     void setVoiceMode(VoiceMode mode) { m_voiceMode = mode; }
@@ -231,6 +236,7 @@ private:
     
     // MIDI settings
     int m_midiChannel = 1;              // MIDI channel 1-16
+    MidiRoutingMode m_midiRoutingMode = MidiRoutingMode::PLUGIN_ONLY;  // Default to plugin only
     VoiceMode m_voiceMode = VoiceMode::MONO;
     int m_maxVoices = 1;                // Max polyphony
     

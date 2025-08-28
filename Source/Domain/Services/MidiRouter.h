@@ -15,6 +15,7 @@
 #include <atomic>
 #include <memory>
 #include "../../Application/Configuration.h"
+#include "../Types/MidiRoutingTypes.h"
 
 namespace HAM {
 
@@ -82,6 +83,14 @@ public:
     /** Enable/disable debug channel output */
     void setDebugChannelEnabled(bool enabled) { m_debugEnabled = enabled; }
     bool isDebugChannelEnabled() const { return m_debugEnabled; }
+    
+    /** Set external MIDI output device */
+    void setExternalMidiOutput(juce::MidiOutput* output) { m_externalMidiOutput = output; }
+    juce::MidiOutput* getExternalMidiOutput() const { return m_externalMidiOutput; }
+    
+    /** Set MIDI routing mode for a track */
+    void setTrackMidiRoutingMode(int trackIndex, MidiRoutingMode mode);
+    MidiRoutingMode getTrackMidiRoutingMode(int trackIndex) const;
     
     /** Enable/disable specific track */
     void setTrackEnabled(int trackIndex, bool enabled);
@@ -157,6 +166,12 @@ private:
     
     // Track buffers
     std::array<std::unique_ptr<TrackBuffer>, MAX_TRACKS> m_trackBuffers;
+    
+    // External MIDI output
+    juce::MidiOutput* m_externalMidiOutput = nullptr;
+    
+    // Track routing modes
+    std::array<MidiRoutingMode, MAX_TRACKS> m_trackRoutingModes;
     
     // Configuration
     // Default: enabled for test visibility; UI can toggle off in app
