@@ -273,7 +273,7 @@ public:
 private:
     //==========================================================================
     // Core parameters
-    int m_pitch = 60;                      // MIDI note number (C4)
+    int m_pitch = 0;                       // Scale degree (0 = root note)
     float m_gate = 0.5f;                   // Gate length (50%)
     int m_velocity = 100;                  // MIDI velocity
     VelocityCurve m_velocityCurve;         // Velocity curve configuration

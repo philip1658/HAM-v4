@@ -311,7 +311,7 @@ void Stage::fromValueTree(const juce::ValueTree& tree)
 
 bool Stage::isDefault() const
 {
-    return m_pitch == 60 &&
+    return m_pitch == 0 &&  // Scale degree 0 = root note
            m_gate == 0.5f &&
            m_velocity == 100 &&
            m_pulseCount == 1 &&
@@ -328,7 +328,7 @@ bool Stage::isDefault() const
 
 void Stage::reset()
 {
-    m_pitch = 60;
+    m_pitch = 0;  // Scale degree 0 = root note
     m_gate = 0.5f;
     m_velocity = 100;
     m_pulseCount = 1;

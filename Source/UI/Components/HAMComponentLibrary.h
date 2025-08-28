@@ -147,6 +147,32 @@ public:
         g.setColour(juce::Colour(DesignTokens::Colors::BORDER));
         g.drawRoundedRectangle(trackBounds, scaled(DesignTokens::Dimensions::CORNER_RADIUS), scaled(1.0f));
         
+        // Draw octave markers for pitch slider (scale degrees)
+        if (m_isScaleDegreeMode && m_vertical) {
+            g.setColour(juce::Colour(DesignTokens::Colors::GRID_LINE).withAlpha(0.5f));
+            const int numOctaves = 5; // -35 to +35 = 5 octaves for 7-note scales
+            const int degreesPerOctave = 7; // Assuming diatonic scale
+            
+            // Draw octave lines (stronger lines at octave boundaries)
+            for (int oct = -2; oct <= 2; ++oct) {
+                // Map octave position to normalized value (0 to 1)
+                // 0 degrees is at center (0.5), -35 at 0.0, +35 at 1.0
+                float normalizedPos = 0.5f + (oct * degreesPerOctave / 70.0f);
+                float yPos = trackBounds.getY() + trackBounds.getHeight() * (1.0f - normalizedPos);
+                
+                // Stronger line at center (0 degrees)
+                if (oct == 0) {
+                    g.setColour(juce::Colours::white.withAlpha(0.3f));
+                    g.drawLine(trackBounds.getX() - scaled(6), yPos,
+                              trackBounds.getRight() + scaled(6), yPos, scaled(1.5f));
+                } else {
+                    g.setColour(juce::Colour(DesignTokens::Colors::GRID_LINE).withAlpha(0.3f));
+                    g.drawLine(trackBounds.getX() - scaled(3), yPos,
+                              trackBounds.getRight() + scaled(3), yPos, scaled(0.5f));
+                }
+            }
+        }
+        
         // Optimized: Solid color with alpha for fill (value indicator)
         float fillProportion = m_value;
         if (fillProportion > 0.01f) {
@@ -173,14 +199,39 @@ public:
                       scaled(2), trackBounds.getHeight() + scaled(8));
         }
         
-        // Draw label at the top for vertical sliders
+        // Draw label and value display
         if (m_label.isNotEmpty()) {
             g.setColour(juce::Colour(DesignTokens::Colors::TEXT_MUTED));
             g.setFont(juce::Font(juce::FontOptions(scaled(9))));
             if (m_vertical) {
                 // Draw label at the very top of the component
                 auto labelBounds = getLocalBounds().toFloat().withHeight(scaled(14));
-                g.drawText(m_label, labelBounds, juce::Justification::centred);
+                
+                // For pitch slider in scale degree mode, show the degree value
+                if (m_isScaleDegreeMode && m_label == "PITCH") {
+                    int degree = static_cast<int>((m_value - 0.5f) * 70.0f); // -35 to +35
+                    juce::String degreeText = m_label + ": ";
+                    
+                    if (degree > 0) {
+                        degreeText += "+";
+                    }
+                    degreeText += juce::String(degree);
+                    
+                    // Add octave indicator
+                    int octave = degree / 7;
+                    int scaleDegree = std::abs(degree) % 7 + 1;
+                    if (degree != 0) {
+                        degreeText += " (" + juce::String(scaleDegree);
+                        if (octave != 0) {
+                            degreeText += (octave > 0 ? "+" : "") + juce::String(octave);
+                        }
+                        degreeText += ")";
+                    }
+                    
+                    g.drawText(degreeText, labelBounds, juce::Justification::centred);
+                } else {
+                    g.drawText(m_label, labelBounds, juce::Justification::centred);
+                }
             } else {
                 // Keep horizontal slider labels to the left
                 g.drawText(m_label, bounds.reduced(scaled(2)), juce::Justification::centredLeft);
@@ -215,6 +266,34 @@ public:
         repaint();
     }
     
+    // Enable scale degree mode for pitch sliders
+    void setScaleDegreeMode(bool enabled) {
+        m_isScaleDegreeMode = enabled;
+        if (enabled) {
+            // Set value to center (0 degrees) when enabling scale degree mode
+            setValue(0.5f);
+        }
+        repaint();
+    }
+    
+    bool isScaleDegreeMode() const { return m_isScaleDegreeMode; }
+    
+    // Get the scale degree value (-35 to +35)
+    int getScaleDegree() const {
+        if (m_isScaleDegreeMode) {
+            return static_cast<int>((m_value - 0.5f) * 70.0f);
+        }
+        return 0;
+    }
+    
+    // Set scale degree value (-35 to +35)
+    void setScaleDegree(int degree) {
+        if (m_isScaleDegreeMode) {
+            degree = juce::jlimit(-35, 35, degree);
+            setValue(0.5f + (degree / 70.0f));
+        }
+    }
+    
     // Callback
     std::function<void(float)> onValueChange;
     
@@ -223,6 +302,7 @@ private:
     float m_value = 0.5f;
     juce::String m_label;
     juce::Colour m_trackColor = juce::Colour(DesignTokens::Colors::ACCENT_BLUE);
+    bool m_isScaleDegreeMode = false;  // For pitch sliders showing scale degrees
     
     void updateValue(juce::Point<float> pos) {
         auto bounds = getLocalBounds().toFloat();
@@ -455,11 +535,16 @@ public:
         m_velocitySlider->setLabel("VEL");
         m_gateSlider->setLabel("GATE");
         
-        // Set different colors for each slider (as originally intended)
-        m_pitchSlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[0]));
-        m_pulseSlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[1]));
-        m_velocitySlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[2]));
-        m_gateSlider->setTrackColor(juce::Colour(DesignTokens::Colors::TRACK_COLORS[3]));
+        // Enable scale degree mode for pitch slider
+        m_pitchSlider->setScaleDegreeMode(true);
+        
+        // All sliders will use the track color (set via setTrackColor method)
+        // Default to first track color until setTrackColor is called
+        auto defaultColor = juce::Colour(DesignTokens::Colors::TRACK_COLORS[0]);
+        m_pitchSlider->setTrackColor(defaultColor);
+        m_pulseSlider->setTrackColor(defaultColor);
+        m_velocitySlider->setTrackColor(defaultColor);
+        m_gateSlider->setTrackColor(defaultColor);
         
         // Create Stage Editor button - don't set color yet
         m_stageEditorButton = std::make_unique<ModernButton>("EDIT", ModernButton::Style::Solid);
@@ -569,6 +654,20 @@ public:
     
     void setTrackColor(const juce::Colour& color) {
         m_trackColor = color;
+        
+        // Update all sliders to use the track color
+        if (m_pitchSlider) {
+            m_pitchSlider->setTrackColor(m_trackColor);
+        }
+        if (m_pulseSlider) {
+            m_pulseSlider->setTrackColor(m_trackColor);
+        }
+        if (m_velocitySlider) {
+            m_velocitySlider->setTrackColor(m_trackColor);
+        }
+        if (m_gateSlider) {
+            m_gateSlider->setTrackColor(m_trackColor);
+        }
         
         // Update EDIT button to use track color
         if (m_stageEditorButton) {

@@ -100,6 +100,9 @@ public:
     /** Get track count */
     int getTrackCount() const { return static_cast<int>(m_tracks.size()); }
     
+    /** Set track count - adds or removes tracks to reach desired count */
+    void setTrackCount(int count);
+    
     /** Clear all tracks */
     void clearTracks();
     

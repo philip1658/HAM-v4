@@ -256,8 +256,14 @@ void HAMAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         m_sequencerEngine->processBlock(m_currentSampleRate, numSamples);
         
         // ============================================================================
-        // NEW PER-TRACK MIDI PROCESSING - Proper track isolation!
-        // Each track's MIDI goes ONLY to its assigned plugin
+        // PER-TRACK MIDI ROUTING ARCHITECTURE
+        // 
+        // 1. Each track has its own FIFO queue in SequencerEngine
+        // 2. Events are separated by track index (0-7), NOT by MIDI channel
+        // 3. Each track's events go ONLY to its corresponding plugin
+        // 4. All events are converted to Channel 1 for the plugin (plugins expect Ch 1)
+        // 
+        // This achieves true track isolation while maintaining plugin compatibility
         // ============================================================================
         
         // Clear the main MIDI buffer (we won't use it for plugin routing anymore)
@@ -279,7 +285,29 @@ void HAMAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 {
                     if (event.sampleOffset < numSamples)
                     {
-                        trackMidiBuffer.addEvent(event.message, event.sampleOffset);
+                        // Force Channel 1 for plugins (most plugins only listen to Ch 1)
+                        juce::MidiMessage msg = event.message;
+                        if (msg.isNoteOn())
+                        {
+                            msg = juce::MidiMessage::noteOn(1, msg.getNoteNumber(), msg.getVelocity());
+                        }
+                        else if (msg.isNoteOff())
+                        {
+                            msg = juce::MidiMessage::noteOff(1, msg.getNoteNumber(), msg.getVelocity());
+                        }
+                        else if (msg.isController())
+                        {
+                            msg = juce::MidiMessage::controllerEvent(1, msg.getControllerNumber(), msg.getControllerValue());
+                        }
+                        else if (msg.isPitchWheel())
+                        {
+                            msg = juce::MidiMessage::pitchWheel(1, msg.getPitchWheelValue());
+                        }
+                        else if (msg.isChannelPressure())
+                        {
+                            msg = juce::MidiMessage::channelPressureChange(1, msg.getChannelPressureValue());
+                        }
+                        trackMidiBuffer.addEvent(msg, event.sampleOffset);
                         
                         // Debug: Capture MIDI events for timing analysis
                         #ifdef DEBUG

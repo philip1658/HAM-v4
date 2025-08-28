@@ -203,41 +203,31 @@ public:
         // Pattern Section (700px) - More space for 8 pattern buttons
         auto patternSection = bounds.removeFromLeft(scaled(700));
         
-        // Pattern selection buttons - now 8 buttons arranged in two rows
-        // No pattern name label - cleaner interface
-        auto patternTopRow = patternSection.removeFromTop(scaled(32));
-        auto patternBottomRow = patternSection.removeFromTop(scaled(32));
+        // Pattern selection buttons - now 8 buttons arranged in SINGLE row
+        auto patternButtonArea = patternSection.withSizeKeepingCentre(patternSection.getWidth(), scaled(35));
         
-        float patternButtonWidth = scaled(65);
-        float patternGap = scaled(5);
+        float patternButtonWidth = scaled(50);  // Slightly smaller to fit all 8
+        float patternGap = scaled(4);
         
-        // First row - patterns 1-4
-        for (size_t i = 0; i < 4 && i < m_patternButtons.size(); ++i) {
-            auto buttonBounds = patternTopRow.removeFromLeft(patternButtonWidth)
-                                            .withSizeKeepingCentre(patternButtonWidth, scaled(28));
+        // Single row - all 8 patterns
+        for (size_t i = 0; i < 8 && i < m_patternButtons.size(); ++i) {
+            auto buttonBounds = patternButtonArea.removeFromLeft(patternButtonWidth)
+                                                .withSizeKeepingCentre(patternButtonWidth, scaled(30));
             m_patternButtons[i]->setBounds(buttonBounds);
-            patternTopRow.removeFromLeft(patternGap);
-        }
-        
-        // Second row - patterns 5-8
-        for (size_t i = 4; i < 8 && i < m_patternButtons.size(); ++i) {
-            auto buttonBounds = patternBottomRow.removeFromLeft(patternButtonWidth)
-                                               .withSizeKeepingCentre(patternButtonWidth, scaled(28));
-            m_patternButtons[i]->setBounds(buttonBounds);
-            patternBottomRow.removeFromLeft(patternGap);
+            patternButtonArea.removeFromLeft(patternGap);
         }
         
         // Gap before save/load buttons
-        patternTopRow.removeFromLeft(scaled(20));
+        patternButtonArea.removeFromLeft(scaled(25));
         
         // Save/Load buttons aligned with pattern buttons
         auto saveLoadWidth = scaled(55);
-        m_saveButton->setBounds(patternTopRow.removeFromLeft(saveLoadWidth)
-                                            .withSizeKeepingCentre(saveLoadWidth, scaled(28)));
-        patternTopRow.removeFromLeft(scaled(5));
+        m_saveButton->setBounds(patternButtonArea.removeFromLeft(saveLoadWidth)
+                                                .withSizeKeepingCentre(saveLoadWidth, scaled(30)));
+        patternButtonArea.removeFromLeft(scaled(5));
         
-        m_loadButton->setBounds(patternTopRow.removeFromLeft(saveLoadWidth)
-                                            .withSizeKeepingCentre(saveLoadWidth, scaled(28)));
+        m_loadButton->setBounds(patternButtonArea.removeFromLeft(saveLoadWidth)
+                                                .withSizeKeepingCentre(saveLoadWidth, scaled(30)));
         
         // Right Section: Status & Monitoring (remaining space)
         auto statusSection = bounds.removeFromRight(scaled(100));

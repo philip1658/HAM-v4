@@ -286,6 +286,24 @@ void SequencerEngine::processTrack(Track& track, int trackIndex, int pulseNumber
             // Start the new stage
             if (m_voiceManager)
             {
+                // Generate MIDI note-off events for any active notes before clearing
+                for (int i = 0; i < m_voiceManager->getMaxVoices(); ++i)
+                {
+                    auto* voice = m_voiceManager->getVoice(i);
+                    if (voice && voice->active.load() && 
+                        voice->channel.load() == track.getMidiChannel())
+                    {
+                        MidiEvent offEvent;
+                        offEvent.message = juce::MidiMessage::noteOff(
+                            track.getMidiChannel(), 
+                            voice->noteNumber.load()
+                        );
+                        offEvent.trackIndex = trackIndex;
+                        offEvent.stageIndex = static_cast<int>(newStageIndex);
+                        offEvent.sampleOffset = 0;
+                        queueMidiEvent(offEvent);
+                    }
+                }
                 m_voiceManager->allNotesOff(track.getMidiChannel());
             }
             generateStageEvents(track, newStage, trackIndex, static_cast<int>(newStageIndex));
@@ -302,6 +320,24 @@ void SequencerEngine::processTrack(Track& track, int trackIndex, int pulseNumber
                 // Starting a stage for the first time
                 if (m_voiceManager)
                 {
+                    // Generate MIDI note-off events for any active notes before clearing
+                    for (int i = 0; i < m_voiceManager->getMaxVoices(); ++i)
+                    {
+                        auto* voice = m_voiceManager->getVoice(i);
+                        if (voice && voice->active.load() && 
+                            voice->channel.load() == track.getMidiChannel())
+                        {
+                            MidiEvent offEvent;
+                            offEvent.message = juce::MidiMessage::noteOff(
+                                track.getMidiChannel(), 
+                                voice->noteNumber.load()
+                            );
+                            offEvent.trackIndex = trackIndex;
+                            offEvent.stageIndex = static_cast<int>(stageIndex);
+                            offEvent.sampleOffset = 0;
+                            queueMidiEvent(offEvent);
+                        }
+                    }
                     m_voiceManager->allNotesOff(track.getMidiChannel());
                 }
                 generateStageEvents(track, stage, trackIndex, static_cast<int>(stageIndex));
@@ -414,7 +450,24 @@ void SequencerEngine::generateStageEvents(Track& track, const Stage& stage,
     {
         if (track.getVoiceMode() == VoiceMode::MONO)
         {
-            // In MONO mode, stop previous note
+            // In MONO mode, generate note-off for previous notes before clearing
+            for (int i = 0; i < m_voiceManager->getMaxVoices(); ++i)
+            {
+                auto* voice = m_voiceManager->getVoice(i);
+                if (voice && voice->active.load() && 
+                    voice->channel.load() == track.getMidiChannel())
+                {
+                    MidiEvent offEvent;
+                    offEvent.message = juce::MidiMessage::noteOff(
+                        track.getMidiChannel(), 
+                        voice->noteNumber.load()
+                    );
+                    offEvent.trackIndex = trackIndex;
+                    offEvent.stageIndex = stageIndex;
+                    offEvent.sampleOffset = 0;
+                    queueMidiEvent(offEvent);
+                }
+            }
             m_voiceManager->allNotesOff(track.getMidiChannel());
         }
         

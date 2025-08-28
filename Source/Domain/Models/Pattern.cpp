@@ -85,6 +85,30 @@ const Track* Pattern::getTrack(int index) const
     return nullptr;
 }
 
+void Pattern::setTrackCount(int count)
+{
+    count = juce::jlimit(0, MAX_TRACKS, count);
+    
+    // Add tracks if needed
+    while (static_cast<int>(m_tracks.size()) < count)
+    {
+        int trackIndex = addTrack();
+        // Only enable the first track by default
+        if (trackIndex > 0 && m_tracks[trackIndex])
+        {
+            m_tracks[trackIndex]->setEnabled(false);
+        }
+    }
+    
+    // Remove tracks if needed
+    while (static_cast<int>(m_tracks.size()) > count)
+    {
+        m_tracks.pop_back();
+    }
+    
+    m_modified = true;
+}
+
 void Pattern::clearTracks()
 {
     m_tracks.clear();

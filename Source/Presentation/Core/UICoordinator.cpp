@@ -645,13 +645,14 @@ void UICoordinator::resized()
     // Single integrated toolbar - everything on one line
     auto tabBarArea = bounds.removeFromTop(TAB_BAR_HEIGHT);
     
-    int iconButtonSize = 36;  // Consistent size for all icon buttons
+    int iconButtonSize = 36;  // Size for track management buttons
+    int tabButtonWidth = 72;  // Double width for tab buttons
     int buttonY = tabBarArea.getY() + (TAB_BAR_HEIGHT - iconButtonSize) / 2;  // Vertically centered
     
-    // Left side: Navigation buttons
+    // Left side: Track management buttons
     int leftX = 10;
     
-    // Track management buttons (same size as navigation)
+    // Track management buttons (square icons)
     if (m_addTrackButton)
     {
         m_addTrackButton->setBounds(leftX, buttonY, iconButtonSize, iconButtonSize);
@@ -660,24 +661,24 @@ void UICoordinator::resized()
     if (m_removeTrackButton)
     {
         m_removeTrackButton->setBounds(leftX, buttonY, iconButtonSize, iconButtonSize);
-        leftX += iconButtonSize + 20;  // Increased space before navigation for visual hierarchy
+        leftX += iconButtonSize + 40;  // Much larger space before tabs for clear separation
     }
     
-    // Navigation icons (view modes)
+    // Navigation tabs (double width)
     if (m_sequencerTabButton)
     {
-        m_sequencerTabButton->setBounds(leftX, buttonY, iconButtonSize, iconButtonSize);
-        leftX += iconButtonSize + 5;
+        m_sequencerTabButton->setBounds(leftX, buttonY, tabButtonWidth, iconButtonSize);
+        leftX += tabButtonWidth + 5;
     }
     if (m_mixerTabButton)
     {
-        m_mixerTabButton->setBounds(leftX, buttonY, iconButtonSize, iconButtonSize);
-        leftX += iconButtonSize + 5;
+        m_mixerTabButton->setBounds(leftX, buttonY, tabButtonWidth, iconButtonSize);
+        leftX += tabButtonWidth + 5;
     }
     if (m_settingsTabButton)
     {
-        m_settingsTabButton->setBounds(leftX, buttonY, iconButtonSize, iconButtonSize);
-        leftX += iconButtonSize + 5;
+        m_settingsTabButton->setBounds(leftX, buttonY, tabButtonWidth, iconButtonSize);
+        leftX += tabButtonWidth + 5;
     }
     
     // Center: Scale slot selector 
