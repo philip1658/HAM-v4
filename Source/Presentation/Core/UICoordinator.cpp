@@ -40,23 +40,33 @@ UICoordinator::~UICoordinator() = default;
 void UICoordinator::setAudioProcessor(HAMAudioProcessor* processor)
 {
     if (!processor)
+    {
+        juce::Logger::writeToLog("UICoordinator::setAudioProcessor - processor is null!");
         return;
+    }
+    
+    juce::Logger::writeToLog("UICoordinator::setAudioProcessor - Setting up audio processor");
     
     // Connect the stage grid to the processor for playhead tracking
     if (m_stageGrid)
     {
         m_stageGrid->setAudioProcessor(processor);
+        juce::Logger::writeToLog("UICoordinator: Connected processor to StageGrid");
     }
     
     // Create the mixer view now that we have a processor
     if (!m_mixerView)
     {
+        juce::Logger::writeToLog("UICoordinator: Creating MixerView with processor");
         m_mixerView = std::make_unique<MixerView>(*processor);
         m_contentContainer->addAndMakeVisible(m_mixerView.get());
         
         // Set visibility based on current active view
         // But MixerView is created regardless so its plugin browser can be used
         m_mixerView->setVisible(m_activeView == ViewMode::Mixer);
+        
+        juce::Logger::writeToLog("UICoordinator: MixerView created, visible=" + 
+                                juce::String(m_activeView == ViewMode::Mixer ? "true" : "false"));
         
         // MixerView provides the plugin browser for the entire application
         // It can be accessed even when MixerView itself is not visible
@@ -67,6 +77,10 @@ void UICoordinator::setAudioProcessor(HAMAudioProcessor* processor)
             resized();
         }
     }
+    else
+    {
+        juce::Logger::writeToLog("UICoordinator: MixerView already exists");
+    }
 }
 
 //==============================================================================
@@ -76,15 +90,31 @@ void UICoordinator::createUIComponents()
     m_transportBar = std::make_unique<TransportBar>();
     addAndMakeVisible(m_transportBar.get());
     
-    // Create view toggle buttons with symbolic icons
+    // Create main content container FIRST (at bottom of z-order)
+    m_contentContainer = std::make_unique<juce::Component>();
+    addAndMakeVisible(m_contentContainer.get());
+    
+    // Create sequencer page components (also at bottom)
+    m_sequencerPage = std::make_unique<juce::Component>();
+    m_contentContainer->addAndMakeVisible(m_sequencerPage.get());
+    
+    // Create scale UI components BEFORE buttons (so they're below in z-order)
+    m_scaleSlotViewModel = std::make_unique<ScaleSlotViewModel>();
+    m_scaleSlotSelector = std::make_unique<ScaleSlotSelector>();
+    m_scaleSlotSelector->setViewModel(m_scaleSlotViewModel.get());
+    addAndMakeVisible(m_scaleSlotSelector.get());
+    
+    // Create view toggle buttons AFTER scale selector (on top in z-order)
     m_sequencerTabButton = std::make_unique<IconButton>("Sequencer", IconButton::IconType::Sequencer);
     m_sequencerTabButton->setTooltip("Sequencer View");
     m_sequencerTabButton->setActive(true);  // Start with sequencer active
     addAndMakeVisible(m_sequencerTabButton.get());
+    juce::Logger::writeToLog("UICoordinator: Created Sequencer tab button");
     
     m_mixerTabButton = std::make_unique<IconButton>("Mixer", IconButton::IconType::Mixer);
     m_mixerTabButton->setTooltip("Mixer View");
     addAndMakeVisible(m_mixerTabButton.get());
+    juce::Logger::writeToLog("UICoordinator: Created Mixer tab button");
     
     // Settings button removed - no longer needed
     
@@ -92,65 +122,16 @@ void UICoordinator::createUIComponents()
     m_addTrackButton = std::make_unique<IconButton>("Add Track", IconButton::IconType::AddTrack);
     m_addTrackButton->setTooltip("Add Track");
     m_addTrackButton->setActiveColor(juce::Colour(0xFF00FF88));  // Green
-    m_addTrackButton->onClick = [this]() {
-        m_controller.addTrack();
-        
-        // Update the track sidebar and stage grid to show the new track
-        auto& trackManager = TrackManager::getInstance();
-        int newTrackCount = trackManager.getTrackCount();
-        
-        if (m_trackSidebar) {
-            m_trackSidebar->setTrackCount(newTrackCount);
-        }
-        if (m_stageGrid) {
-            m_stageGrid->setTrackCount(newTrackCount);
-        }
-        
-        // Re-layout the entire sequencer view to recalculate responsive widths
-        layoutSequencerView();
-        
-        DBG("Track added - now have " << newTrackCount << " tracks");
-    };
+    // onClick will be set in setupEventHandlers()
     addAndMakeVisible(m_addTrackButton.get());
     
     m_removeTrackButton = std::make_unique<IconButton>("Remove Track", IconButton::IconType::RemoveTrack);
     m_removeTrackButton->setTooltip("Remove Track");
     m_removeTrackButton->setActiveColor(juce::Colour(0xFFFF5555));  // Red
-    m_removeTrackButton->onClick = [this]() {
-        auto& trackManager = TrackManager::getInstance();
-        int trackCount = trackManager.getTrackCount();
-        
-        if (trackCount > 1) {
-            m_controller.removeTrack(trackCount - 1); // Remove last track
-            
-            // Get updated count after removal
-            int newTrackCount = trackManager.getTrackCount();
-            
-            // Update the track sidebar and stage grid
-            if (m_trackSidebar) {
-                m_trackSidebar->setTrackCount(newTrackCount);
-            }
-            if (m_stageGrid) {
-                m_stageGrid->setTrackCount(newTrackCount);
-            }
-            
-            // Re-layout the entire sequencer view to recalculate responsive widths
-            layoutSequencerView();
-            
-            DBG("Track removed - now have " << newTrackCount << " tracks");
-        } else {
-            DBG("Cannot remove last track");
-        }
-    };
+    // onClick will be set in setupEventHandlers()
     addAndMakeVisible(m_removeTrackButton.get());
     
-    // Create main content container
-    m_contentContainer = std::make_unique<juce::Component>();
-    addAndMakeVisible(m_contentContainer.get());
-    
-    // Create sequencer page components
-    m_sequencerPage = std::make_unique<juce::Component>();
-    m_contentContainer->addAndMakeVisible(m_sequencerPage.get());
+    // Content container and sequencer page already created above
     
     // Create a content container that holds both sidebar and grid
     m_sequencerContent = std::make_unique<juce::Component>();
@@ -172,18 +153,11 @@ void UICoordinator::createUIComponents()
     m_sequencerViewport->setScrollBarThickness(10);
     m_sequencerPage->addAndMakeVisible(m_sequencerViewport.get());
     
-    // Create scale UI components
-    m_scaleSlotViewModel = std::make_unique<ScaleSlotViewModel>();
-    m_scaleSlotSelector = std::make_unique<ScaleSlotSelector>();
-    m_scaleSlotSelector->setViewModel(m_scaleSlotViewModel.get());
-    
+    // Scale UI components already created above
     // Setup scale browser callback
     m_scaleSlotSelector->onScaleBrowserRequested = [this](int slotIndex) {
         showScaleBrowser(slotIndex);
     };
-    
-    // Scale slot selector is now added to the main coordinator, not the sequencer page
-    addAndMakeVisible(m_scaleSlotSelector.get());
     
     // Mixer view will be created when we have processor available
     
@@ -231,17 +205,22 @@ void UICoordinator::setupEventHandlers()
     {
         // Add a new track through the controller
         m_controller.addTrack();
-        DBG("Add track button clicked");
         
-        // Refresh the UI
-        if (m_trackSidebar)
-        {
-            m_trackSidebar->refreshTracks();
+        // Update the track sidebar and stage grid to show the new track
+        auto& trackManager = TrackManager::getInstance();
+        int newTrackCount = trackManager.getTrackCount();
+        
+        if (m_trackSidebar) {
+            m_trackSidebar->setTrackCount(newTrackCount);
         }
-        if (m_stageGrid)
-        {
-            m_stageGrid->setTrackCount(TrackManager::getInstance().getTrackCount());
+        if (m_stageGrid) {
+            m_stageGrid->setTrackCount(newTrackCount);
         }
+        
+        // Re-layout the entire sequencer view to recalculate responsive widths
+        layoutSequencerView();
+        
+        DBG("Track added - now have " << newTrackCount << " tracks");
     };
     
     m_removeTrackButton->onClick = [this]()
@@ -252,18 +231,23 @@ void UICoordinator::setupEventHandlers()
         
         if (trackCount > 1)  // Keep at least 1 track
         {
-            m_controller.removeTrack(trackCount - 1);
-            DBG("Remove track button clicked");
+            m_controller.removeTrack(trackCount - 1); // Remove last track
             
-            // Refresh the UI
-            if (m_trackSidebar)
-            {
-                m_trackSidebar->refreshTracks();
+            // Get updated count after removal
+            int newTrackCount = trackManager.getTrackCount();
+            
+            // Update the track sidebar and stage grid
+            if (m_trackSidebar) {
+                m_trackSidebar->setTrackCount(newTrackCount);
             }
-            if (m_stageGrid)
-            {
-                m_stageGrid->setTrackCount(trackManager.getTrackCount());
+            if (m_stageGrid) {
+                m_stageGrid->setTrackCount(newTrackCount);
             }
+            
+            // Re-layout the entire sequencer view to recalculate responsive widths
+            layoutSequencerView();
+            
+            DBG("Track removed - now have " << newTrackCount << " tracks");
         }
         else
         {
@@ -272,15 +256,39 @@ void UICoordinator::setupEventHandlers()
     };
     
     // View switching
-    m_sequencerTabButton->onClick = [this]()
-    {
-        setActiveView(ViewMode::Sequencer);
-    };
+    juce::Logger::writeToLog("UICoordinator: Setting up view switching handlers");
     
-    m_mixerTabButton->onClick = [this]()
+    if (m_sequencerTabButton)
     {
-        setActiveView(ViewMode::Mixer);
-    };
+        m_sequencerTabButton->onClick = [this]()
+        {
+            juce::Logger::writeToLog("UICoordinator: Sequencer tab button clicked!");
+            setActiveView(ViewMode::Sequencer);
+        };
+        juce::Logger::writeToLog("UICoordinator: Sequencer button onClick handler set");
+    }
+    else
+    {
+        juce::Logger::writeToLog("UICoordinator: ERROR - m_sequencerTabButton is null!");
+    }
+    
+    if (m_mixerTabButton)
+    {
+        m_mixerTabButton->onClick = [this]()
+        {
+            juce::Logger::writeToLog("UICoordinator: Mixer tab button onClick lambda called!");
+            setActiveView(ViewMode::Mixer);
+        };
+        juce::Logger::writeToLog("UICoordinator: Mixer button onClick handler set");
+        juce::Logger::writeToLog("UICoordinator: Mixer button visible=" + 
+                                juce::String(m_mixerTabButton->isVisible() ? "true" : "false"));
+        juce::Logger::writeToLog("UICoordinator: Mixer button enabled=" + 
+                                juce::String(m_mixerTabButton->isEnabled() ? "true" : "false"));
+    }
+    else
+    {
+        juce::Logger::writeToLog("UICoordinator: ERROR - m_mixerTabButton is null!");
+    }
     
     // Settings button removed - no event handler needed
     
@@ -450,6 +458,10 @@ void UICoordinator::setupEventHandlers()
 //==============================================================================
 void UICoordinator::setActiveView(ViewMode mode)
 {
+    juce::Logger::writeToLog("UICoordinator::setActiveView - Switching to " + 
+                            juce::String(mode == ViewMode::Sequencer ? "Sequencer" :
+                                       mode == ViewMode::Mixer ? "Mixer" : "Settings"));
+    
     m_activeView = mode;
     
     // Update visibility
@@ -459,6 +471,8 @@ void UICoordinator::setActiveView(ViewMode mode)
     // Create placeholder Component if MixerView doesn't exist yet
     if (mode == ViewMode::Mixer && !m_mixerView && !m_mixerPlaceholder)
     {
+        juce::Logger::writeToLog("UICoordinator: Mixer requested but no MixerView - creating placeholder");
+        
         // Create a placeholder component with basic UI
         m_mixerPlaceholder = std::make_unique<juce::Component>();
         m_contentContainer->addAndMakeVisible(m_mixerPlaceholder.get());
@@ -474,9 +488,17 @@ void UICoordinator::setActiveView(ViewMode mode)
     }
     
     if (m_mixerView)
+    {
         m_mixerView->setVisible(mode == ViewMode::Mixer);
+        juce::Logger::writeToLog("UICoordinator: MixerView visibility set to " + 
+                                juce::String(mode == ViewMode::Mixer ? "true" : "false"));
+    }
     else if (m_mixerPlaceholder)
+    {
         m_mixerPlaceholder->setVisible(mode == ViewMode::Mixer);
+        juce::Logger::writeToLog("UICoordinator: MixerPlaceholder visibility set to " + 
+                                juce::String(mode == ViewMode::Mixer ? "true" : "false"));
+    }
     
     // Settings view will be implemented later
     
@@ -659,44 +681,45 @@ void UICoordinator::resized()
     if (m_sequencerTabButton)
     {
         m_sequencerTabButton->setBounds(leftX, buttonY, TAB_WIDTH, UNIFIED_BUTTON_HEIGHT);
+        m_sequencerTabButton->toFront(false);  // Ensure button is on top
         leftX += TAB_WIDTH + UNIFIED_SPACING;
     }
     if (m_mixerTabButton)
     {
         m_mixerTabButton->setBounds(leftX, buttonY, TAB_WIDTH, UNIFIED_BUTTON_HEIGHT);
+        m_mixerTabButton->toFront(false);  // Ensure button is on top
+        juce::Logger::writeToLog("UICoordinator: Mixer button bounds set to: " + 
+                                juce::String(leftX) + ", " + juce::String(buttonY) + ", " +
+                                juce::String(TAB_WIDTH) + ", " + juce::String(UNIFIED_BUTTON_HEIGHT));
         leftX += TAB_WIDTH + UNIFIED_SPACING;
     }
     // Settings tab removed - no longer needed
     
-    // Scale slot selector - positioned normally after tabs
+    // Scale slot selector - position it after the buttons so it doesn't block them
     if (m_scaleSlotSelector)
     {
-        // Calculate realistic width for 8 scale slots + controls (adjusted for 120px total shift)
-        const int SCALE_BUTTON_WIDTH = 43;  // Reduced to fit with two slot widths shift
-        const int ROOT_BUTTON_WIDTH = 40;   // Smaller root selector
-        const int AUTO_BUTTON_WIDTH = 45;   // Smaller auto button
-        const int AUTO_MENU_WIDTH = 50;     // Auto menu button
-        const int ARROW_WIDTH = 28;         // Arrow buttons
-        const int SCALE_SPACING = 4;        // Tighter spacing between scale buttons
-        const int NORMAL_SPACING = 8;       // Normal spacing
+        // Calculate the width needed for scale selector (approximately)
+        const int SCALE_SELECTOR_WIDTH = 600;  // Approximate width for scale selector content
         
-        // Total width: arrows + 8 buttons + root + auto + auto menu + spacing
-        int scaleSelectorWidth = (2 * ARROW_WIDTH) + (8 * SCALE_BUTTON_WIDTH) + ROOT_BUTTON_WIDTH + 
-                                AUTO_BUTTON_WIDTH + AUTO_MENU_WIDTH + (10 * SCALE_SPACING) + (2 * NORMAL_SPACING);
+        // Position it after the navigation buttons, or center if there's enough space
+        int scaleSelectorX = leftX + UNIFIED_SPACING * 2;  // After mixer button with gap
         
-        // Position after tabs with some spacing, plus shift right by two scale slot widths
-        int scaleSelectorX = leftX + UNIFIED_SPACING * 2 + 30 + (SCALE_BUTTON_WIDTH * 2);  // Shifted by 30px + 90px (two slot widths)
-        
-        // Check if it fits in available space
-        int availableWidth = secondBarArea.getWidth() - scaleSelectorX - UNIFIED_MARGIN;
-        if (scaleSelectorWidth > availableWidth)
+        // If there's enough space, center it in the remaining area
+        int remainingWidth = secondBarArea.getWidth() - scaleSelectorX;
+        if (remainingWidth > SCALE_SELECTOR_WIDTH)
         {
-            // If too wide, make it fit
-            scaleSelectorWidth = availableWidth;
+            scaleSelectorX += (remainingWidth - SCALE_SELECTOR_WIDTH) / 2;
         }
         
-        // Set bounds with unified height
-        m_scaleSlotSelector->setBounds(scaleSelectorX, buttonY, scaleSelectorWidth, UNIFIED_BUTTON_HEIGHT);
+        // Set bounds so it doesn't overlap the navigation buttons
+        m_scaleSlotSelector->setBounds(scaleSelectorX, buttonY, 
+                                       juce::jmin(SCALE_SELECTOR_WIDTH, remainingWidth), 
+                                       UNIFIED_BUTTON_HEIGHT);
+        
+        juce::Logger::writeToLog("UICoordinator: Scale selector bounds: " + 
+                                juce::String(scaleSelectorX) + ", " + juce::String(buttonY) + ", " +
+                                juce::String(juce::jmin(SCALE_SELECTOR_WIDTH, remainingWidth)) + ", " + 
+                                juce::String(UNIFIED_BUTTON_HEIGHT));
     }
     
     // Content area
@@ -818,22 +841,30 @@ void UICoordinator::layoutMixerView()
         return;
         
     auto bounds = m_contentContainer->getLocalBounds();
+    juce::Logger::writeToLog("UICoordinator::layoutMixerView - bounds: " + 
+                            bounds.toString());
     
     if (m_mixerView)
     {
         m_mixerView->setBounds(bounds);
         m_mixerView->setVisible(true);  // Ensure it's visible
+        juce::Logger::writeToLog("UICoordinator: MixerView bounds set and made visible");
     }
     else if (m_mixerPlaceholder)
     {
         m_mixerPlaceholder->setBounds(bounds);
         m_mixerPlaceholder->setVisible(true);  // Ensure it's visible
+        juce::Logger::writeToLog("UICoordinator: MixerPlaceholder bounds set and made visible");
         
         // Position the label
         if (m_mixerPlaceholder->getNumChildComponents() > 0)
         {
             m_mixerPlaceholder->getChildComponent(0)->setBounds(bounds);
         }
+    }
+    else
+    {
+        juce::Logger::writeToLog("UICoordinator: WARNING - No MixerView or placeholder to layout!");
     }
 }
 

@@ -161,6 +161,9 @@ private:
         "F#", "G", "G#", "A", "A#", "B"
     };
     
+    // Position tracking for alignment
+    int m_scaleSlotsStartX = 0;
+    
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ScaleSlotSelector)
 };
 

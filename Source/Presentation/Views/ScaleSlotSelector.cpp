@@ -285,40 +285,60 @@ void ScaleSlotSelector::resized()
 {
     auto bounds = getLocalBounds();
     
-    // UNIFIED LAYOUT: Use exact same dimensions as TransportBar
-    const int UNIFIED_BUTTON_HEIGHT = 36;  // Same height everywhere
-    const int SCALE_SPACING = 4;           // Tighter spacing for scale buttons
-    const int UNIFIED_SPACING = 8;         // Normal spacing for other elements
+    // UNIFIED GRID LAYOUT: Centered and aligned with TransportBar
+    const int UNIFIED_BUTTON_HEIGHT = 36;   // Same height everywhere
+    const int UNIFIED_BUTTON_WIDTH = 43;    // Match pattern button width
+    const int TIGHT_SPACING = 4;            // Between buttons in 8-button groups
+    const int UNIFIED_SPACING = 8;          // Between different button groups
     
     int buttonY = (bounds.getHeight() - UNIFIED_BUTTON_HEIGHT) / 2;  // Center vertically
-    int currentX = SCALE_SPACING;
     
-    // Left arrow (unified height)
-    m_leftArrowButton->setBounds(currentX, buttonY, 28, UNIFIED_BUTTON_HEIGHT);
-    currentX += 28 + SCALE_SPACING;
+    // Calculate total width of scale slot group
+    const int ARROW_WIDTH = 28;
+    const int CONTROL_BUTTON_WIDTH = 45;
+    const int MENU_BUTTON_WIDTH = 55;
     
-    // 8 scale slots (optimized for space with 120px total shift)
-    int slotWidth = 43;  // Reduced to fit with two slot widths shift
+    int scaleGroupWidth = ARROW_WIDTH + TIGHT_SPACING +              // Left arrow
+                         (8 * UNIFIED_BUTTON_WIDTH) +                // 8 scale slots
+                         (7 * TIGHT_SPACING) +                       // Spacing between slots
+                         TIGHT_SPACING + ARROW_WIDTH +               // Right arrow
+                         UNIFIED_SPACING +                           // Gap before controls
+                         CONTROL_BUTTON_WIDTH + TIGHT_SPACING +      // Root button
+                         CONTROL_BUTTON_WIDTH + TIGHT_SPACING +      // Auto button
+                         MENU_BUTTON_WIDTH;                          // Auto menu
+    
+    // Center the scale group horizontally
+    int scaleGroupX = (bounds.getWidth() - scaleGroupWidth) / 2;
+    int currentX = scaleGroupX;
+    
+    // Left arrow
+    m_leftArrowButton->setBounds(currentX, buttonY, ARROW_WIDTH, UNIFIED_BUTTON_HEIGHT);
+    currentX += ARROW_WIDTH + TIGHT_SPACING;
+    
+    // Store the scale slots start position for external reference
+    m_scaleSlotsStartX = currentX;
+    
+    // 8 scale slots - using exact same width and spacing as pattern buttons
     for (int i = 0; i < 8; ++i)
     {
-        m_slotButtons[i]->setBounds(currentX, buttonY, slotWidth, UNIFIED_BUTTON_HEIGHT);
-        currentX += slotWidth + SCALE_SPACING;  // Tight spacing between slots
+        m_slotButtons[i]->setBounds(currentX, buttonY, UNIFIED_BUTTON_WIDTH, UNIFIED_BUTTON_HEIGHT);
+        currentX += UNIFIED_BUTTON_WIDTH + TIGHT_SPACING;
     }
     
-    // Right arrow (unified height)
-    m_rightArrowButton->setBounds(currentX, buttonY, 28, UNIFIED_BUTTON_HEIGHT);
-    currentX += 28 + UNIFIED_SPACING;
+    // Right arrow
+    m_rightArrowButton->setBounds(currentX, buttonY, ARROW_WIDTH, UNIFIED_BUTTON_HEIGHT);
+    currentX += ARROW_WIDTH + UNIFIED_SPACING;
     
-    // Root note button (smaller)
-    m_rootNoteButton->setBounds(currentX, buttonY, 40, UNIFIED_BUTTON_HEIGHT);
-    currentX += 40 + UNIFIED_SPACING;
+    // Root note button
+    m_rootNoteButton->setBounds(currentX, buttonY, CONTROL_BUTTON_WIDTH, UNIFIED_BUTTON_HEIGHT);
+    currentX += CONTROL_BUTTON_WIDTH + TIGHT_SPACING;
     
-    // Auto mode button (smaller)
-    m_autoModeButton->setBounds(currentX, buttonY, 45, UNIFIED_BUTTON_HEIGHT);
-    currentX += 45;
+    // Auto mode button
+    m_autoModeButton->setBounds(currentX, buttonY, CONTROL_BUTTON_WIDTH, UNIFIED_BUTTON_HEIGHT);
+    currentX += CONTROL_BUTTON_WIDTH + TIGHT_SPACING;
     
-    // Auto mode menu (smaller)
-    m_autoModeMenuButton->setBounds(currentX, buttonY, 50, UNIFIED_BUTTON_HEIGHT);
+    // Auto mode menu
+    m_autoModeMenuButton->setBounds(currentX, buttonY, MENU_BUTTON_WIDTH, UNIFIED_BUTTON_HEIGHT);
 }
 
 void ScaleSlotSelector::layoutSlots()

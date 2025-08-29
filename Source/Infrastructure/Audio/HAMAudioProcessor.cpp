@@ -12,6 +12,7 @@
 #include "HAMAudioProcessor.h"
 #include "../../Presentation/Views/MainEditor.h"
 #include "../Plugins/PluginWindowManager.h"
+#include "../Messaging/MessageTypes.h"
 #include <chrono>
 
 namespace HAM
@@ -38,6 +39,9 @@ HAMAudioProcessor::HAMAudioProcessor()
     // Initialize message dispatcher for UI communication
     m_messageDispatcher = std::make_unique<MessageDispatcher>();
     m_messageQueue = std::make_unique<LockFreeMessageQueue<UIToEngineMessage, 2048>>();
+    
+    // Register message handlers for transport control
+    setupMessageHandlers();
     
     // Initialize default pattern
     m_currentPattern = std::make_unique<Pattern>();
@@ -200,6 +204,16 @@ bool HAMAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
 void HAMAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
                                     juce::MidiBuffer& midiMessages)
 {
+    // Debug: Log first few calls to verify processBlock is being called
+    static int processCallCount = 0;
+    if (processCallCount < 10)
+    {
+        DBG("HAMAudioProcessor::processBlock() - Call #" + juce::String(++processCallCount));
+        DBG("  - Transport is playing: " + juce::String(m_transport ? (m_transport->isPlaying() ? "YES" : "NO") : "NO TRANSPORT"));
+        DBG("  - Sample rate: " + juce::String(m_currentSampleRate));
+        DBG("  - Block size: " + juce::String(buffer.getNumSamples()));
+    }
+    
     // Check if already processing (atomic flag for re-entrancy protection)
     if (m_isProcessing.exchange(true))
     {
@@ -259,14 +273,18 @@ void HAMAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     
     // ============================================================================
     // CRITICAL FIX: Process plugins with the plugin graph!
-    // This was missing in the original implementation
+    // The midiMessages buffer contains MIDI from the sequencer that must be
+    // passed to the plugin graph for routing to instruments
     // ============================================================================
     if (m_pluginGraph)
     {
         // The plugin graph will:
-        // 1. Route MIDI to loaded instrument plugins
+        // 1. Route MIDI to loaded instrument plugins via MIDI input node
         // 2. Process audio through the plugin chain
         // 3. Mix plugin outputs to the main audio buffer
+        //
+        // IMPORTANT: The midiMessages buffer is automatically injected into
+        // the MIDI input node when we call processBlock()
         m_pluginGraph->processBlock(buffer, midiMessages);
     }
     else
@@ -448,7 +466,10 @@ void HAMAudioProcessor::reconnectTrackRouting(int trackIndex)
     
     if (chain->instrumentNode)
     {
-        // Route MIDI to instrument (on track's MIDI channel)
+        // FIXED: Connect MIDI input to instrument
+        // When processBlock() is called with a midiMessages buffer,
+        // that buffer is automatically injected into the MIDI input node,
+        // so this connection will receive the sequencer's MIDI output
         m_pluginGraph->addConnection(
             {{m_midiInputNode->nodeID, juce::AudioProcessorGraph::midiChannelIndex},
              {chain->instrumentNode->nodeID, juce::AudioProcessorGraph::midiChannelIndex}});
@@ -475,11 +496,51 @@ void HAMAudioProcessor::reconnectTrackRouting(int trackIndex)
 }
 
 //==============================================================================
+// Message Handler Setup
+void HAMAudioProcessor::setupMessageHandlers()
+{
+    if (!m_messageDispatcher)
+        return;
+    
+    // Register handlers for transport control messages
+    m_messageDispatcher->registerUIHandler(UIToEngineMessage::TRANSPORT_PLAY,
+        [this](const UIToEngineMessage& msg)
+        {
+            DBG("HAMAudioProcessor: Handling TRANSPORT_PLAY message");
+            play();
+        });
+    
+    m_messageDispatcher->registerUIHandler(UIToEngineMessage::TRANSPORT_STOP,
+        [this](const UIToEngineMessage& msg)
+        {
+            DBG("HAMAudioProcessor: Handling TRANSPORT_STOP message");
+            stop();
+        });
+    
+    m_messageDispatcher->registerUIHandler(UIToEngineMessage::TRANSPORT_PAUSE,
+        [this](const UIToEngineMessage& msg)
+        {
+            DBG("HAMAudioProcessor: Handling TRANSPORT_PAUSE message");
+            if (m_transport)
+                m_transport->pause();
+        });
+    
+    m_messageDispatcher->registerUIHandler(UIToEngineMessage::SET_BPM,
+        [this](const UIToEngineMessage& msg)
+        {
+            DBG("HAMAudioProcessor: Handling SET_BPM message: " + juce::String(msg.data.floatParam.value));
+            if (m_masterClock)
+                m_masterClock->setBPM(msg.data.floatParam.value);
+        });
+}
+
+//==============================================================================
 // UI Message Processing
 void HAMAudioProcessor::processUIMessages()
 {
     if (m_messageDispatcher)
     {
+        // Process messages - handlers are already registered
         m_messageDispatcher->processUIMessages(10);
     }
 }
@@ -510,6 +571,30 @@ juce::AudioProcessorEditor* HAMAudioProcessor::createEditor()
 
 //==============================================================================
 // Transport Control
+void HAMAudioProcessor::play()
+{
+    DBG("HAMAudioProcessor::play() called");
+    if (m_transport)
+    {
+        DBG("HAMAudioProcessor: Calling transport->play()");
+        m_transport->play();
+        
+        // Verify transport actually started
+        if (m_transport->isPlaying())
+        {
+            DBG("HAMAudioProcessor: Transport confirmed playing");
+        }
+        else
+        {
+            DBG("HAMAudioProcessor: WARNING - Transport failed to start!");
+        }
+    }
+    else
+    {
+        DBG("HAMAudioProcessor: ERROR - No transport available!");
+    }
+}
+
 void HAMAudioProcessor::stop()
 {
     if (m_transport)

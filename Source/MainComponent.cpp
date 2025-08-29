@@ -24,9 +24,15 @@ MainComponent::MainComponent()
     m_mainWindow = std::make_unique<HAM::UI::MainWindow>();
     
     // Connect the AudioProcessor from AppController to UICoordinator
+    // IMPORTANT: This connection is critical for MixerView to work!
     if (m_appController->getAudioProcessor())
     {
+        juce::Logger::writeToLog("MainComponent: Connecting AudioProcessor to UICoordinator");
         m_uiCoordinator->setAudioProcessor(m_appController->getAudioProcessor());
+    }
+    else
+    {
+        juce::Logger::writeToLog("WARNING: AudioProcessor not available from AppController!");
     }
     
     // Add UI coordinator as the main content

@@ -62,23 +62,52 @@ MixerView::~MixerView()
 
 void MixerView::paint(juce::Graphics& g)
 {
-    g.fillAll(juce::Colour(0xff0a0a0a));
+    // Dark gradient background for depth
+    juce::ColourGradient bgGradient(
+        juce::Colour(0xff0a0a0a), 0, 0,
+        juce::Colour(0xff050505), 0, static_cast<float>(getHeight()),
+        false
+    );
+    g.setGradientFill(bgGradient);
+    g.fillAll();
     
-    // Master section divider
-    g.setColour(juce::Colour(0xff2a2a2a));
-    g.drawLine(getWidth() - 120, 0, getWidth() - 120, getHeight(), 2);
+    // Master section divider with glow effect
+    const int masterDividerX = getWidth() - 150;  // Wider master section
+    
+    // Glow effect
+    g.setColour(juce::Colour(0xff2a2a2a).withAlpha(0.3f));
+    g.fillRect(masterDividerX - 2, 0, 4, getHeight());
+    
+    // Main divider line
+    g.setColour(juce::Colour(0xff3a3a3a));
+    g.fillRect(masterDividerX, 0, 1, getHeight());
 }
 
 void MixerView::resized()
 {
     auto bounds = getLocalBounds();
     
-    // Master section on the right
-    auto masterBounds = bounds.removeFromRight(120);
-    m_masterLabel.setBounds(masterBounds.removeFromTop(40).reduced(5));
-    m_masterVolume.setBounds(masterBounds.removeFromTop(200).reduced(20, 10));
+    // Master section on the right (wider for better control)
+    auto masterBounds = bounds.removeFromRight(150);
+    masterBounds.reduce(10, 10);  // Add padding
     
-    // Tracks viewport
+    // Master label with better spacing
+    auto masterLabelBounds = masterBounds.removeFromTop(50);
+    m_masterLabel.setBounds(masterLabelBounds);
+    m_masterLabel.setFont(juce::Font(juce::FontOptions(18.0f)).withStyle(juce::Font::bold));
+    
+    // Master volume fader (taller for precision)
+    masterBounds.removeFromTop(20);  // Spacing
+    auto masterFaderBounds = masterBounds.removeFromTop(300);
+    m_masterVolume.setBounds(masterFaderBounds.reduced(25, 10));
+    
+    // Style the master fader
+    m_masterVolume.setColour(juce::Slider::backgroundColourId, juce::Colour(0xff1a1a1a));
+    m_masterVolume.setColour(juce::Slider::trackColourId, juce::Colour(0xff00ff88));
+    m_masterVolume.setColour(juce::Slider::thumbColourId, juce::Colour(0xffffffff));
+    
+    // Tracks viewport with small margin
+    bounds.reduce(5, 5);
     m_viewport.setBounds(bounds);
     
     layoutChannels();
@@ -106,17 +135,51 @@ void MixerView::createChannelStrips()
 
 void MixerView::layoutChannels()
 {
-    const int stripWidth = 100;
-    const int totalWidth = stripWidth * static_cast<int>(m_channelStrips.size());
+    // Calculate optimal channel strip width
+    const int minStripWidth = 120;  // Minimum for usability
+    const int maxStripWidth = 180;  // Maximum to prevent over-stretching
+    const int preferredStripWidth = 140;  // Ideal width
+    const int stripSpacing = 2;  // Small gap between strips
     
-    m_channelContainer.setSize(totalWidth, getHeight());
+    int viewportWidth = m_viewport.getWidth();
+    int numStrips = static_cast<int>(m_channelStrips.size());
     
+    if (numStrips == 0) return;
+    
+    // Calculate strip width based on available space
+    int stripWidth = preferredStripWidth;
+    int totalPreferredWidth = (preferredStripWidth + stripSpacing) * numStrips;
+    
+    // If strips fit in viewport at preferred width, center them or stretch slightly
+    if (totalPreferredWidth <= viewportWidth)
+    {
+        // Distribute available space evenly if there's room
+        stripWidth = std::min(maxStripWidth, 
+                             (viewportWidth - stripSpacing * (numStrips - 1)) / numStrips);
+    }
+    else
+    {
+        // Use preferred width and allow horizontal scrolling
+        stripWidth = preferredStripWidth;
+    }
+    
+    // Ensure minimum width
+    stripWidth = std::max(minStripWidth, stripWidth);
+    
+    // Calculate total width needed
+    const int totalWidth = (stripWidth + stripSpacing) * numStrips - stripSpacing;
+    m_channelContainer.setSize(totalWidth, m_viewport.getHeight());
+    
+    // Position each strip with spacing
     int x = 0;
     for (auto& strip : m_channelStrips)
     {
-        strip->setBounds(x, 0, stripWidth, getHeight());
-        x += stripWidth;
+        strip->setBounds(x, 0, stripWidth, m_viewport.getHeight());
+        x += stripWidth + stripSpacing;
     }
+    
+    // Update scrollbar visibility
+    m_viewport.setScrollBarsShown(false, totalWidth > viewportWidth);
 }
 
 void MixerView::onPluginSelected(int channelIndex, const juce::PluginDescription& desc)
@@ -364,44 +427,139 @@ MixerView::ChannelStrip::ChannelStrip(int channelIndex, HAMAudioProcessor& proce
 
 void MixerView::ChannelStrip::paint(juce::Graphics& g)
 {
-    // Background
-    g.fillAll(juce::Colour(0xff151515));
+    auto bounds = getLocalBounds();
     
-    // Track color strip at top
-    g.setColour(getTrackColor());
-    g.fillRect(0, 0, getWidth(), 3);
+    // Gradient background for depth
+    juce::ColourGradient bgGradient(
+        juce::Colour(0xff1a1a1a), bounds.getCentreX(), 0,
+        juce::Colour(0xff0f0f0f), bounds.getCentreX(), bounds.getHeight(),
+        false
+    );
+    g.setGradientFill(bgGradient);
+    g.fillRoundedRectangle(bounds.toFloat(), 4.0f);
+    
+    // Subtle border
+    g.setColour(juce::Colour(0xff2a2a2a));
+    g.drawRoundedRectangle(bounds.toFloat().reduced(0.5f), 4.0f, 1.0f);
+    
+    // Track color accent at top (thicker and gradient)
+    auto trackColor = getTrackColor();
+    auto colorStrip = bounds.removeFromTop(4);
+    
+    juce::ColourGradient colorGradient(
+        trackColor.withAlpha(0.9f), colorStrip.getCentreX(), colorStrip.getY(),
+        trackColor.withAlpha(0.4f), colorStrip.getCentreX(), colorStrip.getBottom(),
+        false
+    );
+    g.setGradientFill(colorGradient);
+    g.fillRect(colorStrip);
+    
+    // Add glow effect under color strip
+    g.setColour(trackColor.withAlpha(0.2f));
+    g.fillRect(bounds.removeFromTop(10));
+    
+    // Level meter background (placeholder for future implementation)
+    auto meterArea = getLocalBounds().removeFromBottom(100).removeFromTop(80).reduced(15, 0);
+    g.setColour(juce::Colour(0xff0a0a0a));
+    g.fillRoundedRectangle(meterArea.toFloat(), 2.0f);
+    
+    // Fake level meter bars for visual appeal
+    g.setColour(juce::Colour(0xff00ff88).withAlpha(0.7f));
+    auto leftMeter = meterArea.removeFromLeft(meterArea.getWidth() / 2 - 2);
+    auto rightMeter = meterArea.removeFromRight(meterArea.getWidth() - 2);
+    
+    // Simulate some level
+    float level = 0.6f + (0.2f * std::sin(juce::Time::currentTimeMillis() * 0.001f + m_channelIndex));
+    int meterHeight = static_cast<int>(leftMeter.getHeight() * level);
+    
+    g.fillRect(leftMeter.removeFromBottom(meterHeight));
+    g.fillRect(rightMeter.removeFromBottom(meterHeight));
 }
 
 void MixerView::ChannelStrip::resized()
 {
     auto bounds = getLocalBounds();
+    bounds.reduce(8, 8);  // Overall padding
     
-    // Track label
-    m_channelLabel.setBounds(bounds.removeFromTop(30).reduced(5));
+    // Skip track color area
+    bounds.removeFromTop(14);  // Space for color strip and glow
     
-    // Plugin slot - THE KEY UI ELEMENT
-    m_pluginSlot.setBounds(bounds.removeFromTop(30).reduced(5, 2));
+    // Track label - larger and centered
+    auto labelBounds = bounds.removeFromTop(35);
+    m_channelLabel.setBounds(labelBounds);
+    m_channelLabel.setFont(juce::Font(juce::FontOptions(14.0f)).withStyle(juce::Font::bold));
+    m_channelLabel.setJustificationType(juce::Justification::centred);
     
-    // Plugin controls (when loaded)
+    bounds.removeFromTop(5);  // Spacing
+    
+    // Plugin slot - prominent button
+    auto pluginBounds = bounds.removeFromTop(36);
+    m_pluginSlot.setBounds(pluginBounds.reduced(4, 2));
+    
+    // Style the plugin button
+    m_pluginSlot.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff2a2a2a));
+    m_pluginSlot.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff3a3a3a));
+    m_pluginSlot.setColour(juce::TextButton::textColourOffId, 
+                           m_hasPlugin ? juce::Colours::white : juce::Colours::grey);
+    
+    bounds.removeFromTop(4);  // Spacing
+    
+    // Plugin controls (when loaded) - better layout
     if (m_hasPlugin)
     {
-        auto controlArea = bounds.removeFromTop(25);
-        int buttonWidth = controlArea.getWidth() / 3;
-        m_deleteButton.setBounds(controlArea.removeFromLeft(buttonWidth).reduced(1));
-        m_bypassButton.setBounds(controlArea.removeFromLeft(buttonWidth).reduced(1));
-        m_editButton.setBounds(controlArea.reduced(1));
+        auto controlArea = bounds.removeFromTop(28);
+        int buttonWidth = (controlArea.getWidth() - 8) / 3;  // Account for gaps
+        
+        m_editButton.setBounds(controlArea.removeFromLeft(buttonWidth));
+        controlArea.removeFromLeft(4);  // Gap
+        m_bypassButton.setBounds(controlArea.removeFromLeft(buttonWidth));
+        controlArea.removeFromLeft(4);  // Gap
+        m_deleteButton.setBounds(controlArea);
+        
+        // Style the control buttons
+        m_editButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff004466));
+        m_bypassButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff666644));
+        m_deleteButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff662222));
+        
+        bounds.removeFromTop(4);
     }
     
-    // Mute/Solo
-    auto muteSoloArea = bounds.removeFromTop(30);
-    m_muteButton.setBounds(muteSoloArea.removeFromLeft(getWidth() / 2).reduced(2));
-    m_soloButton.setBounds(muteSoloArea.reduced(2));
+    bounds.removeFromTop(8);  // More spacing
     
-    // Pan knob
-    m_panSlider.setBounds(bounds.removeFromTop(50).reduced(10));
+    // Pan knob - larger and centered
+    auto panArea = bounds.removeFromTop(60);
+    int knobSize = 50;
+    m_panSlider.setBounds(panArea.withSizeKeepingCentre(knobSize, knobSize));
     
-    // Volume fader
-    m_volumeSlider.setBounds(bounds.removeFromTop(120).reduced(10, 0));
+    // Style the pan knob
+    m_panSlider.setColour(juce::Slider::rotarySliderFillColourId, getTrackColor().withAlpha(0.7f));
+    m_panSlider.setColour(juce::Slider::rotarySliderOutlineColourId, juce::Colour(0xff2a2a2a));
+    m_panSlider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
+    
+    bounds.removeFromTop(8);  // Spacing
+    
+    // Mute/Solo - side by side with better styling
+    auto muteSoloArea = bounds.removeFromTop(32);
+    int buttonSpacing = 4;
+    int halfWidth = (muteSoloArea.getWidth() - buttonSpacing) / 2;
+    
+    m_muteButton.setBounds(muteSoloArea.removeFromLeft(halfWidth));
+    muteSoloArea.removeFromLeft(buttonSpacing);
+    m_soloButton.setBounds(muteSoloArea);
+    
+    bounds.removeFromTop(12);  // Spacing before fader
+    
+    // Volume fader - taller and centered
+    auto faderArea = bounds.removeFromTop(200);
+    int faderWidth = 40;
+    m_volumeSlider.setBounds(faderArea.withSizeKeepingCentre(faderWidth, faderArea.getHeight()));
+    
+    // Style the volume fader
+    m_volumeSlider.setColour(juce::Slider::backgroundColourId, juce::Colour(0xff0a0a0a));
+    m_volumeSlider.setColour(juce::Slider::trackColourId, getTrackColor().withAlpha(0.6f));
+    m_volumeSlider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
+    
+    // Leave space at bottom for level meters (painted in paint())
 }
 
 void MixerView::ChannelStrip::buttonClicked(juce::Button* button)

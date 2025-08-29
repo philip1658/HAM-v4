@@ -80,8 +80,46 @@ public:
         }
     }
     
+    void clicked() override
+    {
+        juce::Logger::writeToLog("IconButton::clicked() - " + getName() + " button was clicked!");
+        
+        // Log if onClick is set
+        if (onClick)
+        {
+            juce::Logger::writeToLog("IconButton::clicked() - onClick handler exists, calling it");
+        }
+        else
+        {
+            juce::Logger::writeToLog("IconButton::clicked() - WARNING: No onClick handler set!");
+        }
+        
+        Button::clicked();  // Call parent class to trigger onClick callback
+    }
+    
+    void mouseDown(const juce::MouseEvent& event) override
+    {
+        juce::Logger::writeToLog("IconButton::mouseDown() - " + getName() + " at position (" + 
+                                juce::String(event.x) + ", " + juce::String(event.y) + ")");
+        Button::mouseDown(event);
+    }
+    
+    void mouseEnter(const juce::MouseEvent& event) override
+    {
+        juce::Logger::writeToLog("IconButton::mouseEnter() - " + getName());
+        Button::mouseEnter(event);
+    }
+    
+    void mouseExit(const juce::MouseEvent& event) override
+    {
+        juce::Logger::writeToLog("IconButton::mouseExit() - " + getName());
+        Button::mouseExit(event);
+    }
+    
     void setActive(bool active) 
     { 
+        juce::Logger::writeToLog("IconButton::setActive() - " + getName() + " active=" + 
+                                juce::String(active ? "true" : "false"));
         m_isActive = active;
         repaint();
     }

@@ -52,6 +52,13 @@ void MasterClock::start()
         // Reset sample counter to ensure immediate pulse generation
         m_preciseSampleCounter = 0;
         
+        // Reset the firstProcess flag so we get debug output
+        static bool& firstProcessRef = []() -> bool& {
+            static bool fp = true;
+            return fp;
+        }();
+        firstProcessRef = true;
+        
         notifyClockStart();
     }
     else

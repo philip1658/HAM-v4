@@ -177,6 +177,9 @@ private:
     
     /** Reconnect audio routing for a track */
     void reconnectTrackRouting(int trackIndex);
+    
+    /** Setup message handlers for UI communication */
+    void setupMessageHandlers();
     //==============================================================================
     // MasterClock::Listener overrides
     

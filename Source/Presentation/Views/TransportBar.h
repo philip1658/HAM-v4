@@ -155,89 +155,65 @@ public:
     
     // Resize override
     void resized() override {
-        // UNIFIED LAYOUT: Use same spacing as second bar
+        // UNIFIED GRID LAYOUT: Centered button groups for visual balance
         const int UNIFIED_BUTTON_HEIGHT = scaled(36);
-        const int UNIFIED_SPACING = scaled(8);
+        const int UNIFIED_BUTTON_WIDTH = scaled(43);  // Standard width for 8-button groups
+        const int TIGHT_SPACING = scaled(4);          // Between buttons in 8-button groups
+        const int UNIFIED_SPACING = scaled(8);        // Between different button groups
         const int UNIFIED_MARGIN = scaled(8);
         
         auto bounds = getLocalBounds().reduced(UNIFIED_MARGIN);
+        int buttonY = (getHeight() - UNIFIED_BUTTON_HEIGHT) / 2;  // Center vertically
         
-        // Left Section: Transport buttons (compact but visible)
-        auto transportSection = bounds.removeFromLeft(scaled(140));
+        // Calculate total width of pattern button group
+        const int CONTROL_BUTTON_WIDTH = scaled(45);
+        int patternGroupWidth = (8 * UNIFIED_BUTTON_WIDTH) +  // 8 pattern buttons
+                               (7 * TIGHT_SPACING) +           // Spacing between patterns
+                               UNIFIED_SPACING +                // Gap before save/load
+                               (2 * CONTROL_BUTTON_WIDTH) +    // Save and Load buttons
+                               TIGHT_SPACING;                   // Space between save/load
         
-        // Play button (36px - matches other bars)
-        m_playButton->setBounds(transportSection.removeFromLeft(scaled(40))
-                                              .withSizeKeepingCentre(UNIFIED_BUTTON_HEIGHT, UNIFIED_BUTTON_HEIGHT));
-        transportSection.removeFromLeft(UNIFIED_SPACING);
+        // Center the pattern group horizontally
+        int patternGroupX = (getWidth() - patternGroupWidth) / 2;
+        int currentX = patternGroupX;
         
-        // Stop button (36px)
-        m_stopButton->setBounds(transportSection.removeFromLeft(scaled(40))
-                                              .withSizeKeepingCentre(UNIFIED_BUTTON_HEIGHT, UNIFIED_BUTTON_HEIGHT));
-        transportSection.removeFromLeft(UNIFIED_SPACING);
+        // Store the pattern start position for alignment with scale slots
+        m_patternStartX = currentX;  // We'll need to add this member variable
         
-        // Record button (36px)
-        m_recordButton->setBounds(transportSection.removeFromLeft(scaled(40))
-                                                .withSizeKeepingCentre(UNIFIED_BUTTON_HEIGHT, UNIFIED_BUTTON_HEIGHT));
-        
-        bounds.removeFromLeft(UNIFIED_SPACING * 2); // Visual separator
-        
-        // Tempo Section (compact)
-        auto tempoSection = bounds.removeFromLeft(scaled(120));
-        
-        // Tempo display (unified height)
-        auto tempoDisplayBounds = tempoSection.removeFromLeft(scaled(80))
-                                              .withSizeKeepingCentre(scaled(75), UNIFIED_BUTTON_HEIGHT);
-        m_tempoDisplay->setBounds(tempoDisplayBounds);
-        
-        tempoSection.removeFromLeft(UNIFIED_SPACING);
-        
-        // Tempo arrows (unified height)
-        auto arrowBounds = tempoSection.removeFromLeft(scaled(35))
-                                      .withSizeKeepingCentre(scaled(30), UNIFIED_BUTTON_HEIGHT);
-        m_tempoArrows->setBounds(arrowBounds);
-        
-        bounds.removeFromLeft(UNIFIED_SPACING * 2); // Visual separator
-        
-        // SHIFT PATTERN BLOCK RIGHT by 2 scale button widths (124px)
-        const int SHIFT_RIGHT = scaled(124);  // 2 scale buttons width
-        bounds.removeFromLeft(SHIFT_RIGHT);  // Add extra space before patterns
-        
-        // Pattern Section: All 8 patterns in single row (unified spacing)
-        auto patternSection = bounds.removeFromLeft(scaled(600));  // Adjusted for better spacing
-        
-        // Pattern selection buttons - now with unified height and spacing
-        auto patternButtonArea = patternSection.withSizeKeepingCentre(patternSection.getWidth(), UNIFIED_BUTTON_HEIGHT);
-        
-        const float PATTERN_BUTTON_WIDTH = scaled(45);  // Optimal size for 8 buttons
-        
-        // Single row - all 8 patterns with unified spacing
+        // Pattern Section: 8 buttons with consistent width and spacing
         for (size_t i = 0; i < 8 && i < m_patternButtons.size(); ++i) {
-            auto buttonBounds = patternButtonArea.removeFromLeft(PATTERN_BUTTON_WIDTH)
-                                                .withSizeKeepingCentre(PATTERN_BUTTON_WIDTH, UNIFIED_BUTTON_HEIGHT);
-            m_patternButtons[i]->setBounds(buttonBounds);
-            
-            if (i < 7) // Don't add spacing after last button
-                patternButtonArea.removeFromLeft(UNIFIED_SPACING);
+            m_patternButtons[i]->setBounds(currentX, buttonY, UNIFIED_BUTTON_WIDTH, UNIFIED_BUTTON_HEIGHT);
+            currentX += UNIFIED_BUTTON_WIDTH + TIGHT_SPACING;
         }
         
-        // Gap before save/load buttons
-        patternButtonArea.removeFromLeft(UNIFIED_SPACING * 3);
+        currentX += UNIFIED_SPACING;  // Gap before save/load
         
-        // Save/Load buttons aligned with pattern buttons
-        const auto SAVE_LOAD_WIDTH = scaled(50);
-        m_saveButton->setBounds(patternButtonArea.removeFromLeft(SAVE_LOAD_WIDTH)
-                                                .withSizeKeepingCentre(SAVE_LOAD_WIDTH, UNIFIED_BUTTON_HEIGHT));
-        patternButtonArea.removeFromLeft(UNIFIED_SPACING);
+        // Save/Load buttons
+        m_saveButton->setBounds(currentX, buttonY, CONTROL_BUTTON_WIDTH, UNIFIED_BUTTON_HEIGHT);
+        currentX += CONTROL_BUTTON_WIDTH + TIGHT_SPACING;
         
-        m_loadButton->setBounds(patternButtonArea.removeFromLeft(SAVE_LOAD_WIDTH)
-                                                .withSizeKeepingCentre(SAVE_LOAD_WIDTH, UNIFIED_BUTTON_HEIGHT));
+        m_loadButton->setBounds(currentX, buttonY, CONTROL_BUTTON_WIDTH, UNIFIED_BUTTON_HEIGHT);
         
-        // Right Section: Only MIDI LED remains
-        auto statusSection = bounds.removeFromRight(scaled(40));
+        // Left Section: Transport buttons (positioned to the left of center)
+        int transportX = UNIFIED_MARGIN * 2;
+        m_playButton->setBounds(transportX, buttonY, scaled(40), UNIFIED_BUTTON_HEIGHT);
+        transportX += scaled(40) + TIGHT_SPACING;
         
-        // MIDI LED (centered vertically on the right)
-        auto ledBounds = statusSection.removeFromRight(scaled(20))
-                                     .withSizeKeepingCentre(scaled(16), scaled(16));
+        m_stopButton->setBounds(transportX, buttonY, scaled(40), UNIFIED_BUTTON_HEIGHT);
+        transportX += scaled(40) + TIGHT_SPACING;
+        
+        m_recordButton->setBounds(transportX, buttonY, scaled(40), UNIFIED_BUTTON_HEIGHT);
+        
+        // Tempo Section (positioned after transport)
+        int tempoX = transportX + scaled(40) + UNIFIED_SPACING * 2;
+        m_tempoDisplay->setBounds(tempoX, buttonY, scaled(75), UNIFIED_BUTTON_HEIGHT);
+        tempoX += scaled(75) + TIGHT_SPACING;
+        
+        m_tempoArrows->setBounds(tempoX, buttonY, scaled(30), UNIFIED_BUTTON_HEIGHT);
+        
+        // Right Section: MIDI LED (far right)
+        auto ledBounds = bounds.removeFromRight(scaled(20))
+                              .withSizeKeepingCentre(scaled(16), scaled(16));
         m_midiActivityLED->setBounds(ledBounds);
     }
     
@@ -275,6 +251,9 @@ public:
     // Panic button removed - std::function<void()> onPanicClicked;
     
     bool isPlaying() const { return m_isPlaying; }
+    
+    // Get the X position where pattern buttons start (for alignment)
+    int getPatternStartX() const { return m_patternStartX; }
     
     // Public methods for external control
     void setMidiActivity(bool active) {
@@ -317,6 +296,7 @@ private:
     bool m_isPlaying = false;
     bool m_isRecording = false;
     float m_currentBPM = 120.0f;
+    int m_patternStartX = 0;  // Store pattern button start position for alignment
 };
 
 } // namespace HAM::UI
